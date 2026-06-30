@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CampusVibe Admin — Verification</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f7; color: #1d1d1f; min-height: 100vh; }
+    .page { max-width: 1100px; margin: 0 auto; padding: 32px 20px; }
+
+    /* Login */
+    .login-card { max-width: 380px; margin: 80px auto; background: #fff; border-radius: 16px; padding: 40px 32px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); text-align: center; }
+    .login-card h1 { font-size: 24px; margin-bottom: 8px; }
+    .login-card p { color: #86868b; margin-bottom: 24px; font-size: 14px; }
+    .login-card .field-group { text-align: left; margin-bottom: 14px; }
+    .login-card .field-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 4px; }
+    .login-card input { width: 100%; padding: 12px 16px; border: 1px solid #d2d2d7; border-radius: 10px; font-size: 15px; outline: none; transition: 0.2s; }
+    .login-card input:focus { border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,0.15); }
+    .login-card .error { color: #ff3b30; font-size: 13px; margin-bottom: 12px; }
+    .btn { padding: 10px 24px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    .btn:disabled { opacity: 0.5; cursor: default; }
+    .btn-primary { background: #0071e3; color: #fff; width: 100%; }
+    .btn-primary:hover:not(:disabled) { background: #0061c2; }
+    .btn-link { background: none; color: #0071e3; padding: 4px; font-size: 14px; }
+    .btn-link:hover { text-decoration: underline; }
+    .btn-approve { background: #34c759; color: #fff; }
+    .btn-approve:hover:not(:disabled) { background: #28a745; }
+    .btn-reject { background: #ff3b30; color: #fff; }
+    .btn-reject:hover:not(:disabled) { background: #dc3545; }
+    .btn-sm { padding: 6px 16px; font-size: 13px; border-radius: 8px; }
+
+    /* Header */
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .header h1 { font-size: 28px; }
+    .header .count { font-size: 14px; color: #86868b; background: #e8e8ed; padding: 4px 12px; border-radius: 20px; }
+    .logout-btn { background: none; border: 1px solid #d2d2d7; color: #1d1d1f; }
+    .logout-btn:hover { background: #f5f5f7; }
+    .header .admin-badge { font-size: 13px; color: #555; }
+
+    /* User cards */
+    .user-grid { display: grid; gap: 16px; }
+    .user-card { background: #fff; border-radius: 16px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); display: flex; gap: 24px; align-items: flex-start; }
+    .user-card .photo { width: 140px; height: 100px; border-radius: 10px; object-fit: cover; background: #f0f0f3; flex-shrink: 0; border: 1px solid #e8e8ed; }
+    .user-card .photo-placeholder { width: 140px; height: 100px; border-radius: 10px; background: #f0f0f3; display: flex; align-items: center; justify-content: center; color: #86868b; font-size: 13px; flex-shrink: 0; border: 1px solid #e8e8ed; }
+    .user-info { flex: 1; min-width: 0; }
+    .user-info h3 { font-size: 17px; margin-bottom: 2px; }
+    .user-info .email { color: #86868b; font-size: 13px; margin-bottom: 8px; }
+    .user-info .meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: #6e6e73; margin-bottom: 4px; }
+    .user-info .meta span { background: #f5f5f7; padding: 2px 10px; border-radius: 6px; }
+    .user-info .date { font-size: 12px; color: #a1a1a6; margin-top: 4px; }
+    .actions { display: flex; gap: 8px; margin-top: 12px; }
+    .actions .btn-sm { min-width: 90px; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1d1d1f; color: #fff; padding: 12px 24px; border-radius: 12px; font-size: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 100; opacity: 0; transition: 0.3s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .empty { text-align: center; padding: 60px 20px; color: #86868b; }
+    .empty h2 { font-size: 20px; margin-bottom: 8px; color: #1d1d1f; }
+    .spinner { border: 3px solid #e8e8ed; border-top-color: #0071e3; border-radius: 50%; width: 28px; height: 28px; animation: spin 0.8s linear infinite; margin: 60px auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 640px) { .user-card { flex-direction: column; } .user-card .photo, .user-card .photo-placeholder { width: 100%; height: 160px; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    (function () {
+      // ── Configuration ──────────────────────────────────────
+      const SUPABASE_URL = 'https://kvpqkcfevmmlsbxjbgyd.supabase.co';
+      const SUPABASE_ANON_KEY = 'sb_publishable_RjFVgowfCzJlECpdoQfWEQ_z01crUVQ';
+      const EDGE_FN_URL = SUPABASE_URL + '/functions/v1/notify-verification';
+
+      // ── Supabase client ────────────────────────────────────
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      // ── State ──────────────────────────────────────────────
+      let state = { loggedIn: false, users: [], loading: false, actionLoading: {}, session: null };
+
+      // ── Render ─────────────────────────────────────────────
+      function render() {
+        const app = document.getElementById('app');
+        if (!state.loggedIn) {
+          app.innerHTML = loginView();
+          document.getElementById('login-btn')?.addEventListener('click', handleLogin);
+          document.getElementById('password-input')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleLogin(); });
+          return;
+        }
+
+        app.innerHTML = dashboardView();
+
+        document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
+        document.getElementById('refresh-btn')?.addEventListener('click', fetchUsers);
+
+        document.querySelectorAll('[data-action]').forEach(el => {
+          el.addEventListener('click', () => {
+            const userId = el.dataset.userId;
+            const name = el.dataset.userName;
+            const email = el.dataset.userEmail;
+            const action = el.dataset.action;
+            handleAction(action, userId, email, name);
+          });
+        });
+      }
+
+      // ── Views ──────────────────────────────────────────────
+      function loginView() {
+        return `
+          <div class="page">
+            <div class="login-card">
+              <h1>CampusVibe Admin</h1>
+              <p>Student ID verification dashboard</p>
+              <div class="field-group">
+                <label for="email-input">Supabase Auth Email</label>
+                <input id="email-input" type="email" placeholder="admin@university.edu" />
+              </div>
+              <div class="field-group">
+                <label for="password-input">Password</label>
+                <input id="password-input" type="password" placeholder="Enter your Supabase password" />
+              </div>
+              <div id="login-error" class="error"></div>
+              <button id="login-btn" class="btn btn-primary">Log in</button>
+            </div>
+          </div>
+        `;
+      }
+
+      function dashboardView() {
+        const count = state.users.length;
+        const email = state.session?.user?.email || 'unknown';
+        return `
+          <div class="page">
+            <div class="header">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <h1>Verification Requests</h1>
+                <span class="count">${count} pending</span>
+                <span class="admin-badge">${escapeHtml(email)}</span>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button id="refresh-btn" class="btn btn-sm" style="background:#e8e8ed;">Refresh</button>
+                <button id="logout-btn" class="btn btn-sm logout-btn">Log out</button>
+              </div>
+            </div>
+
+            ${state.loading ? '<div class="spinner"></div>' : ''}
+
+            ${!state.loading && count === 0
+              ? `<div class="empty"><h2>All clear ✌️</h2><p>No pending verification requests.</p></div>`
+              : ''}
+
+            ${!state.loading && count > 0
+              ? `<div class="user-grid">${state.users.map(user => userCard(user)).join('')}</div>`
+              : ''}
+          </div>
+
+          <div id="toast" class="toast"></div>
+        `;
+      }
+
+      function userCard(user) {
+        const loading = state.actionLoading[user.id];
+        const hasPhoto = user.student_id_photo;
+        return `
+          <div class="user-card">
+            ${hasPhoto
+              ? `<img class="photo" src="${user.student_id_photo}" alt="Student ID" />`
+              : `<div class="photo-placeholder">No photo</div>`
+            }
+            <div class="user-info">
+              <h3>${escapeHtml(user.name)}</h3>
+              <div class="email">${escapeHtml(user.email)}</div>
+              <div class="meta">
+                <span>${escapeHtml(user.department || '—')}</span>
+                <span>${escapeHtml(user.year || '—')}</span>
+              </div>
+              <div class="date">Signed up: ${formatDate(user.created_at)}</div>
+              <div class="actions">
+                <button class="btn btn-sm btn-approve" data-action="approve" data-user-id="${user.id}" data-user-name="${escapeAttr(user.name)}" data-user-email="${escapeAttr(user.email)}" ${loading ? 'disabled' : ''}>
+                  ${loading ? '...' : '✓ Approve'}
+                </button>
+                <button class="btn btn-sm btn-reject" data-action="reject" data-user-id="${user.id}" data-user-name="${escapeAttr(user.name)}" data-user-email="${escapeAttr(user.email)}" ${loading ? 'disabled' : ''}>
+                  ${loading ? '...' : '✕ Reject'}
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // ── Helpers ────────────────────────────────────────────
+      function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str || '';
+        return div.innerHTML;
+      }
+
+      function escapeAttr(str) {
+        return (str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      function formatDate(iso) {
+        if (!iso) return '—';
+        const d = new Date(iso);
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+
+      function showToast(msg) {
+        const el = document.getElementById('toast');
+        if (!el) return;
+        el.textContent = msg;
+        el.classList.add('show');
+        setTimeout(() => el.classList.remove('show'), 3000);
+      }
+
+      // ── Actions ────────────────────────────────────────────
+      async function handleLogin() {
+        const emailEl = document.getElementById('email-input');
+        const passwordEl = document.getElementById('password-input');
+        const errorEl = document.getElementById('login-error');
+        if (!emailEl || !passwordEl || !errorEl) return;
+
+        const email = emailEl.value.trim();
+        const password = passwordEl.value;
+
+        if (!email || !password) {
+          errorEl.textContent = 'Please enter your email and password';
+          return;
+        }
+
+        errorEl.textContent = '';
+        document.getElementById('login-btn').disabled = true;
+        document.getElementById('login-btn').textContent = 'Logging in...';
+
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) throw new Error(error.message);
+
+          // Check admin status
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_admin')
+            .eq('id', data.user.id)
+            .single();
+
+          if (!profile?.is_admin) {
+            await supabase.auth.signOut();
+            errorEl.textContent = 'This account is not an admin';
+            document.getElementById('login-btn').disabled = false;
+            document.getElementById('login-btn').textContent = 'Log in';
+            return;
+          }
+
+          state.session = data;
+          state.loggedIn = true;
+          render();
+          fetchUsers();
+        } catch (e) {
+          errorEl.textContent = e.message || 'Login failed';
+          document.getElementById('login-btn').disabled = false;
+          document.getElementById('login-btn').textContent = 'Log in';
+        }
+      }
+
+      async function handleLogout() {
+        await supabase.auth.signOut();
+        state.loggedIn = false;
+        state.users = [];
+        state.session = null;
+        render();
+      }
+
+      async function fetchUsers() {
+        state.loading = true;
+        render();
+
+        try {
+          const res = await fetch(EDGE_FN_URL, {
+            headers: {
+              Authorization: `Bearer ${state.session.access_token}`,
+            },
+          });
+
+          if (res.status === 401 || res.status === 403) {
+            showToast('Session expired. Please log in again.');
+            handleLogout();
+            return;
+          }
+
+          if (!res.ok) {
+            const err = await res.text();
+            throw new Error(err || 'Failed to fetch users');
+          }
+          const data = await res.json();
+          state.users = data.users ?? [];
+        } catch (e) {
+          showToast('Error: ' + e.message);
+          state.users = [];
+        } finally {
+          state.loading = false;
+          render();
+        }
+      }
+
+      async function handleAction(action, userId, email, name) {
+        state.actionLoading[userId] = true;
+        render();
+
+        try {
+          const res = await fetch(EDGE_FN_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${state.session.access_token}`,
+            },
+            body: JSON.stringify({ action, user_id: userId, email, name }),
+          });
+
+          if (res.status === 401 || res.status === 403) {
+            showToast('Session expired. Please log in again.');
+            handleLogout();
+            return;
+          }
+
+          if (!res.ok) {
+            const err = await res.text();
+            throw new Error(err || 'Action failed');
+          }
+
+          state.users = state.users.filter(u => u.id !== userId);
+          const label = action === 'approve' ? 'approved' : 'rejected';
+          showToast(`${name} ${label}`);
+        } catch (e) {
+          showToast('Error: ' + e.message);
+        } finally {
+          delete state.actionLoading[userId];
+          render();
+        }
+      }
+
+      // ── Init ────────────────────────────────────────────────
+      render();
+    })();
+  </script>
+</body>
+</html>

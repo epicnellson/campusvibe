@@ -1,0 +1,26 @@
+[functions]
+
+[functions.profiles]
+verify_jwt = true
+import_map = "./import_map.json"
+
+[functions.moderate]
+verify_jwt = false
+import_map = "./import_map.json"
+
+[functions.admin]
+verify_jwt = true
+import_map = "./import_map.json"
+
+[functions.notify-verification]
+verify_jwt = true
+import_map = "./import_map.json"
+
+[auth]
+enabled = true
+site_url = "http://localhost:8081"
+additional_redirect_urls = [
+  "http://localhost:8081/*",
+  "https://*.supabase.co/*",
+  "campusvibe://*",
+]
