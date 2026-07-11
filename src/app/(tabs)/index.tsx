@@ -2,109 +2,99 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 import { router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { PostCard } from "@/components/post-card";
+import { ConfessionCard } from "@/components/confession-card";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { spacing, borderRadius, fontSize, fontWeight, colors, shadows } from "@/theme";
+import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
 import { useProfile } from "@/hooks/use-profile";
+import { useRefresh } from "@/hooks/use-refresh";
 import { fetchPosts } from "@/services/posts";
-import type { PostWithProfile } from "@/services/database.types";
+import { fetchConfessions } from "@/services/confessions";
+import { fetchUpcomingEvents } from "@/services/events";
+import type { PostWithProfile, ConfessionWithLikes, EventWithRSVPs } from "@/services/database.types";
 
 const BOTTOM_TAB_INSET = 80;
-const PAGE_SIZE = 10;
+
+type FeedItem =
+  | { type: "post"; data: PostWithProfile }
+  | { type: "confession"; data: ConfessionWithLikes }
+  | { type: "event"; data: EventWithRSVPs };
 
 export default function HomeFeedScreen() {
   const { session } = useSession();
   const { profile } = useProfile();
+  const { feedKey } = useRefresh();
   const currentUserId = session?.user?.id;
-  const [posts, setPosts] = useState<PostWithProfile[]>([]);
+  const [items, setItems] = useState<FeedItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
 
-  const allPostsRef = useRef<PostWithProfile[]>([]);
   const scaleAnims = useRef<Map<string, Animated.Value>>(new Map());
-  const CACHE_KEY = "cached_feed";
 
-  const getScaleAnim = (postId: string): Animated.Value => {
-    if (!scaleAnims.current.has(postId)) {
-      scaleAnims.current.set(postId, new Animated.Value(1));
+  const getScaleAnim = (id: string): Animated.Value => {
+    if (!scaleAnims.current.has(id)) {
+      scaleAnims.current.set(id, new Animated.Value(1));
     }
-    return scaleAnims.current.get(postId)!;
+    return scaleAnims.current.get(id)!;
   };
 
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await fetchPosts();
-      allPostsRef.current = data;
-      setPosts(data.slice(0, PAGE_SIZE));
-      setHasMore(data.length > PAGE_SIZE);
-      setPage(1);
-      AsyncStorage.setItem(CACHE_KEY, JSON.stringify(data)).catch(() => {});
+      const [posts, confessions, events] = await Promise.all([
+        fetchPosts(),
+        fetchConfessions(),
+        fetchUpcomingEvents(),
+      ]);
+      const combined: FeedItem[] = [
+        ...posts.map((p) => ({ type: "post" as const, data: p })),
+        ...confessions.map((c) => ({ type: "confession" as const, data: c })),
+        ...events.map((e) => ({ type: "event" as const, data: e })),
+      ];
+      combined.sort((a, b) => {
+        const da = new Date(a.data.created_at).getTime();
+        const db = new Date(b.data.created_at).getTime();
+        return db - da;
+      });
+      setItems(combined);
     } catch (e) {
-      const cached = await AsyncStorage.getItem(CACHE_KEY);
-      if (cached) {
-        try {
-          const parsed: PostWithProfile[] = JSON.parse(cached);
-          allPostsRef.current = parsed;
-          setPosts(parsed.slice(0, PAGE_SIZE));
-          setHasMore(parsed.length > PAGE_SIZE);
-          setPage(1);
-        } catch {}
-      }
-      setError(e instanceof Error ? e.message : "Failed to load posts");
+      setError(e instanceof Error ? e.message : "Failed to load feed");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [feedKey]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     load();
   }, [load]);
 
-  const loadMore = useCallback(() => {
-    if (!hasMore || loadingMore) return;
-    setLoadingMore(true);
-    const nextPage = page + 1;
-    const allPosts = allPostsRef.current;
-    const endIndex = nextPage * PAGE_SIZE;
-    const newPosts = allPosts.slice(0, endIndex);
-    setPosts(newPosts);
-    setPage(nextPage);
-    setHasMore(endIndex < allPosts.length);
-    setLoadingMore(false);
-  }, [hasMore, loadingMore, page]);
-
-  const ITEM_HEIGHT = 200;
-
   const handleLikeToggled = useCallback((postId: string, liked: boolean) => {
     if (!currentUserId) return;
-    setPosts((prev) =>
-      prev.map((p) => {
-        if (p.id !== postId) return p;
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.type !== "post" || item.data.id !== postId) return item;
         const updatedLikes = liked
-          ? [...(p.likes ?? []), { id: "", user_id: currentUserId! }]
-          : (p.likes ?? []).filter((l) => l.user_id !== currentUserId);
-        return { ...p, likes: updatedLikes };
+          ? [...(item.data.likes ?? []), { id: "", user_id: currentUserId! }]
+          : (item.data.likes ?? []).filter((l) => l.user_id !== currentUserId);
+        return { ...item, data: { ...item.data, likes: updatedLikes } };
       })
     );
     const anim = getScaleAnim(postId);
@@ -113,15 +103,47 @@ export default function HomeFeedScreen() {
       Animated.spring(anim, { toValue: 1.3, useNativeDriver: Platform.OS !== "web" }),
       Animated.spring(anim, { toValue: 1, useNativeDriver: Platform.OS !== "web" }),
     ]).start();
-  }, []);
+  }, [currentUserId]);
 
-  const renderFooter = () => {
-    if (!loadingMore) return null;
-    return (
-      <ThemedView style={styles.footerLoader}>
-        <ThemedText themeColor="textSecondary">Loading more...</ThemedText>
-      </ThemedView>
+  const handleConfessionLikeToggled = useCallback((confessionId: string, liked: boolean) => {
+    if (!currentUserId) return;
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.type !== "confession" || item.data.id !== confessionId) return item;
+        const updatedLikes = liked
+          ? [...(item.data.confession_likes ?? []), { id: "", user_id: currentUserId! }]
+          : (item.data.confession_likes ?? []).filter((l) => l.user_id !== currentUserId);
+        return { ...item, data: { ...item.data, confession_likes: updatedLikes } };
+      })
     );
+  }, [currentUserId]);
+
+  const renderItem = ({ item }: { item: FeedItem }) => {
+    switch (item.type) {
+      case "post":
+        return (
+          <Animated.View style={{ transform: [{ scale: getScaleAnim(item.data.id) }] }}>
+            <PostCard post={item.data} onLikeToggled={handleLikeToggled} />
+          </Animated.View>
+        );
+      case "confession":
+        return (
+          <ConfessionCard confession={item.data} onLikeToggled={handleConfessionLikeToggled} />
+        );
+      case "event":
+        return <EventCard event={item.data} />;
+    }
+  };
+
+  const openCreator = (mode: "post" | "confession" | "event") => {
+    setMenuVisible(false);
+    if (mode === "post") {
+      router.push("/compose");
+    } else if (mode === "confession") {
+      router.push("/compose?mode=confession");
+    } else {
+      router.push("/create-event");
+    }
   };
 
   if (loading) {
@@ -134,9 +156,20 @@ export default function HomeFeedScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <ThemedView style={styles.titleBar}>
           <ThemedText style={styles.title}>CampusVibe</ThemedText>
+          <Pressable
+            onPress={() => setMenuVisible(true)}
+            style={({ pressed }) => [
+              styles.fabButton,
+              pressed && styles.pressed,
+            ]}
+            accessibilityLabel="Create"
+            accessibilityRole="button"
+          >
+            <Ionicons name="add" size={24} color="#FFFFFF" />
+          </Pressable>
         </ThemedView>
 
         {error ? (
@@ -148,77 +181,96 @@ export default function HomeFeedScreen() {
           />
         ) : (
           <FlatList
-            data={posts}
-            keyExtractor={(item) => item.id}
-            getItemLayout={(_, index) => ({
-              length: ITEM_HEIGHT,
-              offset: ITEM_HEIGHT * index,
-              index,
-            })}
-            renderItem={({ item }) => (
-              <Animated.View
-                style={{ transform: [{ scale: getScaleAnim(item.id) }] }}
-              >
-                <PostCard
-                  post={item}
-                  onLikeToggled={handleLikeToggled}
-                />
-              </Animated.View>
-            )}
+            data={items}
+            keyExtractor={(item) => `${item.type}-${item.data.id}`}
+            renderItem={renderItem}
             contentContainerStyle={styles.list}
             ItemSeparatorComponent={() => <ThemedView style={styles.separator} />}
             refreshing={refreshing}
             onRefresh={onRefresh}
             showsVerticalScrollIndicator={false}
-            onEndReached={loadMore}
-            onEndReachedThreshold={0.5}
-            ListFooterComponent={renderFooter}
-            ListHeaderComponent={
-              <ThemedView style={styles.quickActions}>
-                <Pressable
-                  onPress={() => router.push("/compose")}
-                  style={({ pressed }) => [
-                    styles.quickAction,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <ThemedView style={styles.quickIcon}>
-                    <Ionicons name="create-outline" size={20} color="#FFF" />
-                  </ThemedView>
-                  <ThemedText style={styles.quickLabel}>Post</ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push("/(tabs)/confessions")}
-                  style={({ pressed }) => [
-                    styles.quickAction,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <ThemedView style={[styles.quickIcon, { backgroundColor: colors.warning }]}>
-                    <Ionicons name="eye-off-outline" size={20} color="#FFF" />
-                  </ThemedView>
-                  <ThemedText style={styles.quickLabel}>Confess</ThemedText>
-                </Pressable>
-              </ThemedView>
-            }
             ListEmptyComponent={
               <ThemedView style={styles.emptyState}>
                 <ThemedText themeColor="textSecondary">
-                  No posts yet. Be the first to share!
+                  Nothing here yet. Tap + to create something!
                 </ThemedText>
               </ThemedView>
             }
           />
         )}
-      </SafeAreaView>
+      </View>
 
-      <Pressable
-        style={styles.fab}
-        onPress={() => router.push("/compose")}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
       >
-        <ThemedText style={styles.fabIcon}>+</ThemedText>
-      </Pressable>
+        <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
+          <ThemedView style={styles.menuSheet}>
+            <ThemedText style={styles.menuTitle}>Create</ThemedText>
+            <Pressable
+              onPress={() => openCreator("post")}
+              style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
+            >
+              <ThemedView style={[styles.menuIcon, { backgroundColor: colors.primary }]}>
+                <Ionicons name="create-outline" size={20} color="#FFF" />
+              </ThemedView>
+              <ThemedText style={styles.menuLabel}>Post</ThemedText>
+              <ThemedText style={styles.menuDesc}>Share something with everyone</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => openCreator("confession")}
+              style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
+            >
+              <ThemedView style={[styles.menuIcon, { backgroundColor: colors.warning }]}>
+                <Ionicons name="eye-off-outline" size={20} color="#FFF" />
+              </ThemedView>
+              <ThemedText style={styles.menuLabel}>Confession</ThemedText>
+              <ThemedText style={styles.menuDesc}>Post anonymously</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => openCreator("event")}
+              style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
+            >
+              <ThemedView style={[styles.menuIcon, { backgroundColor: colors.secondary }]}>
+                <Ionicons name="calendar-outline" size={20} color="#FFF" />
+              </ThemedView>
+              <ThemedText style={styles.menuLabel}>Event</ThemedText>
+              <ThemedText style={styles.menuDesc}>Create a campus event</ThemedText>
+            </Pressable>
+          </ThemedView>
+        </Pressable>
+      </Modal>
     </ThemedView>
+  );
+}
+
+function EventCard({ event }: { event: EventWithRSVPs }) {
+  const date = new Date(event.date + "T00:00:00");
+  const month = date.toLocaleDateString("en-US", { month: "short" });
+  const day = date.getDate();
+  return (
+    <Pressable
+      onPress={() => router.push(`/create-event`)}
+      style={({ pressed }) => [styles.eventCard, pressed && styles.pressed]}
+    >
+      <ThemedView style={styles.eventDateBox}>
+        <ThemedText style={styles.eventMonth}>{month}</ThemedText>
+        <ThemedText style={styles.eventDay}>{day}</ThemedText>
+      </ThemedView>
+      <ThemedView style={styles.eventInfo}>
+        <ThemedText style={styles.eventTitle} numberOfLines={1}>
+          {event.title}
+        </ThemedText>
+        <ThemedText style={styles.eventMeta} numberOfLines={1}>
+          {event.location} · {event.time ? event.time.slice(0, 5) : ""}
+        </ThemedText>
+        <ThemedText style={styles.eventRsvp}>
+          {event.event_rsvps?.length ?? 0} going
+        </ThemedText>
+      </ThemedView>
+    </Pressable>
   );
 }
 
@@ -235,12 +287,25 @@ const styles = StyleSheet.create({
     paddingBottom: BOTTOM_TAB_INSET,
   },
   titleBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: 2,
+    paddingBottom: spacing.md,
   },
   title: {
     fontSize: fontSize.xl,
     fontWeight: fontWeight.bold,
+    lineHeight: 28,
+  },
+  fabButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
   list: {
     paddingHorizontal: spacing.md,
@@ -255,35 +320,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.lg,
   },
-  quickActions: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-  },
-  quickAction: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundElement,
-    minHeight: 44,
-  },
-  quickIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickLabel: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-  },
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
@@ -293,26 +329,92 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.7,
   },
-  footerLoader: {
-    paddingVertical: spacing.md,
-    alignItems: "center",
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
-  fab: {
-    position: "absolute",
-    right: spacing.md,
-    bottom: BOTTOM_TAB_INSET + spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  menuSheet: {
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    padding: spacing.lg,
+    paddingBottom: spacing.xl + spacing.lg,
+    gap: spacing.sm,
+  },
+  menuTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    textAlign: "center",
+    marginBottom: spacing.sm,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    minHeight: 56,
+  },
+  menuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuLabel: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    minWidth: 80,
+  },
+  menuDesc: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  eventCard: {
+    flexDirection: "row",
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.backgroundElement,
+    gap: spacing.md,
+    minHeight: 72,
+  },
+  eventDateBox: {
+    width: 52,
+    height: 52,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    ...shadows.large,
   },
-  fabIcon: {
-    fontSize: 28,
-    color: "#FFF",
-    lineHeight: 30,
-    fontWeight: fontWeight.regular,
+  eventMonth: {
+    fontSize: 10,
+    color: "#FFFFFF",
+    fontWeight: fontWeight.bold,
+    textTransform: "uppercase",
+  },
+  eventDay: {
+    fontSize: 18,
+    color: "#FFFFFF",
+    fontWeight: fontWeight.bold,
+  },
+  eventInfo: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 2,
+  },
+  eventTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+  },
+  eventMeta: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  eventRsvp: {
+    fontSize: fontSize.xs,
+    color: colors.primary,
+    fontWeight: fontWeight.medium,
   },
 });

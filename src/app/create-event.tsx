@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
+import { useRefresh } from "@/hooks/use-refresh";
 import { useSession } from "@/hooks/use-session";
 import { createEvent } from "@/services/events";
 import { uploadEventImage } from "@/services/storage";
@@ -23,6 +24,7 @@ import { requireVerified } from "@/services/verification";
 export default function CreateEventScreen() {
   const { session, isLoading } = useSession();
   const { profile } = useProfile();
+  const { triggerFeedRefresh } = useRefresh();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -130,6 +132,7 @@ export default function CreateEventScreen() {
           .eq("id", eventId);
       }
 
+      triggerFeedRefresh();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create event");

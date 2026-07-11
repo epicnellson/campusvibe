@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { router } from "expo-router";
 import { Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -194,29 +193,17 @@ export default function ProfileScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <ThemedView style={styles.coverArea}>
-            <ThemedView style={styles.coverGradient}>
-              <ThemedView style={[styles.coverLayer, { backgroundColor: colors.primary, opacity: 0.8 }]} />
-              <ThemedView style={[styles.coverLayer, { backgroundColor: colors.primaryDark, opacity: 0.4 }]} />
-              <ThemedView style={styles.coverOverlay} />
-            </ThemedView>
-            <ThemedView style={styles.avatarWrapper}>
-              <Avatar
-                uri={profile?.avatar_url}
-                name={profile?.name ?? "?"}
-                size={80}
-              />
-              {isVerified && (
-                <ThemedView style={styles.verifiedBadge}>
-                  <ThemedText style={styles.verifiedIcon}>✓</ThemedText>
-                </ThemedView>
-              )}
-            </ThemedView>
+          <ThemedView style={styles.avatarSection}>
+            <Avatar
+              uri={profile?.avatar_url}
+              name={profile?.name ?? "?"}
+              size={80}
+            />
           </ThemedView>
 
           <ThemedView style={styles.header}>
@@ -298,7 +285,7 @@ export default function ProfileScreen() {
             {activeTab === "about" && renderAboutTab()}
           </ThemedView>
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </ThemedView>
   );
 }
@@ -316,64 +303,21 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset,
   },
   scrollContent: {
-    paddingBottom: spacing.lg,
+    paddingBottom: 120,
+  },
+  avatarSection: {
+    alignItems: "center",
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.sm,
   },
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  coverArea: {
-    height: 200,
-    position: "relative",
-  },
-  coverGradient: {
-    flex: 1,
-  },
-  coverLayer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  coverOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  avatarWrapper: {
-    position: "absolute",
-    bottom: -40,
-    alignSelf: "center",
-    borderWidth: 4,
-    borderColor: colors.background,
-    borderRadius: 44,
-  },
-  verifiedBadge: {
-    position: "absolute",
-    bottom: -2,
-    right: -2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.secondary,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: colors.background,
-  },
-  verifiedIcon: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: fontWeight.bold,
-  },
   header: {
     alignItems: "center",
-    paddingTop: 48,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
   },
@@ -384,6 +328,7 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 28,
+    lineHeight: 34,
     textAlign: "center",
   },
   verifiedInline: {

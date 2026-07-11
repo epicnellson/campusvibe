@@ -100,7 +100,12 @@ export default function VerifyStudentIdScreen() {
     setError(null);
     simulateProgress();
     try {
-      await uploadStudentId(session.user.id, imageUri, imageFileSize);
+      const result = await uploadStudentId(session.user.id, imageUri, imageFileSize);
+      if (!result.success) {
+        setError(result.error ?? "Upload failed");
+        setUploading(false);
+        return;
+      }
       Animated.timing(progressAnim, {
         toValue: 1,
         duration: 200,
@@ -238,21 +243,24 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: spacing.lg,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     gap: spacing.lg,
+    paddingTop: spacing.xl,
   },
   centerContent: {
     gap: spacing.md,
     alignItems: "center",
+    width: "100%",
   },
   title: {
     fontSize: fontSize.xxl,
     fontWeight: fontWeight.bold,
+    lineHeight: 34,
     textAlign: "center",
   },
   subtitle: {
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 22,
   },
   successIcon: {
     fontSize: 48,
@@ -265,17 +273,21 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   uploadArea: {
+    width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    padding: spacing.xl * 2,
+    paddingVertical: spacing.xl * 2 + 8,
+    paddingHorizontal: spacing.lg,
     borderRadius: borderRadius.lg,
     borderWidth: 2,
     borderColor: colors.borderLight,
     borderStyle: "dashed",
     gap: spacing.sm,
+    overflow: "visible",
   },
   cameraIcon: {
     fontSize: 40,
+    lineHeight: 48,
   },
   uploadLabel: {
     fontSize: fontSize.md,
@@ -287,11 +299,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   photoButton: {
+    width: "100%",
     alignItems: "center",
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.md + 4,
+    paddingHorizontal: spacing.md,
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.borderLight,
+    minHeight: 48,
   },
   photoButtonText: {
     fontSize: fontSize.md,

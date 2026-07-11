@@ -8,17 +8,6 @@ import { registerPushToken } from "@/services/notifications";
 
 const isNative = Platform.OS !== "web";
 
-if (isNative) {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
-}
-
 async function getExpoPushToken(): Promise<string | null> {
   if (!isNative) return null;
   if (!Device.isDevice) {
@@ -55,6 +44,19 @@ export function useNotifications() {
 
   useEffect(() => {
     if (!isNative) return;
+
+    try {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+        }),
+      });
+    } catch {
+      console.warn("Failed to set notification handler");
+    }
 
     getExpoPushToken().then((token) => {
       if (token) registerPushToken(token);

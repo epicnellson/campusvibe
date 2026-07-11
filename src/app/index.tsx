@@ -107,6 +107,7 @@ const styles = StyleSheet.create({
   },
   brand: {
     fontSize: 48,
+    lineHeight: 54,
     fontWeight: fontWeight.bold,
     textAlign: "center",
     letterSpacing: -1,

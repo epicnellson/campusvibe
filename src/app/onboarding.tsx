@@ -161,8 +161,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: spacing.lg,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     gap: spacing.lg,
+    paddingTop: spacing.xl * 2,
   },
   progressContainer: {
     position: "absolute",

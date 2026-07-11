@@ -1,12 +1,11 @@
 import { memo, useCallback, useState } from "react";
-import { Alert, Pressable, Share, StyleSheet } from "react-native";
+import { Alert, Image, Pressable, Share, StyleSheet, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import { Ionicons } from "@expo/vector-icons";
 import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
 import { Avatar } from "@/components/ui/Avatar";
-import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
-import { useTheme } from "@/hooks/use-theme";
+import { spacing, borderRadius, fontSize, colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
 import { likePost, unlikePost } from "@/services/posts";
 import type { PostWithProfile } from "@/services/database.types";
@@ -18,11 +17,11 @@ function relativeTime(dateStr: string): string {
   const diffSec = Math.floor(diffMs / 1000);
   if (diffSec < 60) return "just now";
   const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 60) return `${diffMin}m`;
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffHr < 24) return `${diffHr}h`;
   const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d ago`;
+  if (diffDay < 7) return `${diffDay}d`;
   return new Date(dateStr).toLocaleDateString();
 }
 
@@ -33,7 +32,6 @@ export type PostCardProps = {
 
 function PostCardInner({ post, onLikeToggled }: PostCardProps) {
   const { session } = useSession();
-  const theme = useTheme();
   const currentUserId = session?.user?.id;
   const userLiked = post.likes?.some((l) => l.user_id === currentUserId) ?? false;
   const likeCount = post.likes?.length ?? 0;
@@ -92,55 +90,77 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
       accessibilityLabel={`Post by ${authorName}`}
       accessibilityRole="button"
     >
-      <ThemedView type="backgroundElement" style={styles.card}>
-      <ThemedView style={styles.header}>
-        <Avatar
-          name={authorName}
-          size={40}
-        />
-        <ThemedView style={styles.meta}>
-          <ThemedText type="smallBold">
-            {authorName}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {post.profiles?.department ?? ""} · {relativeTime(post.created_at)}
-          </ThemedText>
-        </ThemedView>
-      </ThemedView>
+      <View style={styles.card}>
+        <View style={styles.header}>
+          <Avatar
+            name={authorName}
+            size={44}
+          />
+          <View style={styles.meta}>
+            <View style={styles.metaRow}>
+              <ThemedText style={styles.authorName}>{authorName}</ThemedText>
+              <ThemedText style={styles.dot}>·</ThemedText>
+              <ThemedText style={styles.time}>{relativeTime(post.created_at)}</ThemedText>
+            </View>
+            {post.profiles?.department ? (
+              <ThemedText style={styles.department}>{post.profiles.department}</ThemedText>
+            ) : null}
+          </View>
+        </View>
 
-      <ThemedText style={styles.content}>{post.content}</ThemedText>
+        <ThemedText style={styles.content}>{post.content}</ThemedText>
 
-      <ThemedView style={styles.actions}>
-        <Pressable
-          onPress={handleLike}
-          style={({ pressed }) => [styles.likeButton, pressed && styles.pressed]}
-          accessibilityLabel={userLiked ? "Unlike this post" : "Like this post"}
-          accessibilityRole="button"
-          accessibilityState={{ selected: userLiked }}
-        >
-          <ThemedText style={userLiked ? styles.likedIcon : styles.likeIcon}>
-            {userLiked ? "♥" : "♡"}
-          </ThemedText>
-          <ThemedText
-            type="small"
-            style={userLiked ? { color: colors.error } : undefined}
-            themeColor={userLiked ? undefined : "textSecondary"}
+        {post.image_url ? (
+          <Image
+            source={{ uri: post.image_url }}
+            style={styles.postImage}
+            resizeMode="cover"
+          />
+        ) : null}
+
+        <View style={styles.actions}>
+          <Pressable
+            onPress={handleLike}
+            style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
+            accessibilityLabel={userLiked ? "Unlike" : "Like"}
+            accessibilityRole="button"
+            accessibilityState={{ selected: userLiked }}
           >
-            {likeCount}
-          </ThemedText>
-        </Pressable>
+            <Ionicons
+              name={userLiked ? "heart" : "heart-outline"}
+              size={20}
+              color={userLiked ? colors.error : "#60646C"}
+            />
+            {likeCount > 0 && (
+              <ThemedText
+                style={[
+                  styles.actionCount,
+                  { color: userLiked ? colors.error : "#60646C" },
+                ]}
+              >
+                {likeCount}
+              </ThemedText>
+            )}
+          </Pressable>
 
-        <Pressable
-          onPress={() => setReportVisible(true)}
-          style={({ pressed }) => [pressed && styles.pressed, styles.reportButton]}
-          accessibilityLabel="Report this post"
-          accessibilityRole="button"
-        >
-          <ThemedText type="small" themeColor="textSecondary">
-            Report
-          </ThemedText>
-        </Pressable>
-      </ThemedView>
+          <Pressable
+            style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
+            accessibilityLabel="Reply"
+            accessibilityRole="button"
+          >
+            <Ionicons name="chatbubble-outline" size={19} color="#60646C" />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setReportVisible(true)}
+            style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
+            accessibilityLabel="Report"
+            accessibilityRole="button"
+          >
+            <Ionicons name="flag-outline" size={19} color="#60646C" />
+          </Pressable>
+        </View>
+      </View>
 
       <ReportModal
         visible={reportVisible}
@@ -148,7 +168,6 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
         contentType="post"
         onClose={() => setReportVisible(false)}
       />
-    </ThemedView>
     </Pressable>
   );
 }
@@ -157,9 +176,10 @@ export const PostCard = memo(PostCardInner);
 
 const styles = StyleSheet.create({
   card: {
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1E1E1E",
   },
   header: {
     flexDirection: "row",
@@ -167,41 +187,63 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   meta: {
-    gap: 2,
+    flex: 1,
+    gap: 1,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  authorName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  dot: {
+    fontSize: 14,
+    color: "#60646C",
+  },
+  time: {
+    fontSize: 13,
+    color: "#60646C",
+  },
+  department: {
+    fontSize: 12,
+    color: "#60646C",
   },
   content: {
-    fontSize: fontSize.md,
+    fontSize: 15,
     lineHeight: 22,
+    color: "#E1E1E1",
+    marginTop: spacing.xs + 2,
+  },
+  postImage: {
+    width: "100%",
+    height: 220,
+    borderRadius: 12,
+    marginTop: spacing.sm,
   },
   actions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
-    paddingTop: spacing.xs,
+    gap: spacing.lg,
+    marginTop: spacing.sm + 2,
   },
-  likeButton: {
+  actionBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.sm + 4,
-    paddingHorizontal: spacing.sm,
+    gap: spacing.xs + 2,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
     minHeight: 44,
+    minWidth: 44,
   },
-  reportButton: {
-    paddingVertical: spacing.sm + 4,
-    paddingHorizontal: spacing.sm,
-    minHeight: 44,
-    justifyContent: "center",
+  actionCount: {
+    fontSize: 13,
+    fontWeight: "500",
   },
   pressed: {
     opacity: 0.6,
-  },
-  likeIcon: {
-    fontSize: 18,
-    color: "#60646C",
-  },
-  likedIcon: {
-    fontSize: 18,
-    color: colors.error,
   },
 });

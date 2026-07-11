@@ -30,8 +30,7 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://kvpqkcfevmmlsbxjbgyd.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_RjFVgowfCzJlECpdoQfWEQ_z01crUVQ",
-        "EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS": ".edu",
-        "EXPO_PUBLIC_OPENAI_API_KEY": "sk-your-openai-api-key"
+        "EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS": ".edu"
       }
     },
     "production": {

@@ -1,6 +1,6 @@
 # Expo HAS CHANGED
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before writing any code.
+Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any code.
 
 App: CampusVibe — social media app for university students
 Stack: React Native (Expo), Supabase backend, PostgreSQL
@@ -71,6 +71,47 @@ Rules:
 - **Profile page redesigned**: cover height 200px, verified badge checkmark on avatar + inline next to name, Share button using `Share.share()`, listings in 2-column grid layout
 - **Migration 00018 added**: Re-points all content table FK constraints from `auth.users(id)` to `profiles(id)` so PostgREST can auto-detect relationship for join queries
 - **`KNOWN_ISSUES.md`** updated: 35 items, stories section marked as removed
+- **SDK 56 → 54 downgrade completed**: All dependencies pinned to SDK 54 compatible versions (`expo@~54.0.0`, `react@19.1.0`, `react-native@0.81.5`, etc.)
+- **Added `react-native` to `package.json`**: Was missing from SDK 54 setup, causing npm to resolve latest (0.86.0) which requires `react@^19.2.3`
+- **Full clean install executed**: `npm install --legacy-peer-deps` succeeded (829 packages, 7 min due to large RN tarball download)
+- **TypeScript errors fixed for SDK 54**: 
+  - `_layout.tsx`: `DarkTheme`, `DefaultTheme`, `ThemeProvider` now imported from `@react-navigation/native` (not `expo-router` — not re-exported in SDK 54)
+  - `SymbolView` name prop: Changed from platform-object format to string (SDK 54 only accepts `SFSymbol` string)
+  - `StyleSheet.absoluteFill` spread: Added `as object` cast (type can be `undefined`)
+  - `use-theme.ts`: Fixed color scheme comparison (`'unspecified'` → `?? nullish coalescing`)
+  - TypeScript compiles with zero errors (`tsc --noEmit` passes)
+- **Expo dev server verified**: Starts cleanly at `http://localhost:8081` with no errors
+- **`window.addEventListener` crash fixed**: RN 0.81 sets `global.window = global` (Hermes), but `global` lacks `addEventListener`. Fixed `network-banner.tsx` guard (checks `typeof addEventListener === "function"`). Added global polyfill in `_layout.tsx` for `expo-router`'s `createMemoryHistory` which also calls `window.addEventListener('popstate', ...)`.
+- `expo-router`, `expo-symbols`, `@react-navigation/native` types updated per SDK 54 API surface
+- **System-wide UI polish**:
+  - Profile scroll: `paddingBottom` 100 → 120 in `profile.tsx` `scrollContent`
+  - Top headers shifted up: `paddingVertical` reduced from 8px to 2px on Feed, Events, Marketplace, Chats
+  - Confessions header: `paddingVertical` reduced from 16px to 8px
+  - Text cutoff prevention: all centered layouts (`verify.tsx`, `verify-student-id.tsx`, `onboarding.tsx`) switched to `justifyContent: "flex-start"` + explicit `paddingTop`
+  - Student ID page: `centerContent` width=100%; `uploadArea` overflow=visible, padding expanded; `photoButton` minHeight=48
+  - Verify screen: subtitle `lineHeight` 20 → 22
+- **Admin dashboard** (`admin/index.html`) rewritten as enterprise panel: analytics stat cards, user table with search/filter tabs, content moderation queue, system health monitor, student ID review modal with zoom
+- **Edge function** (`notify-verification/index.ts`): `?scope=dashboard` endpoint, `dismiss_report` / `remove_content` POST actions
+- **Global "+" button removed**: `headerRow`, `createVisible` state, `createActions` array, and entire Modal stripped from `_layout.tsx` — previously the top-left "+" served as a universal creation hub
+- **Screen-specific header buttons**: Events ("Create Event" → `/create-event`), Marketplace ("Create Listing" → `/create-listing`), and Chats ("New Conversation" → `/new-dm` now uses Ionicons `add` icon) each get a right-aligned 36×36 primary-colored pressable in the header
+- **All three buttons unified**: Same `Ionicons add` icon, same `36×36` circular size, same `colors.primary` background, same `#FFFFFF` icon color — visual consistency across screens
+- **`_layout.tsx` banned screen fixed**: Switched from `ThemedView as="Text"` (which typed styles as `ViewStyle`) to actual `ThemedText` component, fixing TS2353 errors
+- **Home screen spacing**: Added `paddingBottom: spacing.md` to feed `titleBar` so the gap between "CampusVibe" and Post/Confess quick actions is no longer too tight
+- **All screen header spacing**: Added `paddingBottom: spacing.md` (or `Spacing.two`) to Events, Marketplace, and Chats header bars for consistent vertical breathing room between title and content
+- **Web performance fix**: `PagerViewWrapper.tsx` now renders all screens at once (with `display: "none"` on inactive) instead of only the active screen — eliminates remount+refetch on every tab switch, making navigation instant on web
+- **Profile double checkmark fixed**: Removed inline `verifiedInline` checkmark next to name — avatar badge kept as single indicator. Later reverted: avatar badge removed, inline checkmark restored.
+- **Events tab removed from navigation**: Both `_layout.tsx` and `CustomTabBar` reduced from 5 to 4 tabs (Feed, Chats, Marketplace, Profile). Events data still fetchable for unified feed.
+- **Unified home feed**: `index.tsx` now fetches posts + confessions + upcoming events simultaneously, merges by `created_at` desc, renders each with type-appropriate card (`PostCard`, `ConfessionCard`, `EventCard`). Events shown as compact date-cards.
+- **Quick action buttons removed from feed**: Static Post/Confess buttons gone from home screen body.
+- **FAB creation menu**: "+" button in top-right of home header opens a bottom-sheet `Modal` with three options: Post (`/compose`), Confession (`/compose?mode=confession`), Event (`/create-event`).
+- **Confession mode in compose**: `compose.tsx` reads `?mode=confession` param — displays "Anonymous" header, calls `createConfession()` (ensures anonymity in DB/UI), hides photo picker in confession mode.
+- **Feed refresh system**: `RefreshProvider` context (`use-refresh.tsx`) with `feedKey` counter. `triggerFeedRefresh()` called after creation in `compose.tsx` and `create-event.tsx`. Feed re-fetches on `feedKey` change — eliminates stale data after creation.
+- **Confessions screen back button**: Added `←` back button to confessions header for returning to feed.
+- **Network audit**: Supabase URLs sourced from env vars (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`) — no localhost/127.0.0.1 references in production config
+- **Post image support**: Added `image_url` field to `Post` type (`database.types.ts`), `createPost()` now accepts optional `imageUrl` param, `compose.tsx` uploads first image via `uploadPostImage()` and passes URL to `createPost()`
+- **Post image rendering**: `PostCard.tsx` now renders `<Image>` with `width: '100%'`, `height: 220`, `borderRadius: 12`, `resizeMode: 'cover'` when `post.image_url` is present
+- **PostCard redesign (Threads/X style)**: Borderless card with `borderBottomWidth: 1`, `borderBottomColor: '#1E1E1E'` separator; 44×44 circular avatar left, username + `· 1h` metadata right; body text at `fontSize: 15`, `lineHeight: 22`, `color: '#E1E1E1'`; engagement row with Ionicons heart (line art), chat bubble, flag icons with subtle count text
+- **`post-images` bucket**: `uploadPostImage()` added to `storage.ts` with standard FormData payload, falls back silently if bucket doesn't exist yet
 
 ### In Progress
 - *(none)*
@@ -79,6 +120,17 @@ Rules:
 - Edge function email sending requires `RESEND_API_KEY` via `supabase secrets set RESEND_API_KEY=re_...`
 - Admin user must be set up manually: sign up via app → run `supabase/setup_admin.sql` in SQL Editor with their email → log in to admin dashboard
 - FK migration 00018 must be applied to Supabase before the rewritten queries work
+- No more EAS free-tier build credits available for this billing period
+
+## Next Steps
+1. **Apply migration 00018** to Supabase: `supabase migration up`
+2. Set `RESEND_API_KEY` via `supabase secrets set RESEND_API_KEY=re_...` for approval emails
+3. Create admin user: sign up → run `supabase/setup_admin.sql` → log in to admin dashboard
+4. Review and approve student ID images before production launch
+5. Fill in `eas.json` placeholders (`appleId`, `ascAppId`, `appleTeamId`, `serviceAccountKeyPath`)
+6. Replace `your-eas-project-id` in `app.json` with actual EAS project ID
+7. Generate production app icon assets in all required sizes
+8. Take real screenshots for App Store + Play Store listings
 
 ## Key Decisions
 - Auth switched from university email domain validation to any-email + student ID photo verification for broader access
@@ -100,15 +152,10 @@ Rules:
 - **`useNativeDriver: true` on web**: React Native for web does not support native driver. All occurrences changed to `Platform.OS !== 'web'` conditional.
 - **Profile verification badge**: Uses `isVerified = profile.verification_status === "approved"` check, displays green checkmark circle on avatar and inline next to name.
 
-## Next Steps
-1. **Apply migration 00018** to Supabase: `supabase migration up`
-2. Set `RESEND_API_KEY` via `supabase secrets set RESEND_API_KEY=re_...` for approval emails
-3. Create admin user: sign up → run `supabase/setup_admin.sql` → log in to admin dashboard
-4. Review and approve student ID images before production launch
-5. Fill in `eas.json` placeholders (`appleId`, `ascAppId`, `appleTeamId`, `serviceAccountKeyPath`)
-6. Replace `your-eas-project-id` in `app.json` with actual EAS project ID
-7. Generate production app icon assets in all required sizes
-8. Take real screenshots for App Store + Play Store listings
+- **SDK 54 theme imports**: `DarkTheme`, `DefaultTheme`, `ThemeProvider` are NOT re-exported from `expo-router` in SDK 54 — import from `@react-navigation/native` instead
+- **SDK 54 `SymbolView`**: `name` prop only accepts `SFSymbol` string, NOT platform-object format — use string name with `fallback` prop for cross-platform
+- **`react-native` must be in package.json**: Without it pinned, npm resolves latest (0.86.x) which requires `react@^19.2.3` and conflicts with SDK 54's `react@19.1.0`
+- **`npm install --legacy-peer-deps` timeout**: react-native tarball is ~100MB; first install takes 5-7 minutes depending on network
 
 ## Critical Context
 - `SUPABASE_*` env vars are reserved — **exception**: `SUPABASE_URL` IS auto-injected, `SUPABASE_SECRET_KEY` and `SUPABASE_ANON_KEY` are NOT auto-injected. Use custom names (`SB_SECRET_KEY`, `SB_ANON_KEY`) instead.
@@ -123,7 +170,7 @@ Rules:
 - `admin_actions` table created — every approve/reject is logged with `admin_email`, `action`, `target_user_id`, timestamp
 - `SUPABASE_URL` = `https://kvpqkcfevmmlsbxjbgyd.supabase.co`
 - Anon key = `sb_publishable_RjFVgowfCzJlECpdoQfWEQ_z01crUVQ`
-- Secret key = `sb_secret_R3MOVED`
+- Secret key = `sb_secret_REMOVED`
 - `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` set in `.env`
 - `.env` contains real credentials — secret key must never be committed
 - **`anon` and `authenticated` roles require explicit `GRANT ALL ON ALL TABLES IN SCHEMA public`** — without it, every table query returns "permission denied" (401 for unauthenticated, 403 for authenticated). Migration 00017 adds these grants.

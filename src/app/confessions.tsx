@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { router } from "expo-router";
-import { FlatList, Pressable, StyleSheet } from "react-native";
+import { FlatList, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ConfessionCard } from "@/components/confession-card";
 import { ThemedText } from "@/components/themed-text";
@@ -71,7 +71,20 @@ export default function ConfessionsScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ThemedView style={styles.headerBar}>
-          <ThemedText style={styles.title}>Confessions</ThemedText>
+          <View style={styles.headerLeft}>
+            <Pressable
+              onPress={() => router.back()}
+              style={({ pressed }) => [
+                styles.backButton,
+                pressed && styles.pressed,
+              ]}
+              accessibilityLabel="Go back"
+              accessibilityRole="button"
+            >
+              <ThemedText style={styles.backIcon}>←</ThemedText>
+            </Pressable>
+            <ThemedText style={styles.title}>Confessions</ThemedText>
+          </View>
           <Pressable
             onPress={() => {
               if (!requireVerified(profile)) return;
@@ -148,7 +161,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backIcon: {
+    fontSize: 22,
+    color: colors.primary,
+    fontWeight: fontWeight.bold,
   },
   title: {
     fontSize: fontSize.xl,

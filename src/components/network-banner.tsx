@@ -9,17 +9,18 @@ export function NetworkBanner() {
   const [slideAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
-    if (typeof window !== "undefined" && "navigator" in window) {
-      const handleOnline = () => setOnline(true);
-      const handleOffline = () => setOnline(false);
-      window.addEventListener("online", handleOnline);
-      window.addEventListener("offline", handleOffline);
-      setOnline(navigator.onLine);
-      return () => {
-        window.removeEventListener("online", handleOnline);
-        window.removeEventListener("offline", handleOffline);
-      };
-    }
+    if (Platform.OS !== "web") return;
+    if (typeof window.addEventListener !== "function") return;
+
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    setOnline(typeof navigator !== "undefined" ? navigator.onLine : true);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
   }, []);
 
   useEffect(() => {
@@ -30,7 +31,7 @@ export function NetworkBanner() {
     }).start();
   }, [online, slideAnim]);
 
-  if (online) return null;
+  if (Platform.OS !== "web" || online) return null;
 
   return (
     <Animated.View
@@ -49,7 +50,6 @@ export function NetworkBanner() {
       ]}
     >
       <ThemedView style={styles.inner}>
-        <ThemedText style={styles.icon}>⚠</ThemedText>
         <ThemedText style={styles.text}>No internet connection</ThemedText>
       </ThemedView>
     </Animated.View>

@@ -91,10 +91,11 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
+      "supabaseUrl": "https://kvpqkcfevmmlsbxjbgyd.supabase.co",
+      "supabaseAnonKey": "sb_publishable_RjFVgowfCzJlECpdoQfWEQ_z01crUVQ",
       "eas": {
         "projectId": "2baa0beb-2ea8-497a-baf9-dbfca36a0cc3"
       },

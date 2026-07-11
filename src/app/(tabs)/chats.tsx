@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { FlatList, Pressable, StyleSheet } from "react-native";
+import { FlatList, Pressable, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ChannelCard } from "@/components/channel-card";
+import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
 import { fetchUserChannels } from "@/services/chats";
 import { supabase } from "@/services/supabase";
@@ -71,7 +72,7 @@ export default function ChatsScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <ThemedView style={styles.headerBar}>
           <ThemedText type="title" style={styles.title}>
             Chats
@@ -82,8 +83,10 @@ export default function ChatsScreen() {
               styles.dmButton,
               pressed && styles.pressed,
             ]}
+            accessibilityLabel="New Conversation"
+            accessibilityRole="button"
           >
-            <ThemedText style={styles.dmButtonText}>+</ThemedText>
+            <Ionicons name="add" size={24} color="#FFFFFF" />
           </Pressable>
         </ThemedView>
 
@@ -134,7 +137,7 @@ export default function ChatsScreen() {
           }
         />
         )}
-      </SafeAreaView>
+      </View>
     </ThemedView>
   );
 }
@@ -156,24 +159,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
+    paddingVertical: 2,
+    paddingBottom: Spacing.two,
   },
   title: {
     fontSize: 28,
+    lineHeight: 34,
   },
   dmButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#208AEF",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-  },
-  dmButtonText: {
-    color: "#ffffff",
-    fontSize: 24,
-    fontWeight: "600",
-    lineHeight: 26,
   },
   pressed: {
     opacity: 0.7,

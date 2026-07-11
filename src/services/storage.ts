@@ -1,16 +1,23 @@
 import { supabase } from "@/services/supabase";
 import { withRetry } from "@/services/retry";
+import { File } from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
 
-function getStorageErrorMessage(err: unknown): never {
-  const msg = err instanceof Error ? err.message.toLowerCase() : "";
+export type UploadResult = { success: boolean; url?: string; error?: string };
+
+function formatStorageError(err: unknown): string {
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err);
+  console.error("[storage] full error:", err);
+  if (msg.includes("does not exist") || msg.includes("not found") || msg.includes("bucket")) {
+    return "Storage not configured. Please contact support.";
+  }
   if (msg.includes("file too large") || msg.includes("maximum size")) {
-    throw new Error("Image must be under 5MB");
+    return "Image must be under 5MB.";
   }
   if (msg.includes("file type") || msg.includes("extension")) {
-    throw new Error("Please upload a JPG or PNG only");
+    return "Please upload a JPG, PNG, or PDF only.";
   }
-  throw err;
+  return msg;
 }
 
 async function compressImage(uri: string): Promise<string> {
@@ -42,7 +49,7 @@ export async function uploadProfilePhoto(
         upsert: true,
       });
 
-    if (uploadError) getStorageErrorMessage(uploadError);
+    if (uploadError) throw new Error(formatStorageError(uploadError));
 
     const { data: urlData } = supabase.storage
       .from("profile-photos")
@@ -72,7 +79,7 @@ export async function uploadEventImage(
         upsert: true,
       });
 
-    if (uploadError) getStorageErrorMessage(uploadError);
+    if (uploadError) throw new Error(formatStorageError(uploadError));
 
     const { data: urlData } = supabase.storage
       .from("event-images")
@@ -89,40 +96,97 @@ function getExtension(filename: string): string {
   return filename.split(".").pop()?.toLowerCase() ?? "";
 }
 
+function mimeToExt(mime?: string): string | null {
+  if (!mime) return null;
+  const map: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "application/pdf": "pdf",
+  };
+  return map[mime.toLowerCase()] ?? null;
+}
+
 export async function uploadStudentId(
   userId: string,
   uri: string,
-  fileSize?: number
-): Promise<void> {
-  const ext = getExtension(uri.split("/").pop() ?? uri);
-  if (!ALLOWED_EXTENSIONS.includes(ext)) {
-    throw new Error("Only JPG, JPEG, PNG, and PDF files are allowed.");
+  fileSize?: number,
+  mimeType?: string
+): Promise<UploadResult> {
+  try {
+    const rawExt = mimeToExt(mimeType) || getExtension(uri.split("/").pop() ?? uri) || "";
+    const ext = ALLOWED_EXTENSIONS.includes(rawExt) ? rawExt : "jpg";
+
+    if (fileSize !== undefined && fileSize > MAX_FILE_SIZE) {
+      return { success: false, error: "File is too large. Maximum size is 5MB." };
+    }
+
+    const isPdf = ext === "pdf";
+    const uploadUri = isPdf ? uri : await compressImage(uri);
+    const filePath = `${userId}/student_id.${isPdf ? "pdf" : "jpg"}`;
+    const uploadMime = isPdf ? "application/pdf" : "image/jpeg";
+
+    const file = new File(uploadUri);
+
+    const { error: uploadError } = await supabase.storage
+      .from("student-id-verification")
+      .upload(filePath, file, {
+        contentType: uploadMime,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error("[uploadStudentId] upload error details:", JSON.stringify(uploadError));
+      return { success: false, error: formatStorageError(uploadError) };
+    }
+
+    // Notify the server that this user has uploaded their ID
+    try {
+      await supabase.rpc("set_my_verification_pending");
+    } catch {} // non-critical
+
+    return { success: true };
+  } catch (err) {
+    console.error("[uploadStudentId] unexpected error:", err);
+    return { success: false, error: formatStorageError(err) };
   }
+}
 
-  if (fileSize !== undefined && fileSize > MAX_FILE_SIZE) {
-    throw new Error("File is too large. Maximum size is 5MB.");
-  }
+export async function uploadPostImage(
+  postId: string,
+  uri: string
+): Promise<string> {
+  return withRetry(async () => {
+    const compressed = await compressImage(uri);
+    const formData = new FormData();
+    const filename = `photo.jpg`;
+    formData.append("file", {
+      uri: compressed,
+      type: "image/jpeg",
+      name: filename,
+    } as unknown as Blob);
 
-  const uploadUri = ext === "pdf" ? uri : await compressImage(uri);
-  const filename = `student_id.${ext === "pdf" ? "pdf" : "jpg"}`;
-  const mimeType = ext === "pdf" ? "application/pdf" : "image/jpeg";
-  const formData = new FormData();
-  formData.append("file", {
-    uri: uploadUri,
-    type: mimeType,
-    name: filename,
-  } as unknown as Blob);
+    const fileName = `${postId}/${filename}`;
+    const { error: uploadError } = await supabase.storage
+      .from("post-images")
+      .upload(fileName, formData, {
+        upsert: true,
+      });
 
-  const { error: uploadError } = await supabase.storage
-    .from("student-id-verification")
-    .upload(`${userId}/${filename}`, formData, {
-      upsert: true,
-    });
+    if (uploadError) {
+      if (uploadError.message?.includes("bucket")) {
+        // bucket may not exist; silently skip
+        return "";
+      }
+      throw new Error(formatStorageError(uploadError));
+    }
 
-  if (uploadError) throw uploadError;
+    const { data: urlData } = supabase.storage
+      .from("post-images")
+      .getPublicUrl(fileName);
 
-  // verification_status is set to 'pending' automatically via
-  // database trigger on_student_id_upload — no client update needed.
+    return urlData.publicUrl;
+  });
 }
 
 export async function uploadListingPhoto(
@@ -146,7 +210,7 @@ export async function uploadListingPhoto(
         upsert: true,
       });
 
-    if (uploadError) getStorageErrorMessage(uploadError);
+    if (uploadError) throw new Error(formatStorageError(uploadError));
 
     const { data: urlData } = supabase.storage
       .from("listing-photos")

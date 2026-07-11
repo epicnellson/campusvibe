@@ -115,7 +115,7 @@ export default function VerifyScreen() {
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.content}
+          style={styles.contentKeyboard}
         >
           <ThemedView style={styles.header}>
             <ThemedText style={styles.title}>Check your email</ThemedText>
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     flex: 1,
     maxWidth: 800,
   },
-  content: {
+  contentKeyboard: {
     flex: 1,
     paddingHorizontal: spacing.lg,
     justifyContent: "center",
@@ -205,6 +205,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: fontSize.xxl,
     fontWeight: fontWeight.bold,
+    lineHeight: 34,
     textAlign: "center",
   },
   instruction: {

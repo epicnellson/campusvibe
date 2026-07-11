@@ -14,50 +14,33 @@ import { spacing, borderRadius } from "@/theme";
 
 type IoniconsName = keyof typeof Ionicons.glyphMap;
 
-const TAB_ICONS: Record<string, { active: IoniconsName; inactive: IoniconsName }> = {
-  index: { active: "home", inactive: "home-outline" },
-  events: { active: "calendar", inactive: "calendar-outline" },
-  marketplace: { active: "storefront", inactive: "storefront-outline" },
-  chats: { active: "chatbubbles", inactive: "chatbubbles-outline" },
-  profile: { active: "person", inactive: "person-outline" },
-};
+const TAB_ICONS: { active: IoniconsName; inactive: IoniconsName }[] = [
+  { active: "home", inactive: "home-outline" },
+  { active: "chatbubbles", inactive: "chatbubbles-outline" },
+  { active: "storefront", inactive: "storefront-outline" },
+  { active: "person", inactive: "person-outline" },
+];
 
-const TAB_LABELS: Record<string, string> = {
-  index: "Feed",
-  events: "Events",
-  marketplace: "Marketplace",
-  chats: "Chats",
-  profile: "Profile",
-};
-
-const BADGE_TABS = new Set(["index", "chats"]);
+const TAB_LABELS = ["Feed", "Chats", "Marketplace", "Profile"];
 
 const FALLBACK_BG = "#111111";
 const FALLBACK_PRIMARY = "#6C47FF";
 const FALLBACK_TEXT_SEC = "#9E9E9E";
-const FALLBACK_ERROR = "#FF3B30";
-const FALLBACK_BORDER = "#2A2A2A";
 
-export function CustomTabBar({ state, descriptors, navigation }: {
-  state: { routes: { key: string; name: string }[]; index: number };
-  descriptors: Record<string, { options: Record<string, any> }>;
-  navigation: { emit: (event: any) => any; navigate: (name: string) => void };
+export function CustomTabBar({ activeIndex, onTabPress }: {
+  activeIndex: number;
+  onTabPress: (index: number) => void;
 }) {
   const theme = useTheme();
   const safeInsets = useSafeAreaInsets();
-  const scaleAnims = useRef<Map<string, Animated.Value>>(new Map());
+  const scaleAnims = useRef<Map<number, Animated.Value>>(new Map());
 
-  const getScaleAnim = useCallback((key: string): Animated.Value => {
+  const getScaleAnim = useCallback((key: number): Animated.Value => {
     if (!scaleAnims.current.has(key)) {
       scaleAnims.current.set(key, new Animated.Value(1));
     }
     return scaleAnims.current.get(key)!;
   }, []);
-
-  const visible = state.routes.filter((r) => {
-    const { options } = descriptors[r.key] ?? {};
-    return options?.href !== null && !!TAB_ICONS[r.name];
-  });
 
   return (
     <View style={styles.wrapper}>
@@ -66,28 +49,18 @@ export function CustomTabBar({ state, descriptors, navigation }: {
           styles.container,
           {
             backgroundColor: theme.backgroundSelected ?? FALLBACK_BG,
-            borderColor: theme.border ?? FALLBACK_BORDER,
+            borderColor: theme.border ?? "#2A2A2A",
             marginBottom: (safeInsets.bottom || spacing.sm) + spacing.sm,
           },
         ]}
       >
-        {visible.map((route, index) => {
-          const { options } = descriptors[route.key] ?? {};
-          const isFocused = state.index === state.routes.indexOf(route);
-          const icon = TAB_ICONS[route.name];
-          const label = TAB_LABELS[route.name] ?? route.name;
-          const showBadge = BADGE_TABS.has(route.name) && !!options?.tabBarBadge;
-          const scaleAnim = getScaleAnim(route.key);
+        {TAB_ICONS.map((icon, index) => {
+          const isFocused = activeIndex === index;
+          const label = TAB_LABELS[index];
+          const scaleAnim = getScaleAnim(index);
 
           const onPress = () => {
-            const event = navigation.emit({
-              type: "tabPress",
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
+            onTabPress(index);
             scaleAnim.setValue(0.85);
             Animated.spring(scaleAnim, {
               toValue: 1,
@@ -97,15 +70,10 @@ export function CustomTabBar({ state, descriptors, navigation }: {
             }).start();
           };
 
-          const onLongPress = () => {
-            navigation.emit({ type: "tabLongPress", target: route.key });
-          };
-
           return (
             <Pressable
-              key={route.key}
+              key={index}
               onPress={onPress}
-              onLongPress={onLongPress}
               style={styles.tabItem}
               accessibilityLabel={label}
               accessibilityRole="tab"
@@ -130,11 +98,6 @@ export function CustomTabBar({ state, descriptors, navigation }: {
                   size={24}
                   color={isFocused ? (theme.primary ?? FALLBACK_PRIMARY) : (theme.textSecondary ?? FALLBACK_TEXT_SEC)}
                 />
-                {showBadge && (
-                  <View
-                    style={[styles.badgeDot, { backgroundColor: theme.error ?? FALLBACK_ERROR }]}
-                  />
-                )}
               </Animated.View>
               {isFocused && (
                 <ThemedText
@@ -198,14 +161,6 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     opacity: 0.15,
-  },
-  badgeDot: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
   },
   label: {
     fontSize: 10,

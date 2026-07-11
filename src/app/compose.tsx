@@ -1,4 +1,4 @@
-import { Redirect, router } from "expo-router";
+import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -20,9 +20,12 @@ import { ThemedView } from "@/components/themed-view";
 import { Avatar } from "@/components/ui/Avatar";
 import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
+import { useRefresh } from "@/hooks/use-refresh";
 import { useSession } from "@/hooks/use-session";
 import { useTheme } from "@/hooks/use-theme";
 import { createPost } from "@/services/posts";
+import { createConfession } from "@/services/confessions";
+import { uploadPostImage } from "@/services/storage";
 import { requireVerified } from "@/services/verification";
 
 const MAX_CHARS = 500;
@@ -30,8 +33,11 @@ const WARN_CHARS = 400;
 const MAX_IMAGES = 4;
 
 export default function ComposeScreen() {
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const isConfession = mode === "confession";
   const { session, isLoading } = useSession();
   const { profile } = useProfile();
+  const { triggerFeedRefresh } = useRefresh();
   const theme = useTheme();
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -78,8 +84,17 @@ export default function ComposeScreen() {
     setError(null);
 
     try {
-      await createPost(trimmed);
-      Alert.alert("Success", "Your post has been published!");
+      if (isConfession) {
+        await createConfession(trimmed);
+      } else {
+        let imageUrl: string | undefined;
+        if (images.length > 0) {
+          const tempId = Date.now().toString();
+          imageUrl = await uploadPostImage(tempId, images[0]);
+        }
+        await createPost(trimmed, imageUrl);
+      }
+      triggerFeedRefresh();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to submit");
@@ -109,7 +124,7 @@ export default function ComposeScreen() {
           >
             <Ionicons name="close" size={24} color={theme.text} />
           </Pressable>
-          <ThemedText style={styles.title}>New Post</ThemedText>
+          <ThemedText style={styles.title}>{isConfession ? "New Confession" : "New Post"}</ThemedText>
           <Pressable
             onPress={handleSubmit}
             disabled={submitting || !content.trim()}
@@ -152,17 +167,23 @@ export default function ComposeScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <ThemedView style={styles.userRow}>
-              <Avatar
-                uri={profile?.avatar_url}
-                name={profile?.name ?? "?"}
-                size={36}
-              />
+              {isConfession ? (
+                <ThemedView style={[styles.quickIcon, { backgroundColor: colors.warning }]}>
+                  <Ionicons name="eye-off-outline" size={18} color="#FFF" />
+                </ThemedView>
+              ) : (
+                <Avatar
+                  uri={profile?.avatar_url}
+                  name={profile?.name ?? "?"}
+                  size={36}
+                />
+              )}
               <ThemedView style={styles.userInfo}>
                 <ThemedText style={styles.userName}>
-                  {profile?.name ?? "Unknown"}
+                  {isConfession ? "Anonymous" : (profile?.name ?? "Unknown")}
                 </ThemedText>
                 <ThemedText themeColor="textSecondary" style={styles.visibility}>
-                  Public
+                  {isConfession ? "Anonymous" : "Public"}
                 </ThemedText>
               </ThemedView>
             </ThemedView>
@@ -356,6 +377,13 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },

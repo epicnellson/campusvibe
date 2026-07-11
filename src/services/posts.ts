@@ -13,7 +13,7 @@ export async function fetchPosts(): Promise<PostWithProfile[]> {
 
     const { data, error } = await supabase
       .from("posts")
-      .select("id, content, created_at, updated_at, user_id, likes(id, user_id)")
+      .select("id, content, image_url, created_at, updated_at, user_id, likes(id, user_id)")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -27,7 +27,7 @@ export async function fetchPosts(): Promise<PostWithProfile[]> {
   });
 }
 
-export async function createPost(content: string): Promise<void> {
+export async function createPost(content: string, imageUrl?: string): Promise<void> {
   return withRetry(async () => {
     const {
       data: { user },
@@ -37,6 +37,7 @@ export async function createPost(content: string): Promise<void> {
     const { error } = await supabase.from("posts").insert({
       user_id: user.id,
       content: sanitizeText(content),
+      image_url: imageUrl ?? null,
     });
     if (error) {
       if (error.code === "42501" || error.message?.includes("permission denied")) {

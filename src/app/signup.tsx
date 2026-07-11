@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   overlay: {
-    ...StyleSheet.absoluteFill,
+    ...(StyleSheet.absoluteFill as object),
     opacity: 0.03,
     backgroundColor: colors.primary,
   },
@@ -154,6 +154,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: fontSize.xxl,
     fontWeight: fontWeight.bold,
+    lineHeight: 34,
   },
   form: {
     gap: spacing.md,

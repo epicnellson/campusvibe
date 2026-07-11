@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { router } from "expo-router";
-import { FlatList, Pressable, ScrollView, StyleSheet } from "react-native";
+import { FlatList, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
-import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -12,7 +12,6 @@ import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
 import { useSession } from "@/hooks/use-session";
 import { fetchUpcomingEvents, rsvpEvent, unrsvpEvent } from "@/services/events";
-import { requireVerified } from "@/services/verification";
 import type { EventWithRSVPs } from "@/services/database.types";
 
 function formatDate(dateStr: string) {
@@ -139,22 +138,21 @@ export default function EventsScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <ThemedView style={styles.headerBar}>
           <ThemedText type="title" style={styles.title}>
             Events
           </ThemedText>
           <Pressable
-            onPress={() => {
-              if (!requireVerified(profile)) return;
-              router.push("/create-event");
-            }}
+            onPress={() => router.push("/create-event")}
             style={({ pressed }) => [
-              styles.createButton,
+              styles.headerButton,
               pressed && styles.pressed,
             ]}
+            accessibilityLabel="Create Event"
+            accessibilityRole="button"
           >
-            <ThemedText style={styles.createButtonText}>+</ThemedText>
+            <Ionicons name="add" size={24} color="#FFFFFF" />
           </Pressable>
         </ThemedView>
 
@@ -231,7 +229,7 @@ export default function EventsScreen() {
             }
           />
         )}
-      </SafeAreaView>
+      </View>
     </ThemedView>
   );
 }
@@ -253,24 +251,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: 2,
+    paddingBottom: spacing.md,
   },
   title: {
     fontSize: 28,
+    lineHeight: 34,
   },
-  createButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-  },
-  createButtonText: {
-    color: "#ffffff",
-    fontSize: 24,
-    fontWeight: fontWeight.semibold,
-    lineHeight: 26,
   },
   pressed: {
     opacity: 0.7,
