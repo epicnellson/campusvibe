@@ -13,7 +13,7 @@ export async function fetchPosts(): Promise<PostWithProfile[]> {
 
     const { data, error } = await supabase
       .from("posts")
-      .select("id, content, image_url, created_at, updated_at, user_id, likes(id, user_id)")
+      .select("id, content, created_at, updated_at, user_id, likes(id, user_id)")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
