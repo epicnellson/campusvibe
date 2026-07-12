@@ -34,11 +34,13 @@ export async function createPost(content: string, imageUrl?: string): Promise<vo
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const { error } = await supabase.from("posts").insert({
+    const payload: Record<string, any> = {
       user_id: user.id,
       content: sanitizeText(content),
-      image_url: imageUrl ?? null,
-    });
+    };
+    if (imageUrl) payload.image_url = imageUrl;
+
+    const { error } = await supabase.from("posts").insert(payload);
     if (error) {
       if (error.code === "42501" || error.message?.includes("permission denied")) {
         throw new Error("You need a verified student ID to create posts. Please upload your student ID first.");
