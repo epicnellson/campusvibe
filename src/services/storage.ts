@@ -2,6 +2,7 @@ import { supabase } from "@/services/supabase";
 import { withRetry } from "@/services/retry";
 import { File } from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
+import { Platform } from "react-native";
 
 export type UploadResult = { success: boolean; url?: string; error?: string };
 
@@ -158,24 +159,33 @@ export async function uploadPostImage(
 ): Promise<string> {
   return withRetry(async () => {
     const compressed = await compressImage(uri);
-    const formData = new FormData();
+
+    let fileBody: Blob | FormData;
     const filename = `photo.jpg`;
-    formData.append("file", {
-      uri: compressed,
-      type: "image/jpeg",
-      name: filename,
-    } as unknown as Blob);
+
+    if (Platform.OS === "web") {
+      const response = await fetch(compressed);
+      fileBody = await response.blob();
+    } else {
+      const formData = new FormData();
+      formData.append("file", {
+        uri: compressed,
+        type: "image/jpeg",
+        name: filename,
+      } as unknown as Blob);
+      fileBody = formData;
+    }
 
     const fileName = `${postId}/${filename}`;
     const { error: uploadError } = await supabase.storage
       .from("post-images")
-      .upload(fileName, formData, {
+      .upload(fileName, fileBody, {
         upsert: true,
+        contentType: "image/jpeg",
       });
 
     if (uploadError) {
-      if (uploadError.message?.includes("bucket")) {
-        // bucket may not exist; silently skip
+      if (uploadError.message?.includes("bucket") || uploadError.message?.includes("No content")) {
         return "";
       }
       throw new Error(formatStorageError(uploadError));
