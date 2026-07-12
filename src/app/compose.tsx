@@ -95,7 +95,7 @@ export default function ComposeScreen() {
         await createPost(trimmed, imageUrl);
       }
       triggerFeedRefresh();
-      router.back();
+      router.replace("/(tabs)");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to submit");
     } finally {
@@ -115,7 +115,7 @@ export default function ComposeScreen() {
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ThemedView style={styles.topBar}>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => router.replace("/(tabs)")}
             style={({ pressed }) => [
               styles.closeButton,
               pressed && styles.pressed,
