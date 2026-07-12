@@ -13,7 +13,7 @@ export async function fetchPosts(): Promise<PostWithProfile[]> {
 
     const { data, error } = await supabase
       .from("posts")
-      .select("id, content, created_at, updated_at, user_id, likes(id, user_id)")
+      .select("id, content, image_url, created_at, updated_at, user_id, likes(id, user_id)")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -34,13 +34,11 @@ export async function createPost(content: string, imageUrl?: string): Promise<vo
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const payload: Record<string, any> = {
+    const { error } = await supabase.from("posts").insert({
       user_id: user.id,
       content: sanitizeText(content),
-    };
-    if (imageUrl) payload.image_url = imageUrl;
-
-    const { error } = await supabase.from("posts").insert(payload);
+      image_url: imageUrl ?? null,
+    });
     if (error) {
       if (error.code === "42501" || error.message?.includes("permission denied")) {
         throw new Error("You need a verified student ID to create posts. Please upload your student ID first.");
