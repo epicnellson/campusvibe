@@ -185,7 +185,7 @@ export async function uploadPostImage(
       });
 
     if (uploadError) {
-      if (uploadError.message?.includes("bucket") || uploadError.message?.includes("No content")) {
+      if (uploadError.message?.includes("bucket") || uploadError.message?.includes("No content") || uploadError.message?.includes("row-level security") || uploadError.message?.includes("security policy")) {
         return "";
       }
       throw new Error(formatStorageError(uploadError));

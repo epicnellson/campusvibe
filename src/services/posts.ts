@@ -37,7 +37,7 @@ export async function createPost(content: string, imageUrl?: string): Promise<vo
     const { error } = await supabase.from("posts").insert({
       user_id: user.id,
       content: sanitizeText(content),
-      image_url: imageUrl ?? null,
+      image_url: imageUrl || null,
     });
     if (error) {
       if (error.code === "42501" || error.message?.includes("permission denied")) {
