@@ -303,6 +303,7 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingBottom: 120,
   },
   avatarSection: {

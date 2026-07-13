@@ -179,6 +179,12 @@ export default function HomeFeedScreen() {
             message={error}
             action={{ title: "Try again", onPress: load }}
           />
+        ) : items.length === 0 ? (
+          <View style={styles.emptyState}>
+            <ThemedText themeColor="textSecondary">
+              Nothing here yet. Tap + to create something!
+            </ThemedText>
+          </View>
         ) : (
           <FlatList
             data={items}
@@ -189,13 +195,6 @@ export default function HomeFeedScreen() {
             refreshing={refreshing}
             onRefresh={onRefresh}
             showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <ThemedView style={styles.emptyState}>
-                <ThemedText themeColor="textSecondary">
-                  Nothing here yet. Tap + to create something!
-                </ThemedText>
-              </ThemedView>
-            }
           />
         )}
       </View>

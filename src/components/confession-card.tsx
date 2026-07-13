@@ -1,9 +1,9 @@
 import { memo, useCallback, useState } from "react";
-import { Image, Pressable, StyleSheet, View } from "react-native";
+import { Image, Modal, Pressable, StyleSheet, View } from "react-native";
 import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { spacing, borderRadius, fontSize } from "@/theme";
+import { spacing, borderRadius, fontSize, colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
 import type { ConfessionWithLikes } from "@/services/database.types";
 
@@ -12,48 +12,14 @@ const ANIMALS = [
   "Raccoon", "Sloth", "Hedgehog", "Otter", "Falcon", "Wolf", "Badger",
 ];
 
-const REACTIONS = [
-  { emoji: "😂", key: "laugh" },
-  { emoji: "❤️", key: "heart" },
-  { emoji: "😮", key: "wow" },
-  { emoji: "😢", key: "sad" },
-  { emoji: "😡", key: "angry" },
-];
-
-function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return Math.abs(hash);
-}
-
-function hueFromId(id: string): number {
-  return hashString(id) % 360;
-}
+const EMOJI_OPTIONS = ["😂", "❤️", "😮", "😢", "😡", "🔥", "👏", "💀"];
 
 function animalFromId(id: string): string {
-  return ANIMALS[hashString(id) % ANIMALS.length];
-}
-
-function hexFromHue(hue: number, saturation: number, lightness: number): string {
-  const s = saturation / 100;
-  const l = lightness / 100;
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
-  const m = l - c / 2;
-  let r = 0, g = 0, b = 0;
-  if (hue < 60) { r = c; g = x; b = 0; }
-  else if (hue < 120) { r = x; g = c; b = 0; }
-  else if (hue < 180) { r = 0; g = c; b = x; }
-  else if (hue < 240) { r = 0; g = x; b = c; }
-  else if (hue < 300) { r = x; g = 0; b = c; }
-  else { r = c; g = 0; b = x; }
-  const toHex = (n: number) =>
-    Math.round((n + m) * 255)
-      .toString(16)
-      .padStart(2, "0");
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return ANIMALS[Math.abs(hash) % ANIMALS.length];
 }
 
 function relativeTime(dateStr: string): string {
@@ -83,29 +49,28 @@ function ConfessionCardInner({ confession, onLikeToggled }: ConfessionCardProps)
     confession.confession_likes?.some((l) => l.user_id === currentUserId) ?? false;
   const likeCount = confession.confession_likes?.length ?? 0;
   const [reportVisible, setReportVisible] = useState(false);
-  const [reactions, setReactions] = useState<Record<string, boolean>>({});
-
-  const hue = hueFromId(confession.id);
-  const cardBg = hexFromHue(hue, 30, 92);
-  const avatarBg = hexFromHue(hue, 55, 45);
+  const [reactions, setReactions] = useState<Record<string, number>>({});
+  const [showPicker, setShowPicker] = useState(false);
   const animalName = animalFromId(confession.id);
 
-  const toggleReaction = useCallback((key: string) => {
-    setReactions((prev) => ({ ...prev, [key]: !prev[key] }));
-  }, []);
-
   const handleLike = useCallback(() => {
-    if (userLiked) {
-      onLikeToggled?.(confession.id, false);
-    } else {
-      onLikeToggled?.(confession.id, true);
-    }
+    onLikeToggled?.(confession.id, !userLiked);
   }, [confession.id, userLiked, onLikeToggled]);
 
+  const addReaction = useCallback((emoji: string) => {
+    setReactions((prev) => ({
+      ...prev,
+      [emoji]: (prev[emoji] ?? 0) + 1,
+    }));
+    setShowPicker(false);
+  }, []);
+
+  const reactionEntries = Object.entries(reactions);
+
   return (
-    <ThemedView style={[styles.card, { backgroundColor: cardBg }]}>
+    <ThemedView style={styles.card}>
       <View style={styles.header}>
-        <View style={[styles.avatar, { backgroundColor: avatarBg }]}>
+        <View style={styles.avatar}>
           <ThemedText style={styles.avatarText}>?</ThemedText>
         </View>
         <View style={styles.meta}>
@@ -122,33 +87,31 @@ function ConfessionCardInner({ confession, onLikeToggled }: ConfessionCardProps)
         <Image source={{ uri: confession.image_url }} style={styles.image} />
       ) : null}
 
-      <View style={styles.reactionRow}>
-        {REACTIONS.map((r) => {
-          const active = !!reactions[r.key];
-          return (
+      {reactionEntries.length > 0 && (
+        <View style={styles.reactionRow}>
+          {reactionEntries.map(([emoji, count]) => (
             <Pressable
-              key={r.key}
-              onPress={() => toggleReaction(r.key)}
-              style={({ pressed }) => [
-                styles.reactionButton,
-                active && styles.reactionActive,
-                pressed && styles.pressed,
-              ]}
-              accessibilityLabel={`${r.key} reaction`}
+              key={emoji}
+              onPress={() => addReaction(emoji)}
+              style={styles.reactionBadge}
+              accessibilityLabel={`${emoji} ${count}`}
               accessibilityRole="button"
-              accessibilityState={{ selected: active }}
             >
-              <ThemedText style={styles.reactionEmoji}>{r.emoji}</ThemedText>
-              <ThemedText
-                type="small"
-                style={[styles.reactionCount, active && styles.reactionCountActive]}
-              >
-                {active ? "1" : "0"}
-              </ThemedText>
+              <ThemedText style={styles.reactionEmoji}>{emoji}</ThemedText>
+              <ThemedText style={styles.reactionCount}>{count}</ThemedText>
             </Pressable>
-          );
-        })}
-      </View>
+          ))}
+        </View>
+      )}
+
+      <Pressable
+        onPress={() => setShowPicker(true)}
+        style={styles.addReactionButton}
+        accessibilityLabel="Add reaction"
+        accessibilityRole="button"
+      >
+        <ThemedText style={styles.addReactionText}>Add Reaction (+)</ThemedText>
+      </Pressable>
 
       <View style={styles.actions}>
         <Pressable
@@ -188,6 +151,26 @@ function ConfessionCardInner({ confession, onLikeToggled }: ConfessionCardProps)
         contentType="confession"
         onClose={() => setReportVisible(false)}
       />
+
+      <Modal visible={showPicker} transparent animationType="fade" onRequestClose={() => setShowPicker(false)}>
+        <Pressable style={styles.pickerOverlay} onPress={() => setShowPicker(false)}>
+          <ThemedView style={styles.pickerSheet}>
+            <View style={styles.emojiGrid}>
+              {EMOJI_OPTIONS.map((emoji) => (
+                <Pressable
+                  key={emoji}
+                  onPress={() => addReaction(emoji)}
+                  style={({ pressed }) => [styles.emojiOption, pressed && styles.pressed]}
+                  accessibilityLabel={emoji}
+                  accessibilityRole="button"
+                >
+                  <ThemedText style={styles.emojiText}>{emoji}</ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </ThemedView>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -196,9 +179,10 @@ export const ConfessionCard = memo(ConfessionCardInner);
 
 const styles = StyleSheet.create({
   card: {
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1E1E1E",
   },
   header: {
     flexDirection: "row",
@@ -209,6 +193,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: "#6C47FF",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -223,48 +208,62 @@ const styles = StyleSheet.create({
   content: {
     fontSize: fontSize.md,
     lineHeight: 22,
+    color: "#E1E1E1",
+    marginTop: spacing.xs + 2,
   },
   image: {
     width: "100%",
     height: 220,
     borderRadius: borderRadius.md,
     resizeMode: "cover" as const,
+    marginTop: spacing.sm,
   },
   reactionRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.xs,
-    paddingTop: spacing.xs,
+    marginTop: spacing.sm,
   },
-  reactionButton: {
+  reactionBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    gap: 4,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#D0D0D0",
-    minHeight: 44,
-  },
-  reactionActive: {
-    borderColor: "#6C47FF",
-    backgroundColor: "rgba(108, 71, 255, 0.08)",
+    borderColor: "#333",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    minHeight: 36,
   },
   reactionEmoji: {
-    fontSize: 15,
+    fontSize: 16,
   },
   reactionCount: {
-    color: "#666",
+    fontSize: 13,
+    color: "#999",
+    fontWeight: "500",
   },
-  reactionCountActive: {
+  addReactionButton: {
+    alignSelf: "flex-start",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#6C47FF",
+    borderStyle: "dashed",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginTop: spacing.xs,
+    minHeight: 36,
+  },
+  addReactionText: {
+    fontSize: 13,
     color: "#6C47FF",
-    fontWeight: "600",
+    fontWeight: "500",
   },
   actions: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    paddingTop: spacing.xs,
+    marginTop: spacing.sm,
   },
   likeButton: {
     flexDirection: "row",
@@ -290,5 +289,33 @@ const styles = StyleSheet.create({
   likedIcon: {
     fontSize: 18,
     color: "#FF3B30",
+  },
+  pickerOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  pickerSheet: {
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    padding: spacing.lg,
+    paddingBottom: spacing.xl + spacing.lg,
+  },
+  emojiGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  emojiOption: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(108, 71, 255, 0.08)",
+  },
+  emojiText: {
+    fontSize: 26,
   },
 });

@@ -49,6 +49,22 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
     } catch {}
   }, [post.id, userLiked, onLikeToggled]);
 
+  const handleShare = useCallback(async () => {
+    try {
+      await Share.share({
+        message: post.content,
+        url: `campusvibe://post/${post.id}`,
+      });
+    } catch {}
+  }, [post]);
+
+  const handleCopyLink = useCallback(async () => {
+    try {
+      await Clipboard.setStringAsync(`campusvibe://post/${post.id}`);
+      Alert.alert("Link copied", "Post link copied to clipboard.");
+    } catch {}
+  }, [post.id]);
+
   const handleLongPress = useCallback(() => {
     Alert.alert("Post Actions", undefined, [
       {
@@ -57,14 +73,7 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
       },
       {
         text: "Share",
-        onPress: async () => {
-          try {
-            await Share.share({
-              message: post.content,
-              url: `campusvibe://post/${post.id}`,
-            });
-          } catch {}
-        },
+        onPress: handleShare,
       },
       {
         text: "Copy Text",
@@ -82,7 +91,7 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
         style: "cancel",
       },
     ]);
-  }, [post, handleLike]);
+  }, [post, handleLike, handleShare]);
 
   return (
     <Pressable
@@ -144,11 +153,21 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
           </Pressable>
 
           <Pressable
+            onPress={handleCopyLink}
             style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
-            accessibilityLabel="Reply"
+            accessibilityLabel="Copy link"
             accessibilityRole="button"
           >
             <Ionicons name="chatbubble-outline" size={19} color="#60646C" />
+          </Pressable>
+
+          <Pressable
+            onPress={handleShare}
+            style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
+            accessibilityLabel="Share"
+            accessibilityRole="button"
+          >
+            <Ionicons name="paper-plane-outline" size={19} color="#60646C" />
           </Pressable>
 
           <Pressable
