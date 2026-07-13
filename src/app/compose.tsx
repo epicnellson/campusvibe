@@ -207,7 +207,7 @@ export default function ComposeScreen() {
               textAlignVertical="top"
             />
 
-            {images.length > 0 && (
+            {!isConfession && images.length > 0 && (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -240,22 +240,24 @@ export default function ComposeScreen() {
             >
               {content.length}/{MAX_CHARS}
             </ThemedText>
-            <View style={styles.bottomActions}>
-              <Pressable
-                onPress={pickImages}
-                style={({ pressed }) => [
-                  styles.toolButton,
-                  pressed && styles.pressed,
-                ]}
-                disabled={images.length >= MAX_IMAGES}
-              >
-                <Ionicons
-                  name="image-outline"
-                  size={22}
-                  color={images.length >= MAX_IMAGES ? theme.textSecondary : colors.primary}
-                />
-              </Pressable>
-            </View>
+            {!isConfession && (
+              <View style={styles.bottomActions}>
+                <Pressable
+                  onPress={pickImages}
+                  style={({ pressed }) => [
+                    styles.toolButton,
+                    pressed && styles.pressed,
+                  ]}
+                  disabled={images.length >= MAX_IMAGES}
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={22}
+                    color={images.length >= MAX_IMAGES ? theme.textSecondary : colors.primary}
+                  />
+                </Pressable>
+              </View>
+            )}
           </ThemedView>
         </KeyboardAvoidingView>
       </SafeAreaView>
