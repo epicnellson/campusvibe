@@ -1,5 +1,5 @@
 import { memo, useCallback, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Image, Pressable, StyleSheet, View } from "react-native";
 import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -118,6 +118,10 @@ function ConfessionCardInner({ confession, onLikeToggled }: ConfessionCardProps)
 
       <ThemedText style={styles.content}>{confession.content}</ThemedText>
 
+      {confession.image_url ? (
+        <Image source={{ uri: confession.image_url }} style={styles.image} />
+      ) : null}
+
       <View style={styles.reactionRow}>
         {REACTIONS.map((r) => {
           const active = !!reactions[r.key];
@@ -219,6 +223,12 @@ const styles = StyleSheet.create({
   content: {
     fontSize: fontSize.md,
     lineHeight: 22,
+  },
+  image: {
+    width: "100%",
+    height: 220,
+    borderRadius: borderRadius.md,
+    resizeMode: "cover" as const,
   },
   reactionRow: {
     flexDirection: "row",

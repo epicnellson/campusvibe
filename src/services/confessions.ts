@@ -13,6 +13,7 @@ export async function fetchConfessions(): Promise<ConfessionWithLikes[]> {
         `
       id,
       content,
+      image_url,
       created_at,
       updated_at,
       user_id,
@@ -26,7 +27,7 @@ export async function fetchConfessions(): Promise<ConfessionWithLikes[]> {
   });
 }
 
-export async function createConfession(content: string): Promise<void> {
+export async function createConfession(content: string, imageUrl?: string): Promise<void> {
   return withRetry(async () => {
     const {
       data: { user },
@@ -44,6 +45,7 @@ export async function createConfession(content: string): Promise<void> {
     const { error } = await supabase.from("confessions").insert({
       user_id: user.id,
       content: sanitizeText(content),
+      image_url: imageUrl || null,
     });
     if (error) throw error;
   });

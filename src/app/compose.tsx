@@ -84,14 +84,14 @@ export default function ComposeScreen() {
     setError(null);
 
     try {
+      let imageUrl: string | undefined;
+      if (images.length > 0) {
+        const tempId = Date.now().toString();
+        imageUrl = await uploadPostImage(tempId, images[0]);
+      }
       if (isConfession) {
-        await createConfession(trimmed);
+        await createConfession(trimmed, imageUrl);
       } else {
-        let imageUrl: string | undefined;
-        if (images.length > 0) {
-          const tempId = Date.now().toString();
-          imageUrl = await uploadPostImage(tempId, images[0]);
-        }
         await createPost(trimmed, imageUrl);
       }
       triggerFeedRefresh();
