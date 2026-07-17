@@ -16,7 +16,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
-import { PostCard } from "@/components/post-card";
 import { Avatar } from "@/components/ui/Avatar";
 import { spacing, colors } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
@@ -27,24 +26,10 @@ import { supabase } from "@/services/supabase";
 import type { PostWithProfile, ListingWithSeller } from "@/services/database.types";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
-const COVER_HEIGHT = 160;
-const AVATAR_SIZE = 80;
-const AVATAR_OVERLAP = AVATAR_SIZE / 2;
-
-function relativeTime(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffMs = now - then;
-  const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 60) return "just now";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d`;
-  return new Date(dateStr).toLocaleDateString();
-}
+const GRID_COLUMNS = 3;
+const GRID_GAP = 2;
+const TILE_SIZE = (SCREEN_WIDTH - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
+const AVATAR_SIZE = 88;
 
 function formatJoinDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -146,12 +131,49 @@ export default function ProfileScreen() {
     if (posts.length === 0) {
       return (
         <View style={styles.tabEmpty}>
-          <Ionicons name="document-text-outline" size={40} color="#2A2A2A" />
+          <Ionicons name="camera-outline" size={40} color="#2A2A2A" />
           <ThemedText style={styles.emptyText}>No posts yet</ThemedText>
         </View>
       );
     }
-    return posts.map((post) => <PostCard key={post.id} post={post} />);
+
+    const rows: PostWithProfile[][] = [];
+    for (let i = 0; i < posts.length; i += GRID_COLUMNS) {
+      rows.push(posts.slice(i, i + GRID_COLUMNS));
+    }
+
+    return (
+      <View style={styles.mediaGrid}>
+        {rows.map((row, ri) => (
+          <View key={ri} style={styles.mediaRow}>
+            {row.map((post) => {
+              const img = resolveImageUrl(post.image_url, "post-images");
+              return (
+                <Pressable
+                  key={post.id}
+                  onPress={() => router.push(`/post/${post.id}`)}
+                  style={({ pressed }) => [styles.mediaTile, pressed && styles.pressed]}
+                >
+                  {img ? (
+                    <Image source={{ uri: img }} style={styles.tileImage} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.tileTextContainer}>
+                      <ThemedText numberOfLines={4} style={styles.tileText}>
+                        {post.content}
+                      </ThemedText>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+            {row.length < GRID_COLUMNS &&
+              Array.from({ length: GRID_COLUMNS - row.length }).map((_, i) => (
+                <View key={`empty-${i}`} style={styles.mediaTile} />
+              ))}
+          </View>
+        ))}
+      </View>
+    );
   };
 
   const renderListingsTab = () => {
@@ -208,7 +230,7 @@ export default function ProfileScreen() {
       {[
         { label: "Department", value: profile?.department ?? "Not set" },
         { label: "Year", value: profile?.year ?? "Not set" },
-        { label: "Verification", value: isVerified ? "✓ Verified Student" : "Pending" },
+        { label: "Verification", value: isVerified ? "Verified Student" : "Pending" },
         { label: "Joined", value: profile?.created_at ? formatJoinDate(profile.created_at) : "Unknown" },
       ].map(({ label, value }) => (
         <View key={label} style={styles.aboutRow}>
@@ -228,7 +250,7 @@ export default function ProfileScreen() {
         contentContainerStyle={{ paddingBottom: 140 }}
         stickyHeaderIndices={[0]}
       >
-        {/* Sticky top-bar for back/actions */}
+        {/* Sticky top-bar */}
         <View style={styles.topBar}>
           <Pressable
             onPress={() => router.push("/edit-profile")}
@@ -246,13 +268,8 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
 
-        {/* Cover photo */}
-        <View style={styles.coverContainer}>
-          <View style={styles.coverGradient} />
-        </View>
-
-        {/* Avatar row */}
-        <View style={styles.avatarRow}>
+        {/* Centered profile info */}
+        <View style={styles.profileSection}>
           <View style={styles.avatarWrapper}>
             <Avatar uri={avatarUri ?? undefined} name={profile?.name ?? "?"} size={AVATAR_SIZE} />
             {isVerified && (
@@ -261,25 +278,18 @@ export default function ProfileScreen() {
               </View>
             )}
           </View>
-          <Pressable
-            onPress={() => router.push("/edit-profile")}
-            style={({ pressed }) => [styles.editBtn, pressed && styles.pressed]}
-          >
-            <ThemedText style={styles.editBtnText}>Edit Profile</ThemedText>
-          </Pressable>
-        </View>
 
-        {/* Name & details */}
-        <View style={styles.profileInfo}>
           <View style={styles.nameRow}>
             <ThemedText style={styles.name}>{profile?.name ?? "Unknown"}</ThemedText>
             {isVerified && (
               <Ionicons name="checkmark-circle" size={18} color="#22C55E" style={{ marginLeft: 4 }} />
             )}
           </View>
+
           <ThemedText style={styles.metaText}>
             {[profile?.department, profile?.year].filter(Boolean).join(" · ")}
           </ThemedText>
+
           {profile?.created_at && (
             <View style={styles.joinedRow}>
               <Ionicons name="calendar-outline" size={13} color="#71717A" />
@@ -289,21 +299,29 @@ export default function ProfileScreen() {
 
           {/* Stats */}
           <View style={styles.statsRow}>
-            <Pressable onPress={() => {}} style={styles.statItem}>
+            <View style={styles.statItem}>
               <ThemedText style={styles.statNumber}>{followingCount}</ThemedText>
               <ThemedText style={styles.statLabel}> Following</ThemedText>
-            </Pressable>
+            </View>
             <View style={styles.statDot} />
-            <Pressable onPress={() => {}} style={styles.statItem}>
+            <View style={styles.statItem}>
               <ThemedText style={styles.statNumber}>{followerCount}</ThemedText>
               <ThemedText style={styles.statLabel}> Followers</ThemedText>
-            </Pressable>
+            </View>
             <View style={styles.statDot} />
             <View style={styles.statItem}>
               <ThemedText style={styles.statNumber}>{posts.length}</ThemedText>
               <ThemedText style={styles.statLabel}> Posts</ThemedText>
             </View>
           </View>
+
+          {/* Edit Profile button */}
+          <Pressable
+            onPress={() => router.push("/edit-profile")}
+            style={({ pressed }) => [styles.editBtn, pressed && styles.pressed]}
+          >
+            <ThemedText style={styles.editBtnText}>Edit Profile</ThemedText>
+          </Pressable>
         </View>
 
         {/* Tab bar */}
@@ -316,11 +334,15 @@ export default function ProfileScreen() {
               accessibilityLabel={`${tab} tab`}
               accessibilityRole="tab"
             >
-              <ThemedText
-                style={[styles.tabText, activeTab === tab && styles.tabTextActive]}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </ThemedText>
+              <Ionicons
+                name={
+                  tab === "posts" ? "grid-outline" :
+                  tab === "listings" ? "pricetag-outline" :
+                  "person-outline"
+                }
+                size={22}
+                color={activeTab === tab ? "#FFFFFF" : "#71717A"}
+              />
             </Pressable>
           ))}
           <Animated.View style={[styles.tabIndicator, { width: TAB_WIDTH, left: tabIndicator }]} />
@@ -365,22 +387,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  coverContainer: {
-    height: COVER_HEIGHT,
-    backgroundColor: "#0A0A0A",
-    marginTop: -52, // slide under topBar so it feels like a real cover
-  },
-  coverGradient: {
-    flex: 1,
-    backgroundColor: "#101020",
-  },
-  avatarRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
+  profileSection: {
+    alignItems: "center",
     paddingHorizontal: spacing.md,
-    marginTop: -(AVATAR_OVERLAP),
-    marginBottom: spacing.sm,
+    paddingBottom: spacing.md,
+    gap: 4,
   },
   avatarWrapper: {
     position: "relative",
@@ -390,39 +401,21 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#000000",
     overflow: "visible",
+    marginBottom: 6,
   },
   verifiedBadge: {
     position: "absolute",
     bottom: 2,
     right: 2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: "#22C55E",
     borderWidth: 2,
     borderColor: "#000000",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
-  },
-  editBtn: {
-    height: 34,
-    paddingHorizontal: 16,
-    borderRadius: 17,
-    borderWidth: 1.5,
-    borderColor: "#2A2A2A",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  editBtnText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  profileInfo: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-    gap: 4,
   },
   nameRow: {
     flexDirection: "row",
@@ -452,7 +445,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 12,
     gap: 4,
   },
   statItem: {
@@ -475,8 +468,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#3A3A3A",
     marginHorizontal: 6,
   },
+  editBtn: {
+    height: 34,
+    paddingHorizontal: 48,
+    borderRadius: 17,
+    borderWidth: 1.5,
+    borderColor: "#2A2A2A",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+  },
+  editBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
   tabBar: {
     flexDirection: "row",
+    borderTopWidth: 0.5,
+    borderTopColor: "#1E1E1E",
     borderBottomWidth: 0.5,
     borderBottomColor: "#1E1E1E",
     position: "relative",
@@ -484,15 +494,7 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 14,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#71717A",
-  },
-  tabTextActive: {
-    color: "#FFFFFF",
+    paddingVertical: 12,
   },
   tabIndicator: {
     position: "absolute",
@@ -513,6 +515,35 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 15,
     color: "#3A3A3A",
+  },
+  mediaGrid: {
+    gap: GRID_GAP,
+  },
+  mediaRow: {
+    flexDirection: "row",
+    gap: GRID_GAP,
+  },
+  mediaTile: {
+    width: TILE_SIZE,
+    height: TILE_SIZE,
+    backgroundColor: "#0A0A0A",
+    overflow: "hidden",
+  },
+  tileImage: {
+    width: "100%",
+    height: "100%",
+  },
+  tileTextContainer: {
+    flex: 1,
+    backgroundColor: "#0A0A0A",
+    padding: 8,
+    justifyContent: "center",
+  },
+  tileText: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: "#A0A0A0",
+    textAlign: "center",
   },
   gridWrapper: {
     padding: spacing.md,

@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,7 +14,7 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "@/hooks/use-session";
-import { rsvpEvent, unrsvpEvent } from "@/services/events";
+import { rsvpEvent, unrsvpEvent, deleteEvent } from "@/services/events";
 import { resolveImageUrl } from "@/services/storage";
 import type { EventWithRSVPs } from "@/services/database.types";
 import { supabase } from "@/services/supabase";
@@ -27,6 +29,7 @@ export default function EventDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rsvpLoading, setRsvpLoading] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   const currentUserId = session?.user?.id;
   const isGoing = event?.event_rsvps?.some((r) => r.user_id === currentUserId) ?? false;
@@ -83,6 +86,15 @@ export default function EventDetailScreen() {
     setRsvpLoading(false);
   }, [event, currentUserId, isGoing]);
 
+  const handleDeleteEvent = useCallback(async () => {
+    if (!event) return;
+    try {
+      await deleteEvent(event.id);
+      router.back();
+    } catch {}
+    setShowMenu(false);
+  }, [event]);
+
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr + "T00:00:00");
     return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -135,14 +147,23 @@ export default function EventDetailScreen() {
           {/* Gradient overlay at bottom of banner */}
           <View style={styles.bannerGradient} />
           {/* Back button */}
-          <Pressable
-            onPress={() => router.back()}
-            style={[styles.backButton, { top: insets.top + 10 }]}
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-          >
-            <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
-          </Pressable>
+          <View style={[styles.bannerNav, { top: insets.top + 10 }]}>
+            <Pressable
+              onPress={() => router.back()}
+              style={styles.backButton}
+              accessibilityLabel="Go back"
+              accessibilityRole="button"
+            >
+              <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+            </Pressable>
+            <Pressable
+              onPress={() => setShowMenu(true)}
+              style={styles.backButton}
+              accessibilityLabel="More options"
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
+            </Pressable>
+          </View>
         </View>
 
         {/* Content */}
@@ -246,6 +267,33 @@ export default function EventDetailScreen() {
           )}
         </Pressable>
       </View>
+
+      <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowMenu(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={styles.actionSheet}>
+            <View style={styles.actionSheetHandle} />
+            <Pressable
+              onPress={() => {
+                setShowMenu(false);
+                Alert.alert("Delete event", "Are you sure you want to delete this event?", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Delete", style: "destructive", onPress: handleDeleteEvent },
+                ]);
+              }}
+              style={({ pressed }) => [styles.actionSheetItem, pressed && { opacity: 0.6 }]}
+            >
+              <Ionicons name="trash-outline" size={20} color="#EF4444" />
+              <Text style={[styles.actionSheetLabel, { color: "#EF4444" }]}>Delete event</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowMenu(false)}
+              style={({ pressed }) => [styles.actionSheetCancel, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={styles.actionSheetCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -288,13 +336,16 @@ const styles = StyleSheet.create({
     right: 0,
     height: 80,
     backgroundColor: "transparent",
-    // Simple fade using backgroundColor trick — actual LinearGradient needs expo-linear-gradient
-    // Using box shadow approximation with bottom border
     borderBottomWidth: 0,
   },
-  backButton: {
+  bannerNav: {
     position: "absolute",
     left: 14,
+    right: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  backButton: {
     width: 38,
     height: 38,
     borderRadius: 19,
@@ -416,5 +467,49 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  actionSheet: {
+    backgroundColor: "#1A1A1A",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 34,
+  },
+  actionSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#262626",
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  actionSheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  actionSheetLabel: {
+    fontSize: 16,
+    color: "#E1E1E1",
+    fontWeight: "500",
+  },
+  actionSheetCancel: {
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 4,
+    borderTopWidth: 0.5,
+    borderTopColor: "#262626",
+  },
+  actionSheetCancelText: {
+    fontSize: 16,
+    color: "#71717A",
+    fontWeight: "500",
   },
 });

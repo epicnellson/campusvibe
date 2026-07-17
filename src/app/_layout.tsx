@@ -160,13 +160,20 @@ function RootLayout() {
                       headerShown: false,
                     }}
                   />
-                  <Stack.Screen
-                    name="event/[id]"
-                    options={{
-                      title: "Event",
-                      headerShown: false,
-                    }}
-                  />
+  <Stack.Screen
+    name="event/[id]"
+    options={{
+      title: "Event",
+      headerShown: false,
+    }}
+  />
+  <Stack.Screen
+    name="confession/[id]"
+    options={{
+      title: "Confession",
+      headerShown: false,
+    }}
+  />
                 </Stack>
               </RefreshProvider>
             </ToastProvider>

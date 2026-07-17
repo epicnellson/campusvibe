@@ -1,6 +1,7 @@
 import { memo, useCallback, useState, useRef } from "react";
 import { Animated, Image, Platform, Pressable, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
 import { useSession } from "@/hooks/use-session";
@@ -118,7 +119,12 @@ function ConfessionCardInner({ confession, onLikeToggled }: ConfessionCardProps)
   const resolvedImage = resolveImageUrl(confession.image_url, "post-images");
 
   return (
-    <View style={styles.container}>
+    <Pressable
+      onPress={() => router.push({ pathname: "/confession/[id]", params: { id: confession.id } })}
+      style={({ pressed }) => [styles.container, pressed && { opacity: 0.85 }]}
+      accessibilityLabel={`Confession by Anonymous ${animalName}`}
+      accessibilityRole="button"
+    >
       <View style={styles.contentRow}>
         <View style={styles.leftColumn}>
           <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
@@ -188,7 +194,7 @@ function ConfessionCardInner({ confession, onLikeToggled }: ConfessionCardProps)
         contentType="confession"
         onClose={() => setReportVisible(false)}
       />
-    </View>
+    </Pressable>
   );
 }
 

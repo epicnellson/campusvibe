@@ -99,6 +99,21 @@ export async function unrsvpEvent(eventId: string) {
   });
 }
 
+export async function deleteEvent(eventId: string) {
+  return withRetry(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const { error } = await supabase
+      .from("events")
+      .delete()
+      .eq("id", eventId);
+    if (error) throw error;
+  });
+}
+
 async function fetchCreatorNames(userIds: string[]): Promise<Map<string, { name: string }>> {
   const map = new Map<string, { name: string }>();
   if (userIds.length === 0) return map;

@@ -27,6 +27,20 @@ export async function fetchConfessions(): Promise<ConfessionWithLikes[]> {
   });
 }
 
+export async function fetchConfessionById(confessionId: string): Promise<ConfessionWithLikes> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from("confessions")
+      .select(
+        `id, content, image_url, created_at, updated_at, user_id, confession_likes(id, user_id)`
+      )
+      .eq("id", confessionId)
+      .single();
+    if (error) throw error;
+    return data as unknown as ConfessionWithLikes;
+  });
+}
+
 export async function createConfession(content: string, imageUrl?: string): Promise<void> {
   return withRetry(async () => {
     const {
@@ -81,6 +95,21 @@ export async function likeConfession(confessionId: string) {
         notifyPopularConfession(confession.user_id, count);
       }
     }
+  });
+}
+
+export async function deleteConfession(confessionId: string) {
+  return withRetry(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const { error } = await supabase
+      .from("confessions")
+      .delete()
+      .eq("id", confessionId);
+    if (error) throw error;
   });
 }
 
