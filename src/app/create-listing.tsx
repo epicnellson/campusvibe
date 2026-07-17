@@ -2,11 +2,13 @@ import { Image } from "expo-image";
 import { Redirect, router } from "expo-router";
 import { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -54,7 +56,13 @@ export default function CreateListingScreen() {
       ? "Please select a category"
       : undefined;
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000000" }}>
+        <ActivityIndicator size="large" color="#6C47FF" />
+      </View>
+    );
+  }
   if (!session) return <Redirect href="/" />;
 
   const handlePickImages = async () => {

@@ -1,6 +1,6 @@
 import { Redirect, router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -31,7 +31,13 @@ export default function LoginScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#6C47FF" />
+      </View>
+    );
+  }
   if (session) return <Redirect href="/" />;
 
   const handleSendOTP = async () => {

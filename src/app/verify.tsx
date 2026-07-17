@@ -1,6 +1,6 @@
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, TextInput } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, TextInput, View, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -46,7 +46,13 @@ export default function VerifyScreen() {
     refs.current[0]?.focus();
   }, []);
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6C47FF" />
+      </View>
+    );
+  }
   if (session) return <Redirect href="/" />;
   if (!email) return <Redirect href="/" />;
 
@@ -183,6 +189,12 @@ export default function VerifyScreen() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000000",
+  },
   container: {
     flex: 1,
     flexDirection: "row",

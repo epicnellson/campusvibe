@@ -1,8 +1,6 @@
 import { memo } from "react";
-import { StyleSheet, useColorScheme } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { spacing, borderRadius, fontSize, colors, lightColors } from "@/theme";
 import type { MessageWithSender } from "@/services/database.types";
 
 function messageTime(dateStr: string): string {
@@ -31,26 +29,25 @@ export type MessageBubbleProps = {
 };
 
 function MessageBubbleInner({ message, isOwn }: MessageBubbleProps) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
-  const otherBg = isDark ? "#2A2A2A" : "#E8E8E8";
-
   return (
-    <ThemedView
-      style={[styles.container, isOwn ? styles.ownContainer : { backgroundColor: otherBg, alignSelf: "flex-start", borderBottomLeftRadius: 4 }]}
+    <View
+      style={[
+        styles.container,
+        isOwn ? styles.ownContainer : styles.otherContainer,
+      ]}
     >
       {!isOwn && (
-        <ThemedText style={[styles.sender, { color: isDark ? colors.textSecondary : lightColors.textSecondary }]}>
+        <ThemedText style={styles.sender}>
           {message.sender?.name ?? "Unknown"}
         </ThemedText>
       )}
-      <ThemedText style={[styles.content, isOwn ? styles.ownText : { color: isDark ? colors.text : lightColors.text }]}>
+      <ThemedText style={[styles.content, isOwn ? styles.ownText : styles.otherText]}>
         {message.content}
       </ThemedText>
-      <ThemedText style={[styles.time, isOwn ? styles.ownTime : { color: isDark ? colors.textSecondary : lightColors.textSecondary }]}>
+      <ThemedText style={[styles.time, isOwn ? styles.ownTime : styles.otherTime]}>
         {messageTime(message.created_at)}
       </ThemedText>
-    </ThemedView>
+    </View>
   );
 }
 
@@ -58,39 +55,47 @@ export const MessageBubble = memo(MessageBubbleInner);
 
 const styles = StyleSheet.create({
   container: {
-    maxWidth: "80%",
-    padding: spacing.sm + 2,
-    borderRadius: borderRadius.md,
+    maxWidth: "78%",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 18,
     gap: 2,
+    marginVertical: 2,
   },
   ownContainer: {
     alignSelf: "flex-end",
-    backgroundColor: colors.primary,
+    backgroundColor: "#6C47FF",
     borderBottomRightRadius: 4,
   },
+  otherContainer: {
+    alignSelf: "flex-start",
+    backgroundColor: "#1A1A1E",
+    borderBottomLeftRadius: 4,
+  },
   sender: {
-    fontSize: fontSize.xs,
-    color: colors.textSecondary,
+    fontSize: 11,
+    color: "#9CA3AF",
     fontWeight: "600",
   },
   content: {
-    fontSize: fontSize.md,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 21,
   },
   ownText: {
     color: "#FFFFFF",
   },
   otherText: {
-    color: colors.text,
+    color: "#E1E1E1",
   },
   time: {
-    fontSize: fontSize.xs,
+    fontSize: 10,
     alignSelf: "flex-end",
+    marginTop: 2,
   },
   ownTime: {
-    color: "rgba(255,255,255,0.6)",
+    color: "rgba(255,255,255,0.5)",
   },
   otherTime: {
-    color: colors.textSecondary,
+    color: "#71717A",
   },
 });

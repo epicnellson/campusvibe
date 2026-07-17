@@ -1,11 +1,9 @@
 import { Image } from "expo-image";
-import { memo, useCallback, useState } from "react";
-import { Pressable, StyleSheet } from "react-native";
+import { memo, useState } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
 import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
-import { useTheme } from "@/hooks/use-theme";
 import type { ListingWithSeller } from "@/services/database.types";
 
 function formatPrice(price: string): string {
@@ -18,7 +16,6 @@ export type ListingCardProps = {
 };
 
 function ListingCardInner({ listing, onPress }: ListingCardProps) {
-  const theme = useTheme();
   const firstPhoto =
     listing.photos && listing.photos.length > 0 ? listing.photos[0] : null;
   const [reportVisible, setReportVisible] = useState(false);
@@ -27,7 +24,7 @@ function ListingCardInner({ listing, onPress }: ListingCardProps) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.card, { backgroundColor: theme.backgroundElement }, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       accessibilityLabel={`View ${listing.title}, ${displayPrice}`}
       accessibilityRole="button"
     >
@@ -36,14 +33,13 @@ function ListingCardInner({ listing, onPress }: ListingCardProps) {
           source={{ uri: firstPhoto }}
           style={styles.image}
           contentFit="cover"
-          placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
         />
       ) : (
-        <ThemedView style={styles.imagePlaceholder}>
-          <ThemedText type="small" themeColor="textSecondary">
+        <View style={styles.imagePlaceholder}>
+          <ThemedText style={{ color: "#52525B", fontSize: 13 }}>
             No photo
           </ThemedText>
-        </ThemedView>
+        </View>
       )}
       <Pressable
         onPress={(e) => {
@@ -58,17 +54,17 @@ function ListingCardInner({ listing, onPress }: ListingCardProps) {
         <ThemedText style={styles.reportOverlayText}>...</ThemedText>
       </Pressable>
 
-      <ThemedView style={styles.info}>
+      <View style={styles.info}>
         <ThemedText numberOfLines={1} style={styles.title}>
           {listing.title}
         </ThemedText>
         <ThemedText style={styles.price}>
           {displayPrice}
         </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+        <ThemedText style={{ color: "#71717A", fontSize: 12 }} numberOfLines={1}>
           {listing.category}
         </ThemedText>
-      </ThemedView>
+      </View>
 
       <ReportModal
         visible={reportVisible}
@@ -85,39 +81,50 @@ export const ListingCard = memo(ListingCardInner);
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    borderRadius: borderRadius.md,
+    borderRadius: 12,
     overflow: "hidden",
     maxWidth: "48%",
+    backgroundColor: "#121214",
   },
   image: {
     width: "100%",
-    height: 130,
+    aspectRatio: 1,
   },
   imagePlaceholder: {
-    height: 130,
+    aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#0A0A0C",
+  },
+  noPhotoText: {
+    fontSize: 12,
+    color: "#52525B",
   },
   info: {
-    padding: spacing.sm,
+    padding: 12,
     gap: 2,
   },
   title: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   price: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.bold,
-    color: colors.primary,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#6C47FF",
+  },
+  category: {
+    fontSize: 12,
+    color: "#71717A",
   },
   pressed: {
     opacity: 0.8,
   },
   reportOverlay: {
     position: "absolute",
-    top: spacing.xs,
-    right: spacing.xs,
+    top: 8,
+    right: 8,
     minWidth: 44,
     minHeight: 44,
     borderRadius: 22,

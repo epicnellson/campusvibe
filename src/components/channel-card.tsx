@@ -1,9 +1,6 @@
 import { memo } from "react";
-import { Pressable, StyleSheet } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { spacing, borderRadius, fontSize } from "@/theme";
-import { useTheme } from "@/hooks/use-theme";
 import type { Channel } from "@/services/database.types";
 
 export type ChannelCardProps = {
@@ -28,7 +25,6 @@ function channelIcon(type: string): string {
 }
 
 function ChannelCardInner({ channel, displayName, onPress }: ChannelCardProps) {
-  const theme = useTheme();
   const name =
     displayName ??
     (channel.type === "dm" ? "Direct Message" : channel.name);
@@ -40,19 +36,19 @@ function ChannelCardInner({ channel, displayName, onPress }: ChannelCardProps) {
       accessibilityLabel={`Open ${name} channel`}
       accessibilityRole="button"
     >
-      <ThemedView style={[styles.icon, { backgroundColor: theme.backgroundElement }]}>
+      <View style={styles.icon}>
         <ThemedText style={styles.iconText}>
           {channelIcon(channel.type)}
         </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.info}>
-        <ThemedText type="smallBold">{name}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+      </View>
+      <View style={styles.info}>
+        <ThemedText style={styles.channelName}>{name}</ThemedText>
+        <ThemedText style={styles.channelMeta} numberOfLines={1}>
           {channel.type === "dm"
             ? "Private conversation"
             : `${channel.members?.length ?? 0} members`}
         </ThemedText>
-      </ThemedView>
+      </View>
     </Pressable>
   );
 }
@@ -63,23 +59,35 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    gap: spacing.md,
+    padding: 16,
+    gap: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#1E1E1E",
+    backgroundColor: "#000000",
   },
   icon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#121214",
   },
   iconText: {
-    fontSize: fontSize.xl,
+    fontSize: 22,
   },
   info: {
     flex: 1,
     gap: 2,
+  },
+  channelName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  channelMeta: {
+    fontSize: 13,
+    color: "#71717A",
   },
   pressed: {
     opacity: 0.7,

@@ -17,10 +17,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      console.warn("Session check timed out — forcing load complete");
+      setIsLoading(false);
+    }, 5000);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      clearTimeout(timeout);
       setSession(session);
       setIsLoading(false);
     }).catch((e) => {
+      clearTimeout(timeout);
       console.warn("Failed to get session:", e);
       setIsLoading(false);
     });
@@ -31,7 +38,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setSession(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (

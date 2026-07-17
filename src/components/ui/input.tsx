@@ -51,7 +51,7 @@ export const Input = forwardRef<TextInput, InputProps>(
       ? theme.error
       : focused
       ? theme.primary
-      : theme.border;
+      : theme.background === '#000000' ? '#1E1E1E' : theme.border;
 
     return (
       <View style={styles.wrapper}>
@@ -68,7 +68,7 @@ export const Input = forwardRef<TextInput, InputProps>(
         <View
           style={[
             styles.container,
-            { backgroundColor: theme.backgroundElement, borderColor },
+            { backgroundColor: theme.background === '#000000' ? '#121212' : theme.backgroundElement, borderColor },
             leftIcon ? styles.withLeftIcon : undefined,
           ]}
         >
@@ -77,12 +77,12 @@ export const Input = forwardRef<TextInput, InputProps>(
             ref={ref}
             style={[
               styles.input,
-              { color: theme.text },
+              { color: theme.background === '#000000' ? '#FFFFFF' : theme.text },
               leftIcon ? styles.inputWithLeftIcon : undefined,
               rightIcon ? styles.inputWithRightIcon : undefined,
               style,
             ]}
-            placeholderTextColor={theme.textTertiary}
+            placeholderTextColor={theme.background === '#000000' ? '#71717A' : theme.textTertiary}
             onFocus={handleFocus}
             onBlur={handleBlur}
             {...rest}
@@ -111,16 +111,16 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: borderRadius.md,
-    borderWidth: 1.5,
+    borderRadius: 8,
+    borderWidth: 1,
     overflow: "hidden",
   },
   withLeftIcon: {},
   input: {
     flex: 1,
     fontSize: fontSize.md,
-    paddingVertical: spacing.md - 2,
-    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
   inputWithLeftIcon: {
     paddingLeft: spacing.xs,

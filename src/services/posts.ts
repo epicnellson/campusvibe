@@ -27,6 +27,43 @@ export async function fetchPosts(): Promise<PostWithProfile[]> {
   });
 }
 
+export async function fetchPostById(postId: string): Promise<PostWithProfile> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from("posts")
+      .select(
+        "id, content, image_url, created_at, updated_at, user_id, likes(id, user_id)"
+      )
+      .eq("id", postId)
+      .single();
+
+    if (error) throw error;
+
+    const post = data as any;
+    let profileMap = new Map<string, { name: string; department: string }>();
+
+    if (post.user_id) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("name, department")
+        .eq("id", post.user_id)
+        .single();
+
+      if (profile) {
+        profileMap.set(post.user_id, {
+          name: profile.name,
+          department: profile.department ?? "",
+        });
+      }
+    }
+
+    return {
+      ...post,
+      profiles: profileMap.get(post.user_id) ?? null,
+    } as unknown as PostWithProfile;
+  });
+}
+
 export async function createPost(content: string, imageUrl?: string): Promise<void> {
   return withRetry(async () => {
     const {

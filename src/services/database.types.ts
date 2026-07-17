@@ -54,7 +54,7 @@ export type Like = {
 };
 
 export type PostWithProfile = Post & {
-  profiles: Pick<Profile, "name" | "department"> | null;
+  profiles: Pick<Profile, "name" | "department" | "avatar_url"> | null;
   likes: Pick<Like, "id" | "user_id">[];
 };
 
@@ -142,6 +142,18 @@ export type Listing = {
 
 export type ListingWithSeller = Listing & {
   seller: Pick<Profile, "name"> | null;
+};
+
+export type Comment = {
+  id: string;
+  post_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+};
+
+export type CommentWithProfile = Comment & {
+  profiles: Pick<Profile, "name" | "department"> | null;
 };
 
 export type AdminAction = {

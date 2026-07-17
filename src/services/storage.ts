@@ -25,7 +25,7 @@ async function compressImage(uri: string): Promise<string> {
   const result = await ImageManipulator.manipulateAsync(
     uri,
     [{ resize: { width: 1200 } }],
-    { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+    { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
   );
   return result.uri;
 }
@@ -228,4 +228,34 @@ export async function uploadListingPhoto(
 
     return urlData.publicUrl;
   });
+}
+
+export function resolveImageUrl(
+  path: string | null | undefined,
+  bucket: string = "event-images"
+): string | null {
+  if (!path) return null;
+  if (
+    path.startsWith("http://") ||
+    path.startsWith("https://") ||
+    path.startsWith("data:")
+  ) {
+    return path;
+  }
+  const supabaseUrl =
+    process.env.EXPO_PUBLIC_SUPABASE_URL ||
+    "https://kvpqkcfevmmlsbxjbgyd.supabase.co";
+  const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+  
+  if (
+    cleanPath.startsWith(bucket) ||
+    cleanPath.startsWith("event-images") ||
+    cleanPath.startsWith("post-images") ||
+    cleanPath.startsWith("profile-photos") ||
+    cleanPath.startsWith("student-id-verification") ||
+    cleanPath.startsWith("listing-photos")
+  ) {
+    return `${supabaseUrl}/storage/v1/object/public/${cleanPath}`;
+  }
+  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${cleanPath}`;
 }

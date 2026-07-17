@@ -1,10 +1,12 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { useColorScheme, Platform } from "react-native";
+import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable } from "react-native";
 import { router } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 
 // Hermes in RN 0.81 sets global.window = global but global lacks addEventListener.
 if (typeof window !== "undefined" && typeof window.addEventListener !== "function") {
@@ -12,8 +14,12 @@ if (typeof window !== "undefined" && typeof window.addEventListener !== "functio
   window.removeEventListener = () => {};
 }
 
+// Keep the native splash screen visible until we explicitly hide it.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import { SessionProvider } from "@/hooks/use-session";
+import { ProfileProvider } from "@/hooks/use-profile";
 import { RefreshProvider } from "@/hooks/use-refresh";
 import { useNotifications } from "@/hooks/use-notifications";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -30,6 +36,10 @@ function RootLayout() {
   const colorScheme = useColorScheme();
   const scheme = colorScheme === "dark" ? "dark" : "light";
   const colors = getThemeColors(scheme);
+
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
   const defaultHeader = {
     headerStyle: { backgroundColor: colors.background },
@@ -57,13 +67,14 @@ function RootLayout() {
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <SafeAreaProvider>
         <SessionProvider>
-          <ErrorBoundary>
-            <NotificationsInitializer />
-            <ToastProvider>
-                <RefreshProvider>
-                <AnimatedSplashOverlay />
-                <NetworkBanner />
-                <Stack screenOptions={defaultHeader}>
+          <ProfileProvider>
+            <ErrorBoundary>
+              <NotificationsInitializer />
+              <ToastProvider>
+                  <RefreshProvider>
+                  <AnimatedSplashOverlay />
+                  <NetworkBanner />
+                  <Stack screenOptions={defaultHeader}>
                   <Stack.Screen name="index" options={{ headerShown: false }} />
                   <Stack.Screen name="signup" options={{ headerShown: false }} />
                   <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -149,10 +160,18 @@ function RootLayout() {
                       headerShown: false,
                     }}
                   />
+                  <Stack.Screen
+                    name="event/[id]"
+                    options={{
+                      title: "Event",
+                      headerShown: false,
+                    }}
+                  />
                 </Stack>
               </RefreshProvider>
             </ToastProvider>
-          </ErrorBoundary>
+            </ErrorBoundary>
+          </ProfileProvider>
         </SessionProvider>
       </SafeAreaProvider>
     </ThemeProvider>

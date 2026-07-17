@@ -1,13 +1,14 @@
-import { memo, useCallback, useState } from "react";
-import { Alert, Image, Pressable, Share, StyleSheet, View } from "react-native";
+import { memo, useCallback, useState, useRef } from "react";
+import { Alert, Animated, Image, Platform, Pressable, Share, StyleSheet, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
 import { Avatar } from "@/components/ui/Avatar";
-import { spacing, borderRadius, fontSize, colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
 import { likePost, unlikePost } from "@/services/posts";
+import { resolveImageUrl } from "@/services/storage";
 import type { PostWithProfile } from "@/services/database.types";
 
 function relativeTime(dateStr: string): string {
@@ -25,6 +26,54 @@ function relativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
+function AnimatedActionButton({
+  onPress,
+  children,
+  accessibilityLabel,
+  accessibilityRole = "button",
+  accessibilityState,
+}: {
+  onPress: () => void;
+  children: React.ReactNode;
+  accessibilityLabel: string;
+  accessibilityRole?: any;
+  accessibilityState?: any;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scale, {
+      toValue: 0.85,
+      useNativeDriver: Platform.OS !== "web",
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scale, {
+      toValue: 1,
+      friction: 4,
+      tension: 180,
+      useNativeDriver: Platform.OS !== "web",
+    }).start();
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={styles.actionButton}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={accessibilityRole}
+      accessibilityState={accessibilityState}
+    >
+      <Animated.View style={{ transform: [{ scale }], flexDirection: "row", alignItems: "center", gap: 4 }}>
+        {children}
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 export type PostCardProps = {
   post: PostWithProfile;
   onLikeToggled?: (postId: string, liked: boolean) => void;
@@ -37,6 +86,7 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
   const likeCount = post.likes?.length ?? 0;
   const [reportVisible, setReportVisible] = useState(false);
   const authorName = post.profiles?.name ?? "Unknown";
+  const department = post.profiles?.department ?? "";
 
   const handleLike = useCallback(async () => {
     try {
@@ -58,12 +108,9 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
     } catch {}
   }, [post]);
 
-  const handleCopyLink = useCallback(async () => {
-    try {
-      await Clipboard.setStringAsync(`campusvibe://post/${post.id}`);
-      Alert.alert("Link copied", "Post link copied to clipboard.");
-    } catch {}
-  }, [post.id]);
+  const handleCopyText = useCallback(() => {
+    Clipboard.setStringAsync(post.content);
+  }, [post.content]);
 
   const handleLongPress = useCallback(() => {
     Alert.alert("Post Actions", undefined, [
@@ -77,9 +124,7 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
       },
       {
         text: "Copy Text",
-        onPress: () => {
-          Clipboard.setStringAsync(post.content);
-        },
+        onPress: handleCopyText,
       },
       {
         text: "Report",
@@ -91,93 +136,107 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
         style: "cancel",
       },
     ]);
-  }, [post, handleLike, handleShare]);
+  }, [handleLike, handleShare, handleCopyText]);
+
+  const navigateToPost = useCallback(() => {
+    router.push(`/post/${post.id}`);
+  }, [post.id]);
+
+  const resolvedImage = resolveImageUrl(post.image_url, "post-images");
 
   return (
-    <Pressable
-      onLongPress={handleLongPress}
-      accessibilityLabel={`Post by ${authorName}`}
-      accessibilityRole="button"
-    >
-      <View style={styles.card}>
-        <View style={styles.header}>
-          <Avatar
-            name={authorName}
-            size={44}
-          />
-          <View style={styles.meta}>
-            <View style={styles.metaRow}>
-              <ThemedText style={styles.authorName}>{authorName}</ThemedText>
-              <ThemedText style={styles.dot}>·</ThemedText>
-              <ThemedText style={styles.time}>{relativeTime(post.created_at)}</ThemedText>
-            </View>
-            {post.profiles?.department ? (
-              <ThemedText style={styles.department}>{post.profiles.department}</ThemedText>
-            ) : null}
-          </View>
+    <View style={styles.container}>
+      <View style={styles.contentRow}>
+        <View style={styles.leftColumn}>
+          <Avatar name={authorName} uri={post.profiles?.avatar_url} size={40} />
         </View>
 
-        <ThemedText style={styles.content}>{post.content}</ThemedText>
-
-        {post.image_url ? (
-          <Image
-            source={{ uri: post.image_url }}
-            style={styles.postImage}
-            resizeMode="cover"
-          />
-        ) : null}
-
-        <View style={styles.actions}>
+        <View style={styles.rightColumn}>
           <Pressable
-            onPress={handleLike}
-            style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
-            accessibilityLabel={userLiked ? "Unlike" : "Like"}
-            accessibilityRole="button"
-            accessibilityState={{ selected: userLiked }}
+            onPress={navigateToPost}
+            onLongPress={handleLongPress}
+            accessibilityLabel={`Post by ${authorName}`}
+            accessibilityRole="link"
           >
-            <Ionicons
-              name={userLiked ? "heart" : "heart-outline"}
-              size={20}
-              color={userLiked ? colors.error : "#60646C"}
-            />
-            {likeCount > 0 && (
-              <ThemedText
-                style={[
-                  styles.actionCount,
-                  { color: userLiked ? colors.error : "#60646C" },
-                ]}
-              >
-                {likeCount}
+            <View style={styles.headerRow}>
+              <ThemedText style={styles.authorName} numberOfLines={1}>
+                {authorName}
               </ThemedText>
-            )}
+              {department ? (
+                <ThemedText style={styles.department} numberOfLines={1}>
+                  {department}
+                </ThemedText>
+              ) : null}
+              <ThemedText style={styles.dot}>·</ThemedText>
+              <ThemedText style={styles.timestamp}>
+                {relativeTime(post.created_at)}
+              </ThemedText>
+            </View>
+
+            <ThemedText style={styles.body}>{post.content}</ThemedText>
+
+            {resolvedImage ? (
+              <Image
+                source={{ uri: resolvedImage }}
+                style={styles.postImage}
+                resizeMode="contain"
+              />
+            ) : null}
           </Pressable>
 
-          <Pressable
-            onPress={handleCopyLink}
-            style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
-            accessibilityLabel="Copy link"
-            accessibilityRole="button"
-          >
-            <Ionicons name="chatbubble-outline" size={19} color="#60646C" />
-          </Pressable>
+          <View style={styles.actionRow}>
+            <AnimatedActionButton
+              onPress={navigateToPost}
+              accessibilityLabel="Comment"
+            >
+              <Ionicons name="chatbubble-outline" size={16} color="#71717A" />
+            </AnimatedActionButton>
 
-          <Pressable
-            onPress={handleShare}
-            style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
-            accessibilityLabel="Share"
-            accessibilityRole="button"
-          >
-            <Ionicons name="paper-plane-outline" size={19} color="#60646C" />
-          </Pressable>
+            <AnimatedActionButton
+              onPress={() => {}}
+              accessibilityLabel="Repost"
+            >
+              <Ionicons name="repeat-outline" size={16} color="#71717A" />
+            </AnimatedActionButton>
 
-          <Pressable
-            onPress={() => setReportVisible(true)}
-            style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
-            accessibilityLabel="Report"
-            accessibilityRole="button"
-          >
-            <Ionicons name="flag-outline" size={19} color="#60646C" />
-          </Pressable>
+            <AnimatedActionButton
+              onPress={handleLike}
+              accessibilityLabel={userLiked ? "Unlike" : "Like"}
+              accessibilityState={{ selected: userLiked }}
+            >
+              <Ionicons
+                name={userLiked ? "heart" : "heart-outline"}
+                size={16}
+                color={userLiked ? "#E0245E" : "#71717A"}
+              />
+              {likeCount > 0 && (
+                <ThemedText
+                  style={[
+                    styles.actionCount,
+                    { color: userLiked ? "#E0245E" : "#71717A" },
+                  ]}
+                >
+                  {likeCount}
+                </ThemedText>
+              )}
+            </AnimatedActionButton>
+
+            <AnimatedActionButton
+              onPress={handleShare}
+              accessibilityLabel="Share"
+            >
+              <Ionicons name="share-outline" size={16} color="#71717A" />
+            </AnimatedActionButton>
+
+            <View style={{ flex: 1 }} />
+
+            <AnimatedActionButton
+              onPress={() => setReportVisible(true)}
+              accessibilityLabel="Report"
+            >
+              <Ionicons name="flag-outline" size={15} color="#71717A" />
+            </AnimatedActionButton>
+          </View>
         </View>
       </View>
 
@@ -187,82 +246,84 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
         contentType="post"
         onClose={() => setReportVisible(false)}
       />
-    </Pressable>
+    </View>
   );
 }
 
 export const PostCard = memo(PostCardInner);
 
 const styles = StyleSheet.create({
-  card: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
+  container: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 6,
+    borderBottomWidth: 0.5,
     borderBottomColor: "#1E1E1E",
+    backgroundColor: "#000000",
   },
-  header: {
+  contentRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
   },
-  meta: {
+  leftColumn: {
+    marginRight: 12,
+    marginTop: 2,
+    width: 40,
+    alignItems: "center",
+  },
+  rightColumn: {
     flex: 1,
-    gap: 1,
   },
-  metaRow: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
+    marginBottom: 2,
+    gap: 6,
   },
   authorName: {
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
   },
+  department: {
+    fontSize: 13,
+    color: "#71717A",
+  },
   dot: {
     fontSize: 14,
-    color: "#60646C",
+    color: "#3A3A3C",
   },
-  time: {
+  timestamp: {
     fontSize: 13,
-    color: "#60646C",
+    color: "#71717A",
   },
-  department: {
-    fontSize: 12,
-    color: "#60646C",
-  },
-  content: {
-    fontSize: 15,
+  body: {
+    fontSize: 16,
     lineHeight: 22,
-    color: "#E1E1E1",
-    marginTop: spacing.xs + 2,
+    color: "#F0F0F0",
+    marginTop: 4,
   },
   postImage: {
     width: "100%",
-    height: 220,
+    aspectRatio: 16 / 9,
     borderRadius: 12,
-    marginTop: spacing.sm,
+    marginTop: 12,
+    backgroundColor: "#0A0A0C",
   },
-  actions: {
+  actionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.lg,
-    marginTop: spacing.sm + 2,
+    justifyContent: "space-between",
+    marginTop: 8,
   },
-  actionBtn: {
+  actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs + 2,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    minHeight: 44,
-    minWidth: 44,
+    paddingVertical: 6,
+    paddingRight: 20,
+    minHeight: 40,
   },
   actionCount: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "500",
-  },
-  pressed: {
-    opacity: 0.6,
   },
 });

@@ -1,6 +1,6 @@
 import { Redirect, router } from "expo-router";
 import { useRef, useState } from "react";
-import { Animated as RNAnimated, KeyboardAvoidingView, Platform, StyleSheet, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Animated as RNAnimated, KeyboardAvoidingView, Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DepartmentYearStep } from "@/components/onboarding/department-year-step";
 import { FeaturesStep } from "@/components/onboarding/features-step";
@@ -31,7 +31,13 @@ export default function OnboardingScreen() {
   const [error, setError] = useState<string | null>(null);
   const scrollY = useRef(new RNAnimated.Value(0)).current;
 
-  if (isLoading || profileLoading) return null;
+  if (isLoading || profileLoading) {
+    return (
+      <ThemedView style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </ThemedView>
+    );
+  }
   if (!session) return <Redirect href="/" />;
   if (profile) return <Redirect href="/(tabs)" />;
 
@@ -86,63 +92,70 @@ export default function OnboardingScreen() {
 
   const progress = ((step + 1) / TOTAL_STEPS) * 100;
 
+  const content = (
+    <>
+      <ThemedView style={styles.progressContainer}>
+        <ThemedView style={styles.progressTrack}>
+          <ThemedView style={[styles.progressFill, { width: `${progress}%`, backgroundColor: colors.primary }]} />
+        </ThemedView>
+        <ThemedText style={styles.progressText} themeColor="textSecondary">
+          {step + 1} / {TOTAL_STEPS}
+        </ThemedText>
+      </ThemedView>
+
+      {step === 0 && (
+        <NamePhotoStep
+          name={name}
+          onNameChange={(t) => { setName(t); setError(null); }}
+          photoUri={photoUri}
+          onPhotoChange={setPhotoUri}
+        />
+      )}
+      {step === 1 && (
+        <DepartmentYearStep
+          department={department}
+          year={year}
+          onDepartmentChange={(d) => { setDepartment(d); setError(null); }}
+          onYearChange={(y) => { setYear(y); setError(null); }}
+        />
+      )}
+      {step === 2 && <FeaturesStep />}
+      {step === 3 && (
+        <SuggestedUsersStep department={department || undefined} onComplete={handleFinish} />
+      )}
+
+      {error && <ThemedText style={styles.error}>{error}</ThemedText>}
+
+      <ThemedView style={styles.actions}>
+        <Button
+          title={
+            step === TOTAL_STEPS - 1
+              ? saving ? "Getting started..." : "Get started!"
+              : "Next"
+          }
+          onPress={handleNext}
+          disabled={saving}
+          size="lg"
+        />
+        <TouchableOpacity onPress={handleSkip} disabled={saving}>
+          <ThemedText style={styles.skip} themeColor="textSecondary">
+            Skip
+          </ThemedText>
+        </TouchableOpacity>
+      </ThemedView>
+    </>
+  );
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.content}
-        >
-          <ThemedView style={styles.progressContainer}>
-            <ThemedView style={styles.progressTrack}>
-              <ThemedView style={[styles.progressFill, { width: `${progress}%`, backgroundColor: colors.primary }]} />
-            </ThemedView>
-            <ThemedText style={styles.progressText} themeColor="textSecondary">
-              {step + 1} / {TOTAL_STEPS}
-            </ThemedText>
-          </ThemedView>
-
-          {step === 0 && (
-            <NamePhotoStep
-              name={name}
-              onNameChange={(t) => { setName(t); setError(null); }}
-              photoUri={photoUri}
-              onPhotoChange={setPhotoUri}
-            />
-          )}
-          {step === 1 && (
-            <DepartmentYearStep
-              department={department}
-              year={year}
-              onDepartmentChange={(d) => { setDepartment(d); setError(null); }}
-              onYearChange={(y) => { setYear(y); setError(null); }}
-            />
-          )}
-          {step === 2 && <FeaturesStep />}
-          {step === 3 && (
-            <SuggestedUsersStep department={department || undefined} onComplete={handleFinish} />
-          )}
-
-          {error && <ThemedText style={styles.error}>{error}</ThemedText>}
-
-          <ThemedView style={styles.actions}>
-            <Button
-              title={
-                step === TOTAL_STEPS - 1
-                  ? saving ? "Getting started..." : "Get started!"
-                  : "Next"
-              }
-              onPress={handleNext}
-              disabled={saving}
-              size="lg"
-            />
-            <TouchableOpacity onPress={handleSkip} disabled={saving}>
-              <ThemedText style={styles.skip} themeColor="textSecondary">
-                Skip
-              </ThemedText>
-            </TouchableOpacity>
-          </ThemedView>
-        </KeyboardAvoidingView>
+        {Platform.OS === "web" ? (
+          <View style={styles.content}>{content}</View>
+        ) : (
+          <KeyboardAvoidingView behavior="padding" style={styles.content}>
+            {content}
+          </KeyboardAvoidingView>
+        )}
       </SafeAreaView>
     </ThemedView>
   );
@@ -152,6 +165,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: "row",
+    justifyContent: "center",
+  },
+  center: {
+    alignItems: "center",
     justifyContent: "center",
   },
   safeArea: {

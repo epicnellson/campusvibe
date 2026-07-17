@@ -1,132 +1,134 @@
-import { useEffect, useRef } from "react";
 import { Redirect, router } from "expo-router";
-import { Animated, Platform, Pressable, StyleSheet } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { Button } from "@/components/ui/button";
-import { spacing, fontSize, fontWeight } from "@/theme";
-import { useProfile } from "@/hooks/use-profile";
 import { useSession } from "@/hooks/use-session";
+import { useProfile } from "@/hooks/use-profile";
 
 export default function WelcomeScreen() {
-  const { session, isLoading } = useSession();
+  const { session, isLoading: sessionLoading } = useSession();
   const { profile, isLoading: profileLoading } = useProfile();
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
-  const actionsAnim = useRef(new Animated.Value(0)).current;
+  const isLoading = sessionLoading || profileLoading;
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: Platform.OS !== "web",
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: Platform.OS !== "web",
-      }),
-    ]).start();
+  if (isLoading) {
+    return (
+      <View style={styles.root}>
+        <SafeAreaView style={styles.safe}>
+          <Text style={styles.title}>CampusVibe</Text>
+          <ActivityIndicator size="small" color="rgba(255,255,255,0.5)" style={styles.loader} />
+        </SafeAreaView>
+      </View>
+    );
+  }
 
-    const timer = setTimeout(() => {
-      Animated.timing(actionsAnim, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: Platform.OS !== "web",
-      }).start();
-    }, 2000);
+  if (session && profile) {
+    return <Redirect href="/(tabs)" />;
+  }
 
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (isLoading || profileLoading) return null;
-
-  if (session && profile) return <Redirect href="/(tabs)" />;
-  if (session && !profile) return <Redirect href="/onboarding" />;
+  if (session && !profile) {
+    return <Redirect href="/onboarding" />;
+  }
 
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <Animated.View
-          style={[styles.hero, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
-        >
-          <ThemedText style={styles.brand}>CampusVibe</ThemedText>
-          <ThemedText themeColor="textSecondary" style={styles.subtitle}>
-            Connect with your campus community
-          </ThemedText>
-        </Animated.View>
+    <View style={styles.root}>
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.content}>
+          <View style={styles.brand}>
+            <Text style={styles.title}>CampusVibe</Text>
+            <Text style={styles.tagline}>Your campus. Your community.</Text>
+          </View>
 
-        <Animated.View
-          style={[styles.actions, { opacity: actionsAnim, transform: [{ translateY: actionsAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}
-        >
-          <Button
-            title="Sign up with your email"
-            variant="primary"
-            size="lg"
-            style={styles.button}
-            onPress={() => router.push("/signup")}
-          />
-          <Button
-            title="I already have an account"
-            variant="secondary"
-            size="lg"
-            style={styles.button}
-            onPress={() => router.push("/login")}
-          />
-          <Pressable onPress={() => router.push("/privacy")}>
-            <ThemedText style={styles.privacy} themeColor="textSecondary">
-              Privacy Policy
-            </ThemedText>
-          </Pressable>
-        </Animated.View>
+          <View style={styles.buttons}>
+            <Pressable
+              style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
+              onPress={() => router.push("/signup")}
+              accessibilityLabel="Sign up"
+              accessibilityRole="button"
+            >
+              <Text style={styles.primaryBtnText}>Get started</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+              onPress={() => router.push("/login")}
+              accessibilityLabel="Log in"
+              accessibilityRole="button"
+            >
+              <Text style={styles.secondaryBtnText}>I already have an account</Text>
+            </Pressable>
+          </View>
+        </View>
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    justifyContent: "center",
-    flexDirection: "row",
+    backgroundColor: "#000000",
   },
-  safeArea: {
+  safe: {
     flex: 1,
-    paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.xl * 2,
-    maxWidth: 800,
   },
-  hero: {
+  content: {
+    flex: 1,
     alignItems: "center",
-    gap: spacing.sm,
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    gap: 56,
   },
   brand: {
-    fontSize: 48,
-    lineHeight: 54,
-    fontWeight: fontWeight.bold,
-    textAlign: "center",
-    letterSpacing: -1,
+    alignItems: "center",
+    gap: 12,
   },
-  subtitle: {
-    fontSize: fontSize.md,
-    textAlign: "center",
+  title: {
+    color: "#FFFFFF",
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
-  actions: {
-    alignSelf: "stretch",
-    gap: spacing.md,
+  tagline: {
+    color: "#71717A",
+    fontSize: 15,
+    fontWeight: "500",
   },
-  button: {
+  loader: {
+    marginTop: 16,
+  },
+  buttons: {
+    gap: 12,
     width: "100%",
+    maxWidth: 320,
   },
-  privacy: {
-    fontSize: fontSize.sm,
-    textAlign: "center",
-    textDecorationLine: "underline",
-    padding: spacing.sm,
+  primaryBtn: {
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: "#6C47FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  secondaryBtn: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#2A2A2A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryBtnText: {
+    color: "#9E9E9E",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

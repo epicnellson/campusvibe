@@ -1,24 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  Animated,
+  ActivityIndicator,
   FlatList,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
+  Text,
   View,
 } from "react-native";
 import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PostCard } from "@/components/post-card";
 import { ConfessionCard } from "@/components/confession-card";
-import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
+import { EventCard } from "@/components/event-card";
 import { useSession } from "@/hooks/use-session";
-import { useProfile } from "@/hooks/use-profile";
 import { useRefresh } from "@/hooks/use-refresh";
 import { fetchPosts } from "@/services/posts";
 import { fetchConfessions } from "@/services/confessions";
@@ -34,23 +30,14 @@ type FeedItem =
 
 export default function HomeFeedScreen() {
   const { session } = useSession();
-  const { profile } = useProfile();
   const { feedKey } = useRefresh();
+  const insets = useSafeAreaInsets();
   const currentUserId = session?.user?.id;
   const [items, setItems] = useState<FeedItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
-
-  const scaleAnims = useRef<Map<string, Animated.Value>>(new Map());
-
-  const getScaleAnim = (id: string): Animated.Value => {
-    if (!scaleAnims.current.has(id)) {
-      scaleAnims.current.set(id, new Animated.Value(1));
-    }
-    return scaleAnims.current.get(id)!;
-  };
 
   const load = useCallback(async () => {
     try {
@@ -61,11 +48,18 @@ export default function HomeFeedScreen() {
         fetchUpcomingEvents(),
       ]);
       const combined: FeedItem[] = [
+        ...events.map((e) => ({ type: "event" as const, data: e })),
         ...posts.map((p) => ({ type: "post" as const, data: p })),
         ...confessions.map((c) => ({ type: "confession" as const, data: c })),
-        ...events.map((e) => ({ type: "event" as const, data: e })),
       ];
       combined.sort((a, b) => {
+        if (a.type === "event" && b.type !== "event") return -1;
+        if (a.type !== "event" && b.type === "event") return 1;
+        if (a.type === "event" && b.type === "event") {
+          const da = new Date(a.data.date + "T00:00:00").getTime();
+          const db = new Date(b.data.date + "T00:00:00").getTime();
+          return da - db;
+        }
         const da = new Date(a.data.created_at).getTime();
         const db = new Date(b.data.created_at).getTime();
         return db - da;
@@ -97,12 +91,6 @@ export default function HomeFeedScreen() {
         return { ...item, data: { ...item.data, likes: updatedLikes } };
       })
     );
-    const anim = getScaleAnim(postId);
-    anim.setValue(1);
-    Animated.sequence([
-      Animated.spring(anim, { toValue: 1.3, useNativeDriver: Platform.OS !== "web" }),
-      Animated.spring(anim, { toValue: 1, useNativeDriver: Platform.OS !== "web" }),
-    ]).start();
   }, [currentUserId]);
 
   const handleConfessionLikeToggled = useCallback((confessionId: string, liked: boolean) => {
@@ -121,11 +109,7 @@ export default function HomeFeedScreen() {
   const renderItem = ({ item }: { item: FeedItem }) => {
     switch (item.type) {
       case "post":
-        return (
-          <Animated.View style={{ transform: [{ scale: getScaleAnim(item.data.id) }] }}>
-            <PostCard post={item.data} onLikeToggled={handleLikeToggled} />
-          </Animated.View>
-        );
+        return <PostCard post={item.data} onLikeToggled={handleLikeToggled} />;
       case "confession":
         return (
           <ConfessionCard confession={item.data} onLikeToggled={handleConfessionLikeToggled} />
@@ -148,42 +132,39 @@ export default function HomeFeedScreen() {
 
   if (loading) {
     return (
-      <ThemedView style={styles.center}>
-        <ThemedText themeColor="textSecondary">Loading...</ThemedText>
-      </ThemedView>
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color="#6C47FF" />
+      </View>
     );
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.safeArea}>
-        <ThemedView style={styles.titleBar}>
-          <ThemedText style={styles.title}>CampusVibe</ThemedText>
+    <View style={styles.container}>
+      <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+        <View style={styles.titleBar}>
+          <Text style={styles.title}>CampusVibe</Text>
           <Pressable
             onPress={() => setMenuVisible(true)}
             style={({ pressed }) => [
               styles.fabButton,
               pressed && styles.pressed,
             ]}
-            accessibilityLabel="Create"
+            accessibilityLabel="Create post"
             accessibilityRole="button"
           >
-            <Ionicons name="add" size={24} color="#FFFFFF" />
+            <Ionicons name="add" size={22} color="#FFFFFF" />
           </Pressable>
-        </ThemedView>
+        </View>
 
         {error ? (
-          <EmptyState
-            icon="⚠"
-            title="Failed to load"
-            message={error}
-            action={{ title: "Try again", onPress: load }}
-          />
+          <View style={styles.center}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
         ) : items.length === 0 ? (
           <View style={styles.emptyState}>
-            <ThemedText themeColor="textSecondary">
+            <Text style={styles.emptyText}>
               Nothing here yet. Tap + to create something!
-            </ThemedText>
+            </Text>
           </View>
         ) : (
           <FlatList
@@ -191,7 +172,7 @@ export default function HomeFeedScreen() {
             keyExtractor={(item) => `${item.type}-${item.data.id}`}
             renderItem={renderItem}
             contentContainerStyle={styles.list}
-            ItemSeparatorComponent={() => <ThemedView style={styles.separator} />}
+            ItemSeparatorComponent={null}
             refreshing={refreshing}
             onRefresh={onRefresh}
             showsVerticalScrollIndicator={false}
@@ -206,70 +187,42 @@ export default function HomeFeedScreen() {
         onRequestClose={() => setMenuVisible(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
-          <ThemedView style={styles.menuSheet}>
-            <ThemedText style={styles.menuTitle}>Create</ThemedText>
+          <View style={styles.menuSheet}>
+            <Text style={styles.menuTitle}>Create</Text>
             <Pressable
               onPress={() => openCreator("post")}
               style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
             >
-              <ThemedView style={[styles.menuIcon, { backgroundColor: colors.primary }]}>
+              <View style={[styles.menuIcon, { backgroundColor: "#6C47FF" }]}>
                 <Ionicons name="create-outline" size={20} color="#FFF" />
-              </ThemedView>
-              <ThemedText style={styles.menuLabel}>Post</ThemedText>
-              <ThemedText style={styles.menuDesc}>Share something with everyone</ThemedText>
+              </View>
+              <Text style={styles.menuLabel}>Post</Text>
+              <Text style={styles.menuDesc}>Share something with everyone</Text>
             </Pressable>
             <Pressable
               onPress={() => openCreator("confession")}
               style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
             >
-              <ThemedView style={[styles.menuIcon, { backgroundColor: colors.warning }]}>
+              <View style={[styles.menuIcon, { backgroundColor: "#FF9500" }]}>
                 <Ionicons name="eye-off-outline" size={20} color="#FFF" />
-              </ThemedView>
-              <ThemedText style={styles.menuLabel}>Confession</ThemedText>
-              <ThemedText style={styles.menuDesc}>Post anonymously</ThemedText>
+              </View>
+              <Text style={styles.menuLabel}>Confession</Text>
+              <Text style={styles.menuDesc}>Post anonymously</Text>
             </Pressable>
             <Pressable
               onPress={() => openCreator("event")}
               style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
             >
-              <ThemedView style={[styles.menuIcon, { backgroundColor: colors.secondary }]}>
+              <View style={[styles.menuIcon, { backgroundColor: "#1DB954" }]}>
                 <Ionicons name="calendar-outline" size={20} color="#FFF" />
-              </ThemedView>
-              <ThemedText style={styles.menuLabel}>Event</ThemedText>
-              <ThemedText style={styles.menuDesc}>Create a campus event</ThemedText>
+              </View>
+              <Text style={styles.menuLabel}>Event</Text>
+              <Text style={styles.menuDesc}>Create a campus event</Text>
             </Pressable>
-          </ThemedView>
+          </View>
         </Pressable>
       </Modal>
-    </ThemedView>
-  );
-}
-
-function EventCard({ event }: { event: EventWithRSVPs }) {
-  const date = new Date(event.date + "T00:00:00");
-  const month = date.toLocaleDateString("en-US", { month: "short" });
-  const day = date.getDate();
-  return (
-    <Pressable
-      onPress={() => router.push(`/create-event`)}
-      style={({ pressed }) => [styles.eventCard, pressed && styles.pressed]}
-    >
-      <ThemedView style={styles.eventDateBox}>
-        <ThemedText style={styles.eventMonth}>{month}</ThemedText>
-        <ThemedText style={styles.eventDay}>{day}</ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.eventInfo}>
-        <ThemedText style={styles.eventTitle} numberOfLines={1}>
-          {event.title}
-        </ThemedText>
-        <ThemedText style={styles.eventMeta} numberOfLines={1}>
-          {event.location} · {event.time ? event.time.slice(0, 5) : ""}
-        </ThemedText>
-        <ThemedText style={styles.eventRsvp}>
-          {event.event_rsvps?.length ?? 0} going
-        </ThemedText>
-      </ThemedView>
-    </Pressable>
+    </View>
   );
 }
 
@@ -278,6 +231,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     justifyContent: "center",
+    backgroundColor: "#000000",
   },
   safeArea: {
     flex: 1,
@@ -289,41 +243,52 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: 16,
     paddingVertical: 2,
-    paddingBottom: spacing.md,
+    paddingBottom: 16,
   },
   title: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-    lineHeight: 28,
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    color: "#FFFFFF",
   },
   fabButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.primary,
+    backgroundColor: "#6C47FF",
     alignItems: "center",
     justifyContent: "center",
   },
   list: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.lg,
-  },
-  separator: {
-    height: spacing.sm,
+    paddingBottom: 100,
   },
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    fontSize: 15,
+    color: "#71717A",
+  },
+  errorText: {
+    fontSize: 15,
+    textAlign: "center",
+    color: "#71717A",
   },
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: spacing.xl * 2,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: 64,
+    paddingHorizontal: 24,
+  },
+  emptyText: {
+    fontSize: 15,
+    textAlign: "center",
+    color: "#71717A",
   },
   pressed: {
     opacity: 0.7,
@@ -334,24 +299,26 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   menuSheet: {
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-    padding: spacing.lg,
-    paddingBottom: spacing.xl + spacing.lg,
-    gap: spacing.sm,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 56,
+    gap: 8,
+    backgroundColor: "#141414",
   },
   menuTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
+    fontSize: 17,
+    fontWeight: "700",
     textAlign: "center",
-    marginBottom: spacing.sm,
+    marginBottom: 8,
+    color: "#FFFFFF",
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
+    gap: 16,
+    padding: 16,
+    borderRadius: 12,
     minHeight: 56,
   },
   menuIcon: {
@@ -362,58 +329,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   menuLabel: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
+    fontSize: 15,
+    fontWeight: "600",
     minWidth: 80,
+    color: "#FFFFFF",
   },
   menuDesc: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
+    fontSize: 13,
     flex: 1,
-  },
-  eventCard: {
-    flexDirection: "row",
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.backgroundElement,
-    gap: spacing.md,
-    minHeight: 72,
-  },
-  eventDateBox: {
-    width: 52,
-    height: 52,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  eventMonth: {
-    fontSize: 10,
-    color: "#FFFFFF",
-    fontWeight: fontWeight.bold,
-    textTransform: "uppercase",
-  },
-  eventDay: {
-    fontSize: 18,
-    color: "#FFFFFF",
-    fontWeight: fontWeight.bold,
-  },
-  eventInfo: {
-    flex: 1,
-    justifyContent: "center",
-    gap: 2,
-  },
-  eventTitle: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
-  },
-  eventMeta: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-  },
-  eventRsvp: {
-    fontSize: fontSize.xs,
-    color: colors.primary,
-    fontWeight: fontWeight.medium,
+    color: "#71717A",
   },
 });

@@ -1,5 +1,5 @@
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useCallback, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
 import { Redirect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -32,7 +32,13 @@ export default function TabLayout() {
     setActiveIndex(position);
   }, []);
 
-  if (isLoading || profileLoading) return null;
+  if (isLoading || profileLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6C47FF" />
+      </View>
+    );
+  }
   if (!session) return <Redirect href="/" />;
   if (!profile) return <Redirect href="/onboarding" />;
 
@@ -74,6 +80,12 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000000",
+  },
   root: {
     flex: 1,
   },

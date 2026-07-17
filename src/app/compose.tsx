@@ -45,7 +45,13 @@ export default function ComposeScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [images, setImages] = useState<string[]>([]);
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000000" }}>
+        <ActivityIndicator size="large" color="#6C47FF" />
+      </View>
+    );
+  }
   if (!session) return <Redirect href="/" />;
 
   const contentError =
@@ -234,29 +240,32 @@ export default function ComposeScreen() {
             {error && <ThemedText style={styles.error}>{error}</ThemedText>}
           </ScrollView>
 
-          <ThemedView style={[styles.bottomBar, { borderTopColor: theme.border }]}>
+          <View style={[styles.bottomBar, { borderTopColor: theme.border }]}>
             <ThemedText
               style={[styles.charCount, { color: charCountColor }]}
             >
               {content.length}/{MAX_CHARS}
             </ThemedText>
             <View style={styles.bottomActions}>
-              <Pressable
-                onPress={pickImages}
-                style={({ pressed }) => [
-                  styles.toolButton,
-                  pressed && styles.pressed,
-                ]}
-                disabled={images.length >= MAX_IMAGES}
-              >
-                <Ionicons
-                  name="image-outline"
-                  size={22}
-                  color={images.length >= MAX_IMAGES ? theme.textSecondary : colors.primary}
-                />
-              </Pressable>
+              {!isConfession && (
+                <Pressable
+                  onPress={pickImages}
+                  style={({ pressed }) => [
+                    styles.toolButton,
+                    pressed && styles.pressed,
+                  ]}
+                  disabled={images.length >= MAX_IMAGES}
+                  accessibilityLabel="Add image"
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={22}
+                    color={images.length >= MAX_IMAGES ? theme.textSecondary : colors.primary}
+                  />
+                </Pressable>
+              )}
             </View>
-          </ThemedView>
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </ThemedView>
@@ -279,8 +288,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#1E1E1E",
   },
   closeButton: {
     width: 36,
@@ -364,7 +373,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 0.5,
+    borderTopColor: "#1E1E1E",
+    backgroundColor: "#000000",
   },
   charCount: {
     fontSize: fontSize.sm,

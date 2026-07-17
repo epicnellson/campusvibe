@@ -4,10 +4,10 @@ export const colors = {
   primaryDark: "#5335CC",
   secondary: "#1DB954",
   secondaryLight: "#2ECC71",
-  background: "#0A0A0A",
-  backgroundSecondary: "#141414",
-  backgroundElement: "#1E1E1E",
-  backgroundSelected: "#2A2A2A",
+  background: "#000000",
+  backgroundSecondary: "#09090B",
+  backgroundElement: "#121212",
+  backgroundSelected: "#161618",
   surface: "#FFFFFF",
   surfaceSecondary: "#F5F5F5",
   surfaceElement: "#E8E8E8",
@@ -91,24 +91,15 @@ export const fontWeight = {
 
 export const shadows = {
   small: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.18,
-    shadowRadius: 2,
+    boxShadow: "0px 1px 2px rgba(0,0,0,0.18)",
     elevation: 2,
   },
   medium: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
+    boxShadow: "0px 2px 6px rgba(0,0,0,0.25)",
     elevation: 4,
   },
   large: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
+    boxShadow: "0px 4px 10px rgba(0,0,0,0.35)",
     elevation: 8,
   },
 } as const;

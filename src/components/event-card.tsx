@@ -1,173 +1,196 @@
-import { Image } from "expo-image";
-import { memo, useCallback } from "react";
-import { Pressable, StyleSheet } from "react-native";
+import { memo, useState } from "react";
+import { Image, Pressable, StyleSheet, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
-import { useTheme } from "@/hooks/use-theme";
-import { useSession } from "@/hooks/use-session";
-import { rsvpEvent, unrsvpEvent } from "@/services/events";
+import { resolveImageUrl } from "@/services/storage";
 import type { EventWithRSVPs } from "@/services/database.types";
 
-function formatDate(dateStr: string): string {
+export type EventCardProps = {
+  event: EventWithRSVPs;
+};
+
+function formatDateTag(dateStr: string): string {
   const date = new Date(dateStr + "T00:00:00");
   return date.toLocaleDateString(undefined, {
-    weekday: "short",
     month: "short",
     day: "numeric",
   });
 }
 
-export type EventCardProps = {
-  event: EventWithRSVPs;
-  onRSVPToggled?: (eventId: string, rsvped: boolean) => void;
-};
-
-function EventCardInner({ event, onRSVPToggled }: EventCardProps) {
-  const { session } = useSession();
-  const theme = useTheme();
-  const currentUserId = session?.user?.id;
-  const userRSVPed =
-    event.event_rsvps?.some((r) => r.user_id === currentUserId) ?? false;
+function EventCardInner({ event }: EventCardProps) {
+  const [imageError, setImageError] = useState(false);
   const rsvpCount = event.event_rsvps?.length ?? 0;
 
-  const handleRSVP = useCallback(async () => {
-    try {
-      if (userRSVPed) {
-        await unrsvpEvent(event.id);
-      } else {
-        await rsvpEvent(event.id);
-      }
-      onRSVPToggled?.(event.id, !userRSVPed);
-    } catch {}
-  }, [event.id, userRSVPed, onRSVPToggled]);
+  const resolvedImage = !imageError && event.image_url
+    ? resolveImageUrl(event.image_url, "event-images")
+    : null;
 
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <ThemedView style={styles.header}>
-        <ThemedText style={styles.title}>{event.title}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          Hosted by {event.creator?.name ?? "Unknown"}
-        </ThemedText>
-      </ThemedView>
+    <Pressable
+      onPress={() => router.push(`/event/${event.id}` as any)}
+      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
+      accessibilityLabel={`Event: ${event.title}`}
+      accessibilityRole="button"
+    >
+      <View style={styles.contentRow}>
+        <View style={styles.leftColumn}>
+          <View style={styles.calendarIconContainer}>
+            <Ionicons name="calendar-outline" size={20} color="#A78BFA" />
+          </View>
+        </View>
 
-      {event.image_url && (
-        <Image
-          source={{ uri: event.image_url }}
-          style={styles.image}
-          contentFit="cover"
-          placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
-        />
-      )}
+        <View style={styles.rightColumn}>
+          <View style={styles.headerRow}>
+            <View style={styles.dateTag}>
+              <ThemedText style={styles.dateTagText}>
+                {formatDateTag(event.date)}
+              </ThemedText>
+            </View>
+            <ThemedText style={styles.title} numberOfLines={1}>
+              {event.title}
+            </ThemedText>
+          </View>
 
-      <ThemedText style={styles.description}>{event.description}</ThemedText>
+          <View style={styles.metaRow}>
+            <Ionicons name="location-outline" size={14} color="#71717A" />
+            <ThemedText style={styles.metaText} numberOfLines={1}>
+              {event.location}
+            </ThemedText>
+            {event.time && (
+              <>
+                <ThemedText style={styles.dot}>·</ThemedText>
+                <Ionicons name="time-outline" size={14} color="#71717A" />
+                <ThemedText style={styles.metaText}>
+                  {event.time.slice(0, 5)}
+                </ThemedText>
+              </>
+            )}
+          </View>
 
-      <ThemedView style={styles.details}>
-        <ThemedView style={styles.detailRow}>
-          <ThemedText style={styles.detailIcon}>📅</ThemedText>
-          <ThemedText>{formatDate(event.date)}</ThemedText>
-        </ThemedView>
-        <ThemedView style={styles.detailRow}>
-          <ThemedText style={styles.detailIcon}>🕐</ThemedText>
-          <ThemedText>{event.time}</ThemedText>
-        </ThemedView>
-        <ThemedView style={styles.detailRow}>
-          <ThemedText style={styles.detailIcon}>📍</ThemedText>
-          <ThemedText>{event.location}</ThemedText>
-        </ThemedView>
-      </ThemedView>
+          {event.description ? (
+            <ThemedText style={styles.description} numberOfLines={2}>
+              {event.description}
+            </ThemedText>
+          ) : null}
 
-      <ThemedView style={styles.actions}>
-        <Pressable
-          onPress={handleRSVP}
-          style={({ pressed }) => [
-            styles.rsvpButton,
-            userRSVPed && styles.rsvped,
-            pressed && styles.pressed,
-          ]}
-          accessibilityLabel={userRSVPed ? `Cancel RSVP for ${event.title}` : `RSVP for ${event.title}`}
-          accessibilityRole="button"
-          accessibilityState={{ selected: userRSVPed }}
-        >
-          <ThemedText
-            style={[styles.rsvpText, userRSVPed && styles.rsvpedText]}
-          >
-            {userRSVPed ? "✓ Going" : "RSVP"}
-          </ThemedText>
-        </Pressable>
-        <ThemedText type="small" themeColor="textSecondary">
-          {rsvpCount} going
-        </ThemedText>
-      </ThemedView>
-    </ThemedView>
+          {resolvedImage ? (
+            <Image
+              source={{ uri: resolvedImage }}
+              style={styles.eventImage}
+              resizeMode="cover"
+              onError={() => setImageError(true)}
+            />
+          ) : null}
+
+          <View style={styles.actionRow}>
+            <Ionicons name="people-outline" size={16} color="#6C47FF" />
+            <ThemedText style={styles.rsvpCount}>
+              {rsvpCount} {rsvpCount === 1 ? "person going" : "people going"}
+            </ThemedText>
+          </View>
+        </View>
+      </View>
+    </Pressable>
   );
 }
 
 export const EventCard = memo(EventCardInner);
 
 const styles = StyleSheet.create({
-  card: {
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    gap: spacing.sm,
+  container: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#1E1E1E",
+    backgroundColor: "#09090B",
   },
-  header: {
-    gap: spacing.xs,
-  },
-  title: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-  },
-  image: {
-    width: "100%",
-    height: 180,
-    borderRadius: borderRadius.md,
-  },
-  description: {
-    fontSize: fontSize.md,
-    lineHeight: 22,
-  },
-  details: {
-    gap: spacing.xs,
-  },
-  detailRow: {
+  contentRow: {
     flexDirection: "row",
+  },
+  leftColumn: {
+    marginRight: 12,
+    marginTop: 2,
+    width: 40,
     alignItems: "center",
-    gap: spacing.sm,
   },
-  detailIcon: {
-    fontSize: 16,
-    width: 24,
+  rightColumn: {
+    flex: 1,
   },
-  actions: {
-    flexDirection: "row",
+  calendarIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(124, 58, 237, 0.12)",
     alignItems: "center",
-    gap: spacing.md,
-    paddingTop: spacing.xs,
-  },
-  rsvpButton: {
-    paddingVertical: spacing.sm + 6,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    backgroundColor: "transparent",
-    minHeight: 44,
     justifyContent: "center",
   },
-  rsvped: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+    gap: 8,
   },
-  rsvpText: {
-    color: colors.primary,
-    fontWeight: fontWeight.semibold,
-    fontSize: fontSize.sm,
+  dateTag: {
+    backgroundColor: "rgba(124, 58, 237, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  rsvpedText: {
-    color: "#ffffff",
+  dateTagText: {
+    color: "#A78BFA",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  title: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    flex: 1,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 4,
+  },
+  metaText: {
+    fontSize: 13,
+    color: "#71717A",
+  },
+  dot: {
+    fontSize: 13,
+    color: "#3A3A3C",
+    marginHorizontal: 2,
+  },
+  description: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#E1E1E1",
+    marginTop: 2,
+  },
+  eventImage: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    borderRadius: 12,
+    marginTop: 10,
+    backgroundColor: "#0A0A0C",
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+  },
+  rsvpCount: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6C47FF",
   },
   pressed: {
-    opacity: 0.7,
+    opacity: 0.75,
   },
 });

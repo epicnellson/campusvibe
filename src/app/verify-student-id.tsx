@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Redirect, router } from "expo-router";
-import { Animated, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet } from "react-native";
+import { ActivityIndicator, Animated, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -31,7 +31,13 @@ export default function VerifyStudentIdScreen() {
     }).start();
   }, []);
 
-  if (isLoading || profileLoading) return null;
+  if (isLoading || profileLoading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#6C47FF" />
+      </View>
+    );
+  }
   if (!session) return <Redirect href="/" />;
   if (!profile) return <Redirect href="/onboarding" />;
   if (profile.verification_status === "approved") return <Redirect href="/(tabs)" />;
