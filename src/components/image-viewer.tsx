@@ -1,4 +1,4 @@
-import { Image, StyleSheet, View, type ImageProps } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, View, type ImageProps } from "react-native";
 
 interface Props extends ImageProps {
   uri: string;
@@ -10,10 +10,13 @@ export function ImageViewer({ uri, children, ...rest }: Props) {
     <View style={styles.container}>
       <Image
         source={{ uri }}
-        style={styles.image}
+        style={StyleSheet.absoluteFill}
         resizeMode="contain"
         {...rest}
       />
+      {!uri && (
+        <ActivityIndicator size="large" color="#FFFFFF" style={StyleSheet.absoluteFill} />
+      )}
       {children}
     </View>
   );
@@ -21,12 +24,6 @@ export function ImageViewer({ uri, children, ...rest }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  image: {
-    width: "100%",
-    height: "100%",
+    ...StyleSheet.absoluteFillObject,
   },
 });

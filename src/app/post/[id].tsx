@@ -336,7 +336,7 @@ export default function PostDetailScreen() {
       </Modal>
 
       <Modal visible={showImageViewer} transparent animationType="fade" onRequestClose={() => setShowImageViewer(false)}>
-        <Pressable style={styles.imageViewerOverlay} onPress={() => setShowImageViewer(false)}>
+        <View style={styles.imageViewerOverlay}>
           <ImageViewer uri={images[0]?.uri ?? ""} />
           <Pressable
             onPress={() => setShowImageViewer(false)}
@@ -345,7 +345,7 @@ export default function PostDetailScreen() {
           >
             <Ionicons name="close" size={24} color="#FFFFFF" />
           </Pressable>
-        </Pressable>
+        </View>
       </Modal>
 
       <View style={styles.bodyContainer}>
@@ -628,10 +628,8 @@ const styles: Record<string, any> = StyleSheet.create({
     opacity: 0.6,
   },
   imageViewerOverlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject as object,
     backgroundColor: "rgba(0,0,0,0.95)",
-    justifyContent: "center",
-    alignItems: "center",
   },
   imageViewerClose: {
     position: "absolute",
