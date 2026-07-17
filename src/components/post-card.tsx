@@ -7,7 +7,7 @@ import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
 import { Avatar } from "@/components/ui/Avatar";
 import { useSession } from "@/hooks/use-session";
-import { likePost, unlikePost } from "@/services/posts";
+import { likePost, unlikePost, deletePost } from "@/services/posts";
 import { resolveImageUrl } from "@/services/storage";
 import type { PostWithProfile } from "@/services/database.types";
 
@@ -77,9 +77,10 @@ function AnimatedActionButton({
 export type PostCardProps = {
   post: PostWithProfile;
   onLikeToggled?: (postId: string, liked: boolean) => void;
+  onPostDeleted?: (postId: string) => void;
 };
 
-function PostCardInner({ post, onLikeToggled }: PostCardProps) {
+function PostCardInner({ post, onLikeToggled, onPostDeleted }: PostCardProps) {
   const { session } = useSession();
   const currentUserId = session?.user?.id;
   const userLiked = post.likes?.some((l) => l.user_id === currentUserId) ?? false;
@@ -87,6 +88,7 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
   const [reportVisible, setReportVisible] = useState(false);
   const authorName = post.profiles?.name ?? "Unknown";
   const department = post.profiles?.department ?? "";
+  const isOwnPost = post.user_id === currentUserId;
 
   const handleLike = useCallback(async () => {
     try {
@@ -113,30 +115,36 @@ function PostCardInner({ post, onLikeToggled }: PostCardProps) {
   }, [post.content]);
 
   const handleLongPress = useCallback(() => {
-    Alert.alert("Post Actions", undefined, [
-      {
-        text: "Like",
-        onPress: handleLike,
-      },
-      {
-        text: "Share",
-        onPress: handleShare,
-      },
-      {
-        text: "Copy Text",
-        onPress: handleCopyText,
-      },
-      {
-        text: "Report",
+    const actions: { text: string; style?: "cancel" | "destructive"; onPress?: () => void }[] = [
+      { text: "Like", onPress: handleLike },
+      { text: "Share", onPress: handleShare },
+      { text: "Copy Text", onPress: handleCopyText },
+      { text: "Report", style: "destructive", onPress: () => setReportVisible(true) },
+    ];
+    if (isOwnPost) {
+      actions.push({
+        text: "Delete",
         style: "destructive",
-        onPress: () => setReportVisible(true),
-      },
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-    ]);
-  }, [handleLike, handleShare, handleCopyText]);
+        onPress: () => {
+          Alert.alert("Delete post", "Are you sure you want to delete this post?", [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Delete",
+              style: "destructive",
+              onPress: async () => {
+                try {
+                  await deletePost(post.id);
+                  onPostDeleted?.(post.id);
+                } catch {}
+              },
+            },
+          ]);
+        },
+      });
+    }
+    actions.push({ text: "Cancel", style: "cancel" });
+    Alert.alert("Post Actions", undefined, actions);
+  }, [handleLike, handleShare, handleCopyText, isOwnPost, post.id, onPostDeleted]);
 
   const navigateToPost = useCallback(() => {
     router.push(`/post/${post.id}`);

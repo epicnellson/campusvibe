@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Image,
   Modal,
@@ -23,7 +24,7 @@ import { ImageViewer } from "@/components/image-viewer";
 import { spacing, colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
 import { useProfile } from "@/hooks/use-profile";
-import { fetchPostById, likePost, unlikePost } from "@/services/posts";
+import { fetchPostById, likePost, unlikePost, deletePost } from "@/services/posts";
 import { fetchComments, createComment } from "@/services/comments";
 import { followUser, unfollowUser } from "@/services/follows";
 import { submitReport } from "@/services/reports";
@@ -165,14 +166,13 @@ export default function PostDetailScreen() {
   }, [post]);
 
   const handleDeletePost = useCallback(async () => {
-    if (!post || !currentUserId) return;
+    if (!post) return;
     try {
-      const { supabase } = await import("@/services/supabase");
-      await supabase.from("posts").delete().eq("id", post.id).eq("user_id", currentUserId);
+      await deletePost(post.id);
       router.back();
     } catch {}
     setShowMenu(false);
-  }, [post, currentUserId]);
+  }, [post]);
 
   const handleFollow = useCallback(async () => {
     if (!post) return;
@@ -235,13 +235,19 @@ export default function PostDetailScreen() {
     { label: "Report post", icon: "flag-outline", onPress: handleReport },
     { label: "Copy text", icon: "copy-outline", onPress: handleCopyText },
     { label: "Share post", icon: "share-outline", onPress: () => { setShowMenu(false); handleShare(); } },
+    {
+      label: "Delete post",
+      icon: "trash-outline",
+      onPress: () => {
+        setShowMenu(false);
+        Alert.alert("Delete post", "Are you sure you want to delete this post?", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: handleDeletePost },
+        ]);
+      },
+      color: "#EF4444",
+    },
   ];
-  if (!isOwnPost) {
-    menuItems.push({ label: "Block user", icon: "ban-outline", onPress: () => setShowMenu(false), color: "#EF4444" });
-  }
-  if (isOwnPost) {
-    menuItems.push({ label: "Delete post", icon: "trash-outline", onPress: handleDeletePost, color: "#EF4444" });
-  }
 
   if (loading) {
     return (

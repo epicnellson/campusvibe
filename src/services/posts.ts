@@ -133,6 +133,21 @@ export async function unlikePost(postId: string) {
   });
 }
 
+export async function deletePost(postId: string) {
+  return withRetry(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const { error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", postId);
+    if (error) throw error;
+  });
+}
+
 async function fetchProfileNames(userIds: string[]): Promise<Map<string, { name: string; department: string }>> {
   const map = new Map<string, { name: string; department: string }>();
   if (userIds.length === 0) return map;

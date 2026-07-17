@@ -106,10 +106,14 @@ export default function HomeFeedScreen() {
     );
   }, [currentUserId]);
 
+  const handlePostDeleted = useCallback((postId: string) => {
+    setItems((prev) => prev.filter((item) => item.type !== "post" || item.data.id !== postId));
+  }, []);
+
   const renderItem = ({ item }: { item: FeedItem }) => {
     switch (item.type) {
       case "post":
-        return <PostCard post={item.data} onLikeToggled={handleLikeToggled} />;
+        return <PostCard post={item.data} onLikeToggled={handleLikeToggled} onPostDeleted={handlePostDeleted} />;
       case "confession":
         return (
           <ConfessionCard confession={item.data} onLikeToggled={handleConfessionLikeToggled} />
