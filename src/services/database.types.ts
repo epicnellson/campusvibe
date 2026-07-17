@@ -163,3 +163,18 @@ export type AdminAction = {
   target_user_id: string;
   created_at: string;
 };
+
+export type Repost = {
+  id: string;
+  user_id: string;
+  post_id: string;
+  created_at: string;
+};
+
+export type Reaction = {
+  id: string;
+  user_id: string;
+  post_id: string;
+  emoji: string;
+  created_at: string;
+};

@@ -29,6 +29,8 @@ import { fetchComments, createComment } from "@/services/comments";
 import { followUser, unfollowUser } from "@/services/follows";
 import { submitReport } from "@/services/reports";
 import { resolveImageUrl } from "@/services/storage";
+import { repostPost, unrepostPost, getRepostCount } from "@/services/reposts";
+import { fetchReactions, setReaction, removeReaction, REACTION_EMOJIS, type ReactionEmoji, type Reaction } from "@/services/reactions";
 import type { PostWithProfile, CommentWithProfile } from "@/services/database.types";
 
 function formatFullTimestamp(dateStr: string): string {
@@ -75,6 +77,11 @@ export default function PostDetailScreen() {
   const [showMenu, setShowMenu] = useState(false);
   const [showRepostSheet, setShowRepostSheet] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [reactions, setReactions] = useState<Reaction[]>([]);
+  const [userReaction, setUserReaction] = useState<string | null>(null);
+  const [isReposted, setIsReposted] = useState(false);
+  const [repostCount, setRepostCountState] = useState(0);
 
   const likeScale = useRef(new Animated.Value(1)).current;
   const inputRef = useRef<TextInput>(null);
@@ -89,18 +96,24 @@ export default function PostDetailScreen() {
     try {
       setLoading(true);
       setError(null);
-      const [data, commentData] = await Promise.all([
+      const [data, commentData, reactionsData, repostCountData] = await Promise.all([
         fetchPostById(id),
         fetchComments(id),
+        fetchReactions(id),
+        getRepostCount(id),
       ]);
       setPost(data);
       setComments(commentData);
+      setReactions(reactionsData);
+      setRepostCountState(repostCountData);
+      const myReaction = reactionsData.find((r) => r.user_id === currentUserId);
+      setUserReaction(myReaction?.emoji ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load post");
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, currentUserId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -188,6 +201,43 @@ export default function PostDetailScreen() {
       setIsFollowing(wasFollowing);
     }
   }, [post, isFollowing]);
+
+  const handleReaction = useCallback(async (emoji: ReactionEmoji) => {
+    if (!post) return;
+    const wasReaction = userReaction;
+    setShowReactionPicker(false);
+    if (wasReaction === emoji) {
+      setUserReaction(null);
+      setReactions((prev) => prev.filter((r) => r.user_id !== currentUserId));
+      try { await removeReaction(post.id); } catch { setUserReaction(wasReaction); }
+    } else {
+      setUserReaction(emoji);
+      setReactions((prev) => {
+        const without = prev.filter((r) => r.user_id !== currentUserId);
+        without.push({ id: "", user_id: currentUserId!, post_id: post.id, emoji, created_at: "" });
+        return without;
+      });
+      try { await setReaction(post.id, emoji); } catch { setUserReaction(wasReaction); }
+    }
+  }, [post, userReaction, currentUserId]);
+
+  const handleRepost = useCallback(async () => {
+    if (!post || isOwnPost) return;
+    const wasReposted = isReposted;
+    setIsReposted(!wasReposted);
+    setRepostCountState((c) => wasReposted ? c - 1 : c + 1);
+    setShowRepostSheet(false);
+    try {
+      if (wasReposted) {
+        await unrepostPost(post.id);
+      } else {
+        await repostPost(post.id);
+      }
+    } catch {
+      setIsReposted(wasReposted);
+      setRepostCountState((c) => wasReposted ? c + 1 : c - 1);
+    }
+  }, [post, isOwnPost, isReposted]);
 
   const handleSendReply = useCallback(async () => {
     if (!id || !replyText.trim() || sendingReply) return;
@@ -398,6 +448,57 @@ export default function PostDetailScreen() {
             </View>
           )}
 
+          {/* Reaction summary */}
+          {reactions.length > 0 && (
+            <View style={styles.reactionSummary}>
+              {Object.entries(
+                reactions.reduce<Record<string, number>>((acc, r) => {
+                  acc[r.emoji] = (acc[r.emoji] ?? 0) + 1;
+                  return acc;
+                }, {})
+              ).map(([emoji, count]) => (
+                <Pressable
+                  key={emoji}
+                  onPress={() => handleReaction(emoji as ReactionEmoji)}
+                  style={[
+                    styles.reactionPill,
+                    userReaction === emoji && styles.reactionPillActive,
+                  ]}
+                >
+                  <ThemedText style={styles.reactionPillEmoji}>{emoji}</ThemedText>
+                  {count > 1 && (
+                    <ThemedText style={styles.reactionPillCount}>{count}</ThemedText>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {/* Reaction picker */}
+          {showReactionPicker && (
+            <View style={styles.reactionPicker}>
+              {REACTION_EMOJIS.map((emoji) => (
+                <Pressable
+                  key={emoji}
+                  onPress={() => handleReaction(emoji)}
+                  style={({ pressed }) => [
+                    styles.reactionOption,
+                    userReaction === emoji && styles.reactionOptionActive,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <ThemedText style={styles.reactionOptionEmoji}>{emoji}</ThemedText>
+                </Pressable>
+              ))}
+              <Pressable
+                onPress={() => setShowReactionPicker(false)}
+                style={({ pressed }) => [styles.reactionOption, pressed && styles.pressed]}
+              >
+                <Ionicons name="close" size={18} color="#71717A" />
+              </Pressable>
+            </View>
+          )}
+
           <View style={styles.timestampRow}>
             <ThemedText style={styles.timestampText}>
               {formatFullTimestamp(post.created_at)}
@@ -428,17 +529,29 @@ export default function PostDetailScreen() {
               )}
             </Pressable>
 
-            <Pressable
-              onPress={() => setShowRepostSheet(true)}
-              style={styles.actionBarBtn}
-              accessibilityLabel="Repost"
-            >
-              <Ionicons name="repeat-outline" size={22} color="#71717A" />
-            </Pressable>
+            {!isOwnPost && (
+              <Pressable
+                onPress={handleRepost}
+                style={styles.actionBarBtn}
+                accessibilityLabel={isReposted ? "Undo repost" : "Repost"}
+              >
+                <Ionicons
+                  name="repeat-outline"
+                  size={22}
+                  color={isReposted ? "#22C55E" : "#71717A"}
+                />
+                {repostCount > 0 && (
+                  <ThemedText style={[styles.actionBarCount, { color: isReposted ? "#22C55E" : "#71717A" }]}>
+                    {formatMetrics(repostCount)}
+                  </ThemedText>
+                )}
+              </Pressable>
+            )}
 
             <Animated.View style={{ transform: [{ scale: likeScale }] }}>
               <Pressable
                 onPress={handleLike}
+                onLongPress={() => !isOwnPost && setShowReactionPicker(true)}
                 style={styles.actionBarBtn}
                 accessibilityLabel={userLiked ? "Unlike" : "Like"}
               >
@@ -887,5 +1000,62 @@ const styles: Record<string, any> = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: "#1A1A1A",
+  },
+  reactionSummary: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  reactionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  reactionPillActive: {
+    borderColor: "#6C47FF",
+    backgroundColor: "rgba(108, 71, 255, 0.15)",
+  },
+  reactionPillEmoji: {
+    fontSize: 14,
+  },
+  reactionPillCount: {
+    fontSize: 12,
+    color: "#71717A",
+    fontWeight: "600",
+  },
+  reactionPicker: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginHorizontal: spacing.md,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: "#1A1A1A",
+    borderRadius: 28,
+    alignSelf: "flex-start",
+    borderWidth: 0.5,
+    borderColor: "#2A2A2A",
+  },
+  reactionOption: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reactionOptionActive: {
+    backgroundColor: "rgba(108, 71, 255, 0.2)",
+  },
+  reactionOptionEmoji: {
+    fontSize: 22,
   },
 });

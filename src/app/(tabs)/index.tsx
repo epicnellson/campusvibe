@@ -19,6 +19,8 @@ import { useRefresh } from "@/hooks/use-refresh";
 import { fetchPosts } from "@/services/posts";
 import { fetchConfessions } from "@/services/confessions";
 import { fetchUpcomingEvents } from "@/services/events";
+import { fetchReactionsForPosts, type Reaction } from "@/services/reactions";
+import { getUserRepostedPostIds, getRepostCount } from "@/services/reposts";
 import type { PostWithProfile, ConfessionWithLikes, EventWithRSVPs } from "@/services/database.types";
 
 const BOTTOM_TAB_INSET = 80;
@@ -39,6 +41,10 @@ export default function HomeFeedScreen() {
   const [error, setError] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
 
+  const [reactionsMap, setReactionsMap] = useState<Map<string, Reaction[]>>(new Map());
+  const [repostedIds, setRepostedIds] = useState<Set<string>>(new Set());
+  const [repostCounts, setRepostCounts] = useState<Map<string, number>>(new Map());
+
   const load = useCallback(async () => {
     try {
       setError(null);
@@ -47,6 +53,24 @@ export default function HomeFeedScreen() {
         fetchConfessions(),
         fetchUpcomingEvents(),
       ]);
+
+      const postIds = posts.map((p) => p.id);
+      const [reactionsData, userReposted] = await Promise.all([
+        fetchReactionsForPosts(postIds),
+        currentUserId ? getUserRepostedPostIds(currentUserId) : Promise.resolve(new Set<string>()),
+      ]);
+      setReactionsMap(reactionsData);
+      setRepostedIds(userReposted);
+
+      const counts = new Map<string, number>();
+      await Promise.all(
+        postIds.map(async (id) => {
+          const c = await getRepostCount(id);
+          if (c > 0) counts.set(id, c);
+        })
+      );
+      setRepostCounts(counts);
+
       const combined: FeedItem[] = [
         ...events.map((e) => ({ type: "event" as const, data: e })),
         ...posts.map((p) => ({ type: "post" as const, data: p })),
@@ -71,7 +95,7 @@ export default function HomeFeedScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => { load(); }, [feedKey]);
 
@@ -110,10 +134,54 @@ export default function HomeFeedScreen() {
     setItems((prev) => prev.filter((item) => item.type !== "post" || item.data.id !== postId));
   }, []);
 
+  const handleReactionChanged = useCallback((postId: string, emoji: string | null) => {
+    if (!currentUserId) return;
+    setReactionsMap((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(postId) ?? [];
+      if (emoji === null) {
+        next.set(postId, existing.filter((r) => r.user_id !== currentUserId));
+      } else {
+        const without = existing.filter((r) => r.user_id !== currentUserId);
+        without.push({ id: "", user_id: currentUserId, post_id: postId, emoji, created_at: "" });
+        next.set(postId, without);
+      }
+      return next;
+    });
+  }, [currentUserId]);
+
+  const handleRepostToggled = useCallback((postId: string, reposted: boolean) => {
+    if (!currentUserId) return;
+    setRepostedIds((prev) => {
+      const next = new Set(prev);
+      if (reposted) next.add(postId);
+      else next.delete(postId);
+      return next;
+    });
+    setRepostCounts((prev) => {
+      const next = new Map(prev);
+      const current = next.get(postId) ?? 0;
+      next.set(postId, reposted ? current + 1 : Math.max(0, current - 1));
+      return next;
+    });
+  }, [currentUserId]);
+
   const renderItem = ({ item }: { item: FeedItem }) => {
     switch (item.type) {
       case "post":
-        return <PostCard post={item.data} onLikeToggled={handleLikeToggled} onPostDeleted={handlePostDeleted} />;
+        return (
+          <PostCard
+            post={item.data}
+            onLikeToggled={handleLikeToggled}
+            onPostDeleted={handlePostDeleted}
+            reactions={reactionsMap.get(item.data.id) ?? []}
+            userReaction={reactionsMap.get(item.data.id)?.find((r) => r.user_id === currentUserId)?.emoji ?? null}
+            onReactionChanged={handleReactionChanged}
+            repostCount={repostCounts.get(item.data.id) ?? 0}
+            isReposted={repostedIds.has(item.data.id)}
+            onRepostToggled={handleRepostToggled}
+          />
+        );
       case "confession":
         return (
           <ConfessionCard confession={item.data} onLikeToggled={handleConfessionLikeToggled} />
