@@ -24,6 +24,7 @@ import { ImageViewer } from "@/components/image-viewer";
 import { spacing, colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
 import { useProfile } from "@/hooks/use-profile";
+import { useRefresh } from "@/hooks/use-refresh";
 import { fetchPostById, likePost, unlikePost, deletePost } from "@/services/posts";
 import { fetchComments, createComment } from "@/services/comments";
 import { followUser, unfollowUser } from "@/services/follows";
@@ -64,6 +65,7 @@ export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useSession();
   const { profile } = useProfile();
+  const { triggerFeedRefresh } = useRefresh();
   const insets = useSafeAreaInsets();
   const currentUserId = session?.user?.id;
   const [post, setPost] = useState<PostWithProfile | null>(null);
@@ -187,12 +189,13 @@ export default function PostDetailScreen() {
     if (!post) return;
     try {
       await deletePost(post.id);
+      triggerFeedRefresh();
       goBack();
     } catch {
       Alert.alert("Error", "Could not delete post. Please try again.");
     }
     setShowMenu(false);
-  }, [post, goBack]);
+  }, [post, goBack, triggerFeedRefresh]);
 
   const handleFollow = useCallback(async () => {
     if (!post) return;

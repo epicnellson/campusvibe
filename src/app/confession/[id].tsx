@@ -20,6 +20,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ImageViewer } from "@/components/image-viewer";
 import { spacing, colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
+import { useRefresh } from "@/hooks/use-refresh";
 import { fetchConfessionById, likeConfession, unlikeConfession, deleteConfession } from "@/services/confessions";
 import { submitReport } from "@/services/reports";
 import { resolveImageUrl } from "@/services/storage";
@@ -72,6 +73,7 @@ function formatFullTimestamp(dateStr: string): string {
 export default function ConfessionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useSession();
+  const { triggerFeedRefresh } = useRefresh();
   const insets = useSafeAreaInsets();
   const currentUserId = session?.user?.id;
   const [confession, setConfession] = useState<ConfessionWithLikes | null>(null);
@@ -162,12 +164,13 @@ export default function ConfessionDetailScreen() {
     if (!confession) return;
     try {
       await deleteConfession(confession.id);
+      triggerFeedRefresh();
       if (router.canGoBack()) router.back(); else router.replace("/");
     } catch {
       Alert.alert("Error", "Could not delete confession. Please try again.");
     }
     setShowMenu(false);
-  }, [confession]);
+  }, [confession, triggerFeedRefresh]);
 
   const menuItems: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void; color?: string }[] = [
     { label: "Report confession", icon: "flag-outline", onPress: handleReport },
