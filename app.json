@@ -70,8 +70,8 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 128,
+          "image": "./assets/images/logo.png",
+          "imageWidth": 200,
           "enableFullScreenImage_legacy": true
         }
       ],
@@ -85,7 +85,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo.png",
           "color": "#208AEF"
         }
       ]

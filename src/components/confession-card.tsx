@@ -1,11 +1,25 @@
 import { memo, useCallback, useState, useRef } from "react";
-import { Animated, Image, Platform, Pressable, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  Share,
+  StyleSheet,
+  View,
+} from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
 import { useSession } from "@/hooks/use-session";
 import { resolveImageUrl } from "@/services/storage";
+import { deleteConfession } from "@/services/confessions";
+import { submitReport } from "@/services/reports";
 import type { ConfessionWithLikes } from "@/services/database.types";
 
 const ANIMALS = [
@@ -100,15 +114,19 @@ function AnimatedActionButton({
 export type ConfessionCardProps = {
   confession: ConfessionWithLikes;
   onLikeToggled?: (confessionId: string, liked: boolean) => void;
+  onConfessionDeleted?: (confessionId: string) => void;
 };
 
-function ConfessionCardInner({ confession, onLikeToggled }: ConfessionCardProps) {
+function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }: ConfessionCardProps) {
   const { session } = useSession();
+  const insets = useSafeAreaInsets();
   const currentUserId = session?.user?.id;
   const userLiked =
     confession.confession_likes?.some((l) => l.user_id === currentUserId) ?? false;
   const likeCount = confession.confession_likes?.length ?? 0;
   const [reportVisible, setReportVisible] = useState(false);
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const animalName = animalFromId(confession.id);
   const avatarColor = colorFromId(confession.id);
 
@@ -118,13 +136,65 @@ function ConfessionCardInner({ confession, onLikeToggled }: ConfessionCardProps)
 
   const resolvedImage = resolveImageUrl(confession.image_url, "post-images");
 
+  const handleCopyText = useCallback(async () => {
+    await Clipboard.setStringAsync(confession.content);
+    setShowMenu(false);
+  }, [confession.content]);
+
+  const handleReport = useCallback(async () => {
+    try {
+      await submitReport(confession.id, "confession", "Other");
+    } catch {}
+    setShowMenu(false);
+    setShowImageViewer(false);
+  }, [confession.id]);
+
+  const handleShare = useCallback(async () => {
+    setShowMenu(false);
+    setShowImageViewer(false);
+    try {
+      await Share.share({ message: confession.content });
+    } catch {}
+  }, [confession.content]);
+
+  const handleDeleteConfession = useCallback(async () => {
+    setShowMenu(false);
+    Alert.alert("Delete confession", "Are you sure you want to delete this confession?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteConfession(confession.id);
+            setShowImageViewer(false);
+            onConfessionDeleted?.(confession.id);
+          } catch {
+            Alert.alert("Error", "Could not delete confession. Please try again.");
+          }
+        },
+      },
+    ]);
+  }, [confession.id, onConfessionDeleted]);
+
+  const isOwnPost = confession.user_id === currentUserId;
+
+  const menuItems: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void; color?: string }[] = [
+    { label: "Copy text", icon: "copy-outline", onPress: handleCopyText },
+    { label: "Share", icon: "share-outline", onPress: handleShare },
+    { label: "Report", icon: "flag-outline", onPress: handleReport },
+  ];
+  if (isOwnPost) {
+    menuItems.push({
+      label: "Delete confession",
+      icon: "trash-outline",
+      onPress: handleDeleteConfession,
+      color: "#EF4444",
+    });
+  }
+
   return (
-    <Pressable
-      onPress={() => router.push({ pathname: "/confession/[id]", params: { id: confession.id } })}
-      style={({ pressed }) => [styles.container, pressed && { opacity: 0.85 }]}
-      accessibilityLabel={`Confession by Anonymous ${animalName}`}
-      accessibilityRole="button"
-    >
+    <View style={styles.container}>
       <View style={styles.contentRow}>
         <View style={styles.leftColumn}>
           <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
@@ -146,11 +216,16 @@ function ConfessionCardInner({ confession, onLikeToggled }: ConfessionCardProps)
           <ThemedText style={styles.body}>{confession.content}</ThemedText>
 
           {resolvedImage ? (
-            <Image
-              source={{ uri: resolvedImage }}
-              style={styles.postImage}
-              resizeMode="contain"
-            />
+            <Pressable
+              onPress={() => setShowImageViewer(true)}
+              style={styles.imagePressable}
+            >
+              <Image
+                source={{ uri: resolvedImage }}
+                style={styles.postImage}
+                resizeMode="cover"
+              />
+            </Pressable>
           ) : null}
 
           <View style={styles.actionRow}>
@@ -194,7 +269,72 @@ function ConfessionCardInner({ confession, onLikeToggled }: ConfessionCardProps)
         contentType="confession"
         onClose={() => setReportVisible(false)}
       />
-    </Pressable>
+
+      {/* Fullscreen image viewer */}
+      <Modal
+        visible={showImageViewer}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowImageViewer(false)}
+      >
+        <View style={styles.viewerOverlay}>
+          <Pressable
+            onPress={() => setShowImageViewer(false)}
+            style={[styles.viewerClose, { top: insets.top + 12 }]}
+            accessibilityLabel="Close image"
+          >
+            <Ionicons name="close" size={24} color="#FFFFFF" />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setShowMenu(true)}
+            style={[styles.viewerMenuBtn, { top: insets.top + 12 }]}
+            accessibilityLabel="More options"
+          >
+            <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" />
+          </Pressable>
+
+          <View style={styles.viewerImageContainer}>
+            <Image
+              source={{ uri: resolvedImage ?? "" }}
+              style={styles.viewerImage}
+              resizeMode="contain"
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* 3-dot action sheet */}
+      <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowMenu(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={styles.actionSheet}>
+            <View style={styles.actionSheetHandle} />
+            {menuItems.map((item, i) => (
+              <Pressable
+                key={item.label}
+                onPress={item.onPress}
+                style={({ pressed }) => [
+                  styles.actionSheetItem,
+                  i < menuItems.length - 1 && styles.actionSheetItemBorder,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons name={item.icon} size={20} color={item.color ?? "#E1E1E1"} />
+                <ThemedText style={[styles.actionSheetLabel, item.color ? { color: item.color } : undefined]}>
+                  {item.label}
+                </ThemedText>
+              </Pressable>
+            ))}
+            <Pressable
+              onPress={() => setShowMenu(false)}
+              style={({ pressed }) => [styles.actionSheetCancel, pressed && styles.pressed]}
+            >
+              <ThemedText style={styles.actionSheetCancelText}>Cancel</ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
   );
 }
 
@@ -258,11 +398,16 @@ const styles = StyleSheet.create({
     color: "#F0F0F0",
     marginTop: 4,
   },
+  imagePressable: {
+    marginTop: 10,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#0A0A0C",
+  },
   postImage: {
     width: "100%",
     aspectRatio: 16 / 9,
     borderRadius: 12,
-    marginTop: 12,
     backgroundColor: "#0A0A0C",
   },
   actionRow: {
@@ -280,6 +425,92 @@ const styles = StyleSheet.create({
   },
   actionCount: {
     fontSize: 12,
+    fontWeight: "500",
+  },
+  pressed: {
+    opacity: 0.6,
+  },
+  viewerOverlay: {
+    ...(StyleSheet.absoluteFill as object),
+    backgroundColor: "#000000",
+  },
+  viewerClose: {
+    position: "absolute",
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  viewerMenuBtn: {
+    position: "absolute",
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  viewerImageContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewerImage: {
+    width: "100%",
+    height: "100%",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  actionSheet: {
+    backgroundColor: "#1A1A1A",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 34,
+  },
+  actionSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#262626",
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  actionSheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  actionSheetItemBorder: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#262626",
+  },
+  actionSheetLabel: {
+    fontSize: 16,
+    color: "#E1E1E1",
+    fontWeight: "500",
+  },
+  actionSheetCancel: {
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 4,
+    borderTopWidth: 0.5,
+    borderTopColor: "#262626",
+  },
+  actionSheetCancelText: {
+    fontSize: 16,
+    color: "#71717A",
     fontWeight: "500",
   },
 });

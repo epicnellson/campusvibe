@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet } from 'react-native';
+import { Animated, Image, Platform, StyleSheet } from 'react-native';
 
 const DURATION = 600;
 
@@ -14,19 +14,33 @@ export function AnimatedSplashOverlay() {
         duration: DURATION,
         useNativeDriver: Platform.OS !== 'web',
       }).start(() => setVisible(false));
-    }, 500);
+    }, 800);
     return () => clearTimeout(timer);
   }, [opacity]);
 
   if (!visible) return null;
 
-  return <Animated.View style={[styles.backgroundSolidColor, { opacity }]} />;
+  return (
+    <Animated.View style={[styles.background, { opacity }]}>
+      <Image
+        source={require('@/assets/images/logo.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
+    </Animated.View>
+  );
 }
 
 const styles = StyleSheet.create({
-  backgroundSolidColor: {
+  background: {
     ...(StyleSheet.absoluteFill as object),
     backgroundColor: '#208AEF',
     zIndex: 1000,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logo: {
+    width: 180,
+    height: 180,
   },
 });

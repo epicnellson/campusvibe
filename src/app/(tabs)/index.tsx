@@ -134,6 +134,10 @@ export default function HomeFeedScreen() {
     setItems((prev) => prev.filter((item) => item.type !== "post" || item.data.id !== postId));
   }, []);
 
+  const handleConfessionDeleted = useCallback((confessionId: string) => {
+    setItems((prev) => prev.filter((item) => item.type !== "confession" || item.data.id !== confessionId));
+  }, []);
+
   const handleReactionChanged = useCallback((postId: string, emoji: string | null) => {
     if (!currentUserId) return;
     setReactionsMap((prev) => {
@@ -184,7 +188,7 @@ export default function HomeFeedScreen() {
         );
       case "confession":
         return (
-          <ConfessionCard confession={item.data} onLikeToggled={handleConfessionLikeToggled} />
+          <ConfessionCard confession={item.data} onLikeToggled={handleConfessionLikeToggled} onConfessionDeleted={handleConfessionDeleted} />
         );
       case "event":
         return <EventCard event={item.data} />;
