@@ -178,16 +178,21 @@ export default function PostDetailScreen() {
     setShowMenu(false);
   }, [post]);
 
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
+  }, []);
+
   const handleDeletePost = useCallback(async () => {
     if (!post) return;
     try {
       await deletePost(post.id);
-      router.back();
+      goBack();
     } catch {
       Alert.alert("Error", "Could not delete post. Please try again.");
     }
     setShowMenu(false);
-  }, [post]);
+  }, [post, goBack]);
 
   const handleFollow = useCallback(async () => {
     if (!post) return;
@@ -315,7 +320,7 @@ export default function PostDetailScreen() {
         <ThemedText style={styles.errorText}>
           {error ?? "Post not found"}
         </ThemedText>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={goBack} style={styles.backBtn}>
           <ThemedText style={styles.goBack}>Go back</ThemedText>
         </Pressable>
       </ThemedView>
@@ -328,7 +333,7 @@ export default function PostDetailScreen() {
 
       <View style={[styles.customHeader, { paddingTop: insets.top + 6 }]}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={goBack}
           style={({ pressed }) => [styles.headerBtn, pressed && styles.pressed]}
           accessibilityLabel="Go back"
         >

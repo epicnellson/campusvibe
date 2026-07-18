@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Image,
@@ -109,6 +110,24 @@ export default function ProfileScreen() {
   const handleShare = () => {
     Share.share({ message: `Check out ${profile?.name ?? "my profile"} on CampusVibe!` });
   };
+
+  const handleLogout = useCallback(() => {
+    Alert.alert("Log Out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log Out",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await supabase.auth.signOut();
+            router.replace("/login");
+          } catch {
+            Alert.alert("Error", "Could not log out. Please try again.");
+          }
+        },
+      },
+    ]);
+  }, []);
 
   if (isLoading) {
     return (
@@ -265,6 +284,13 @@ export default function ProfileScreen() {
             accessibilityLabel="Share Profile"
           >
             <Ionicons name="share-outline" size={20} color="#FFFFFF" />
+          </Pressable>
+          <Pressable
+            onPress={handleLogout}
+            style={({ pressed }) => [styles.topBarBtn, pressed && styles.pressed]}
+            accessibilityLabel="Log Out"
+          >
+            <Ionicons name="log-out-outline" size={20} color="#EF4444" />
           </Pressable>
         </View>
 

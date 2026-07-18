@@ -31,6 +31,11 @@ export default function EventDetailScreen() {
   const [rsvpLoading, setRsvpLoading] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
+  }, []);
+
   const currentUserId = session?.user?.id;
   const isGoing = event?.event_rsvps?.some((r) => r.user_id === currentUserId) ?? false;
   const goingCount = event?.event_rsvps?.length ?? 0;
@@ -90,7 +95,7 @@ export default function EventDetailScreen() {
     if (!event) return;
     try {
       await deleteEvent(event.id);
-      router.back();
+      router.replace("/");
     } catch {
       Alert.alert("Error", "Could not delete event. Please try again.");
     }
@@ -151,7 +156,7 @@ export default function EventDetailScreen() {
           {/* Back button */}
           <View style={[styles.bannerNav, { top: insets.top + 10 }]}>
             <Pressable
-              onPress={() => router.back()}
+              onPress={() => { if (router.canGoBack()) router.back(); else router.replace("/"); }}
               style={styles.backButton}
               accessibilityLabel="Go back"
               accessibilityRole="button"

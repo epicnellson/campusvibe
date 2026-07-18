@@ -162,7 +162,7 @@ export default function ConfessionDetailScreen() {
     if (!confession) return;
     try {
       await deleteConfession(confession.id);
-      router.back();
+      if (router.canGoBack()) router.back(); else router.replace("/");
     } catch {
       Alert.alert("Error", "Could not delete confession. Please try again.");
     }
@@ -199,7 +199,7 @@ export default function ConfessionDetailScreen() {
     return (
       <View style={styles.center}>
         <ThemedText style={styles.errorText}>{error ?? "Confession not found"}</ThemedText>
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.replace("/"); }}>
           <ThemedText style={styles.goBack}>Go back</ThemedText>
         </Pressable>
       </View>
@@ -212,7 +212,7 @@ export default function ConfessionDetailScreen() {
 
       <View style={[styles.customHeader, { paddingTop: insets.top + 6 }]}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => { if (router.canGoBack()) router.back(); else router.replace("/"); }}
           style={({ pressed }) => [styles.headerBtn, pressed && styles.pressed]}
           accessibilityLabel="Go back"
         >
