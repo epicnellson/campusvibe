@@ -163,7 +163,9 @@ export default function ConfessionDetailScreen() {
     try {
       await deleteConfession(confession.id);
       router.back();
-    } catch {}
+    } catch {
+      Alert.alert("Error", "Could not delete confession. Please try again.");
+    }
     setShowMenu(false);
   }, [confession]);
 

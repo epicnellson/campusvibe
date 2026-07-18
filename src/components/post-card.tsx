@@ -197,7 +197,9 @@ function PostCardInner({
                 try {
                   await deletePost(post.id);
                   onPostDeleted?.(post.id);
-                } catch {}
+                } catch (e) {
+                  Alert.alert("Error", "Could not delete post. Please try again.");
+                }
               },
             },
           ]);

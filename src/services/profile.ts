@@ -69,7 +69,7 @@ export async function updateProfile(
 export async function fetchUserPosts(userId: string): Promise<PostWithProfile[]> {
   const { data, error } = await supabase
     .from("posts")
-    .select("id, content, created_at, updated_at, user_id, likes(id, user_id)")
+    .select("id, content, image_url, created_at, updated_at, user_id, likes(id, user_id)")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 

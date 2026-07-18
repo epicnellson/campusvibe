@@ -183,7 +183,9 @@ export default function PostDetailScreen() {
     try {
       await deletePost(post.id);
       router.back();
-    } catch {}
+    } catch {
+      Alert.alert("Error", "Could not delete post. Please try again.");
+    }
     setShowMenu(false);
   }, [post]);
 

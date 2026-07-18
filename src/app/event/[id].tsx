@@ -91,7 +91,9 @@ export default function EventDetailScreen() {
     try {
       await deleteEvent(event.id);
       router.back();
-    } catch {}
+    } catch {
+      Alert.alert("Error", "Could not delete event. Please try again.");
+    }
     setShowMenu(false);
   }, [event]);
 

@@ -53,7 +53,7 @@ function AnimatedActionButton({
   onPress,
   children,
   accessibilityLabel,
-  accessibilityRole = "button",
+  accessibilityRole,
   accessibilityState,
 }: {
   onPress: () => void;

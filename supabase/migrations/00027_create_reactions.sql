@@ -9,33 +9,25 @@ CREATE TABLE IF NOT EXISTS reactions (
 
 ALTER TABLE reactions ENABLE ROW LEVEL SECURITY;
 
-DO $$ BEGIN
-  CREATE POLICY "Authenticated users can view reactions"
-    ON reactions FOR SELECT
-    USING (auth.uid() IS NOT NULL);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+DROP POLICY IF EXISTS "Authenticated users can view reactions" ON reactions;
+CREATE POLICY "Authenticated users can view reactions"
+  ON reactions FOR SELECT
+  USING (auth.uid() IS NOT NULL);
 
-DO $$ BEGIN
-  CREATE POLICY "Authenticated users can insert reactions"
-    ON reactions FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+DROP POLICY IF EXISTS "Authenticated users can insert reactions" ON reactions;
+CREATE POLICY "Authenticated users can insert reactions"
+  ON reactions FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
 
-DO $$ BEGIN
-  CREATE POLICY "Users can update own reactions"
-    ON reactions FOR UPDATE
-    USING (auth.uid() = user_id);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+DROP POLICY IF EXISTS "Users can update own reactions" ON reactions;
+CREATE POLICY "Users can update own reactions"
+  ON reactions FOR UPDATE
+  USING (auth.uid() = user_id);
 
-DO $$ BEGIN
-  CREATE POLICY "Users can delete own reactions"
-    ON reactions FOR DELETE
-    USING (auth.uid() = user_id);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+DROP POLICY IF EXISTS "Users can delete own reactions" ON reactions;
+CREATE POLICY "Users can delete own reactions"
+  ON reactions FOR DELETE
+  USING (auth.uid() = user_id);
 
 GRANT ALL ON reactions TO authenticated;
 GRANT ALL ON reactions TO anon;

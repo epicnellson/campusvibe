@@ -8,26 +8,20 @@ CREATE TABLE IF NOT EXISTS reposts (
 
 ALTER TABLE reposts ENABLE ROW LEVEL SECURITY;
 
-DO $$ BEGIN
-  CREATE POLICY "Authenticated users can view reposts"
-    ON reposts FOR SELECT
-    USING (auth.uid() IS NOT NULL);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+DROP POLICY IF EXISTS "Authenticated users can view reposts" ON reposts;
+CREATE POLICY "Authenticated users can view reposts"
+  ON reposts FOR SELECT
+  USING (auth.uid() IS NOT NULL);
 
-DO $$ BEGIN
-  CREATE POLICY "Authenticated users can insert reposts"
-    ON reposts FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+DROP POLICY IF EXISTS "Authenticated users can insert reposts" ON reposts;
+CREATE POLICY "Authenticated users can insert reposts"
+  ON reposts FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
 
-DO $$ BEGIN
-  CREATE POLICY "Users can delete own reposts"
-    ON reposts FOR DELETE
-    USING (auth.uid() = user_id);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+DROP POLICY IF EXISTS "Users can delete own reposts" ON reposts;
+CREATE POLICY "Users can delete own reposts"
+  ON reposts FOR DELETE
+  USING (auth.uid() = user_id);
 
 GRANT ALL ON reposts TO authenticated;
 GRANT ALL ON reposts TO anon;
