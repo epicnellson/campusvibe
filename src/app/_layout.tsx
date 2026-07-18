@@ -1,12 +1,14 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { useColorScheme, Platform } from "react-native";
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable } from "react-native";
 import { router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { useFonts } from "expo-font";
+import { Poppins_700Bold, Poppins_800ExtraBold } from "@expo-google-fonts/poppins";
 
 // Hermes in RN 0.81 sets global.window = global but global lacks addEventListener.
 if (typeof window !== "undefined" && typeof window.addEventListener !== "function") {
@@ -37,9 +39,16 @@ function RootLayout() {
   const scheme = colorScheme === "dark" ? "dark" : "light";
   const colors = getThemeColors(scheme);
 
+  const [fontsLoaded] = useFonts({
+    Poppins_700Bold,
+    Poppins_800ExtraBold,
+  });
+
   useEffect(() => {
-    SplashScreen.hideAsync().catch(() => {});
-  }, []);
+    if (fontsLoaded) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded]);
 
   const defaultHeader = {
     headerStyle: { backgroundColor: colors.background },

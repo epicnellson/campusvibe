@@ -355,8 +355,8 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: "800",
+    fontSize: 24,
+    fontFamily: "Poppins_800ExtraBold",
     letterSpacing: -0.5,
     color: "#FFFFFF",
     flex: 1,
