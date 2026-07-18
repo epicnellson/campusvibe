@@ -1,6 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
-import { useColorScheme, Platform } from "react-native";
+import { useColorScheme, LogBox, Platform } from "react-native";
 import { useCallback, useEffect, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +9,8 @@ import { router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
 import { Poppins_700Bold, Poppins_800ExtraBold } from "@expo-google-fonts/poppins";
+
+LogBox.ignoreAllLogs(true);
 
 // Hermes in RN 0.81 sets global.window = global but global lacks addEventListener.
 if (typeof window !== "undefined" && typeof window.addEventListener !== "function") {
