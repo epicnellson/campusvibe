@@ -1,4 +1,4 @@
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useCallback, useRef, useState } from "react";
 import { Redirect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,6 +8,7 @@ import { ThemedView } from "@/components/themed-view";
 import { VerificationBanner } from "@/components/verification-banner";
 import { CustomTabBar } from "@/components/custom-tab-bar";
 import { SwipeablePager, PagerViewRef } from "@/components/PagerViewWrapper";
+import { FeedSkeleton } from "@/components/feed-skeleton";
 import { useProfile } from "@/hooks/use-profile";
 import { useSession } from "@/hooks/use-session";
 import { spacing } from "@/theme";
@@ -35,7 +36,7 @@ export default function TabLayout() {
   if (isLoading || profileLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6C47FF" />
+        <FeedSkeleton />
       </View>
     );
   }

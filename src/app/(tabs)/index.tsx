@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   FlatList,
-  Image,
   Modal,
   Pressable,
   StyleSheet,
@@ -211,17 +210,17 @@ export default function HomeFeedScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.titleBar}>
-          <Image
-            source={require("@/assets/images/logo.png")}
-            style={styles.headerLogo}
-            resizeMode="contain"
-          />
+          <Pressable
+            onPress={() => router.push("/notification-settings")}
+            style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}
+            accessibilityLabel="Notifications"
+          >
+            <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+          </Pressable>
+          <Text style={styles.headerTitle}>CampusVibe</Text>
           <Pressable
             onPress={() => setMenuVisible(true)}
-            style={({ pressed }) => [
-              styles.fabButton,
-              pressed && styles.pressed,
-            ]}
+            style={({ pressed }) => [styles.fabButton, pressed && styles.pressed]}
             accessibilityLabel="Create post"
             accessibilityRole="button"
           >
@@ -237,11 +236,14 @@ export default function HomeFeedScreen() {
     <View style={styles.container}>
       <View style={[styles.safeArea, { paddingTop: insets.top }]}>
         <View style={styles.titleBar}>
-          <Image
-            source={require("@/assets/images/logo.png")}
-            style={styles.headerLogo}
-            resizeMode="contain"
-          />
+          <Pressable
+            onPress={() => router.push("/notification-settings")}
+            style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}
+            accessibilityLabel="Notifications"
+          >
+            <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+          </Pressable>
+          <Text style={styles.headerTitle}>CampusVibe</Text>
           <Pressable
             onPress={() => setMenuVisible(true)}
             style={({ pressed }) => [
@@ -352,9 +354,20 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     color: "#FFFFFF",
   },
-  headerLogo: {
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    color: "#FFFFFF",
+    flex: 1,
+    textAlign: "center",
+  },
+  headerIconBtn: {
     width: 36,
     height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   fabButton: {
     width: 36,
