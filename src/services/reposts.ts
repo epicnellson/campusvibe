@@ -1,5 +1,6 @@
 import { supabase } from "@/services/supabase";
 import { withRetry } from "@/services/retry";
+import { createNotification } from "@/services/in-app-notifications";
 
 export async function repostPost(postId: string) {
   return withRetry(async () => {
@@ -8,11 +9,21 @@ export async function repostPost(postId: string) {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
+    const { data: post } = await supabase
+      .from("posts")
+      .select("user_id")
+      .eq("id", postId)
+      .single();
+
     const { error } = await supabase.from("reposts").insert({
       user_id: user.id,
       post_id: postId,
     });
     if (error) throw error;
+
+    if (post && post.user_id !== user.id) {
+      createNotification(post.user_id, user.id, "repost", "post", postId);
+    }
   });
 }
 

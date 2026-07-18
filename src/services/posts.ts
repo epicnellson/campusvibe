@@ -3,6 +3,7 @@ import { withRetry } from "@/services/retry";
 import { sanitizeText } from "@/services/sanitize";
 import type { PostWithProfile } from "@/services/database.types";
 import { notifyPostLike } from "@/services/notifications";
+import { createNotification } from "@/services/in-app-notifications";
 
 export async function fetchPosts(): Promise<PostWithProfile[]> {
   return withRetry(async () => {
@@ -113,6 +114,7 @@ export async function likePost(postId: string) {
         .eq("id", user.id)
         .single();
       notifyPostLike(post.user_id, profile?.name ?? "Someone", postId);
+      createNotification(post.user_id, user.id, "like", "post", postId);
     }
   });
 }

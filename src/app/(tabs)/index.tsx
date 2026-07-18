@@ -230,7 +230,7 @@ export default function HomeFeedScreen() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.titleBar}>
           <Pressable
-            onPress={() => router.push("/notification-settings")}
+            onPress={() => router.push("/notifications")}
             style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}
             accessibilityLabel="Notifications"
           >
@@ -256,7 +256,7 @@ export default function HomeFeedScreen() {
       <View style={[styles.safeArea, { paddingTop: insets.top }]}>
         <View style={styles.titleBar}>
           <Pressable
-            onPress={() => router.push("/notification-settings")}
+            onPress={() => router.push("/notifications")}
             style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}
             accessibilityLabel="Notifications"
           >

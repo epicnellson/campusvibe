@@ -14,6 +14,7 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "@/hooks/use-session";
+import { useRefresh } from "@/hooks/use-refresh";
 import { rsvpEvent, unrsvpEvent, deleteEvent } from "@/services/events";
 import { resolveImageUrl } from "@/services/storage";
 import type { EventWithRSVPs } from "@/services/database.types";
@@ -25,6 +26,7 @@ export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useSession();
   const insets = useSafeAreaInsets();
+  const { triggerFeedRefresh } = useRefresh();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,12 +97,13 @@ export default function EventDetailScreen() {
     if (!event) return;
     try {
       await deleteEvent(event.id);
+      triggerFeedRefresh();
       router.replace("/");
     } catch {
       Alert.alert("Error", "Could not delete event. Please try again.");
     }
     setShowMenu(false);
-  }, [event]);
+  }, [event, triggerFeedRefresh]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr + "T00:00:00");

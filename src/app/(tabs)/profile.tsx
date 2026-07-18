@@ -259,6 +259,16 @@ export default function ProfileScreen() {
           </ThemedText>
         </View>
       ))}
+      <Pressable
+        onPress={() => router.push("/notification-settings")}
+        style={({ pressed }) => [styles.aboutRow, pressed && styles.pressed]}
+      >
+        <ThemedText style={styles.aboutLabel}>Notification Settings</ThemedText>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <ThemedText style={styles.aboutValue}>Manage</ThemedText>
+          <Ionicons name="chevron-forward" size={16} color="#555" />
+        </View>
+      </Pressable>
     </View>
   );
 

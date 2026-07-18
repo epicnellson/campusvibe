@@ -112,13 +112,17 @@ function RootLayout() {
                   <Stack.Screen
                     name="notification-settings"
                     options={{
-                      title: "Notifications",
+                      title: "Notification Settings",
                       headerLeft: () => (
                         <Pressable onPress={() => router.back()} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
                           <Ionicons name="chevron-back" size={24} color={colors.primary} />
                         </Pressable>
                       ),
                     }}
+                  />
+                  <Stack.Screen
+                    name="notifications"
+                    options={{ headerShown: false }}
                   />
                   <Stack.Screen
                     name="privacy"

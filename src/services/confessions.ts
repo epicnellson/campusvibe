@@ -3,6 +3,7 @@ import { withRetry } from "@/services/retry";
 import { sanitizeText } from "@/services/sanitize";
 import { checkModeration } from "@/services/moderation";
 import { notifyPopularConfession } from "@/services/notifications";
+import { createNotification } from "@/services/in-app-notifications";
 import type { ConfessionWithLikes } from "@/services/database.types";
 
 export async function fetchConfessions(): Promise<ConfessionWithLikes[]> {
@@ -78,20 +79,23 @@ export async function likeConfession(confessionId: string) {
     });
     if (error) throw error;
 
-    // Check if confession just hit 10+ likes
-    const { count } = await supabase
-      .from("confession_likes")
-      .select("id", { count: "exact", head: true })
-      .eq("confession_id", confessionId);
+    const { data: confession } = await supabase
+      .from("confessions")
+      .select("user_id")
+      .eq("id", confessionId)
+      .single();
 
-    if (count && count >= 10 && count < 15) {
-      const { data: confession } = await supabase
-        .from("confessions")
-        .select("user_id")
-        .eq("id", confessionId)
-        .single();
+    if (confession && confession.user_id !== user.id) {
+      createNotification(confession.user_id, user.id, "like", "confession", confessionId);
+    }
 
-      if (confession) {
+    if (confession) {
+      const { count } = await supabase
+        .from("confession_likes")
+        .select("id", { count: "exact", head: true })
+        .eq("confession_id", confessionId);
+
+      if (count && count >= 10 && count < 15) {
         notifyPopularConfession(confession.user_id, count);
       }
     }

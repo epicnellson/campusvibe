@@ -1,6 +1,7 @@
 import { supabase } from "@/services/supabase";
 import { withRetry } from "@/services/retry";
 import { sanitizeText } from "@/services/sanitize";
+import { createNotification } from "@/services/in-app-notifications";
 import type { CommentWithProfile } from "@/services/database.types";
 
 export async function fetchComments(postId: string): Promise<CommentWithProfile[]> {
@@ -47,6 +48,17 @@ export async function createComment(
       }
       throw error;
     }
+
+    const { data: post } = await supabase
+      .from("posts")
+      .select("user_id")
+      .eq("id", postId)
+      .single();
+
+    if (post && post.user_id !== user.id) {
+      createNotification(post.user_id, user.id, "comment", "post", postId);
+    }
+
     return data;
   });
 }

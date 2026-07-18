@@ -1,5 +1,6 @@
 import { supabase } from "@/services/supabase";
 import { withRetry } from "@/services/retry";
+import { createNotification } from "@/services/in-app-notifications";
 import type { Profile } from "@/services/database.types";
 
 export async function fetchSuggestedUsers(
@@ -65,6 +66,8 @@ export async function followUser(followingId: string): Promise<void> {
     });
 
     if (error) throw error;
+
+    createNotification(followingId, user.id, "follow", "profile", user.id);
   });
 }
 
