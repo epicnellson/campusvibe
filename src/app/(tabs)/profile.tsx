@@ -3,13 +3,13 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Dimensions,
   Image,
   Platform,
   Pressable,
   ScrollView,
   Share,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { router } from "expo-router";
@@ -26,10 +26,9 @@ import { resolveImageUrl } from "@/services/storage";
 import { supabase } from "@/services/supabase";
 import type { PostWithProfile, ListingWithSeller } from "@/services/database.types";
 
-const SCREEN_WIDTH = Dimensions.get("window").width;
 const GRID_COLUMNS = 3;
 const GRID_GAP = 2;
-const TILE_SIZE = (SCREEN_WIDTH - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
+const GRID_PADDING = 2;
 const AVATAR_SIZE = 88;
 
 function formatJoinDate(dateStr: string): string {
@@ -44,7 +43,9 @@ export default function ProfileScreen() {
   const { session } = useSession();
   const { profile, isLoading } = useProfile();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const userId = session?.user?.id;
+  const TILE_SIZE = (screenWidth - GRID_PADDING * 2 - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
 
   const [posts, setPosts] = useState<PostWithProfile[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
@@ -55,7 +56,7 @@ export default function ProfileScreen() {
 
   const tabIndicator = useRef(new Animated.Value(0)).current;
   const TABS: ActiveTab[] = ["posts", "listings", "about"];
-  const TAB_WIDTH = SCREEN_WIDTH / TABS.length;
+  const TAB_WIDTH = screenWidth / TABS.length;
 
   const isVerified = profile?.verification_status === "approved";
 
@@ -171,7 +172,10 @@ export default function ProfileScreen() {
                 <Pressable
                   key={post.id}
                   onPress={() => router.push(`/post/${post.id}`)}
-                  style={({ pressed }) => [styles.mediaTile, pressed && styles.pressed]}
+                  style={({ pressed }) => [
+                    { width: TILE_SIZE, height: TILE_SIZE, backgroundColor: "#0A0A0A", overflow: "hidden" as const },
+                    pressed && styles.pressed,
+                  ]}
                 >
                   {img ? (
                     <Image source={{ uri: img }} style={styles.tileImage} resizeMode="cover" />
@@ -187,7 +191,7 @@ export default function ProfileScreen() {
             })}
             {row.length < GRID_COLUMNS &&
               Array.from({ length: GRID_COLUMNS - row.length }).map((_, i) => (
-                <View key={`empty-${i}`} style={styles.mediaTile} />
+                <View key={`empty-${i}`} style={{ width: TILE_SIZE, height: TILE_SIZE, backgroundColor: "#0A0A0A" }} />
               ))}
           </View>
         ))}
@@ -553,17 +557,12 @@ const styles = StyleSheet.create({
     color: "#3A3A3A",
   },
   mediaGrid: {
+    paddingHorizontal: GRID_PADDING,
     gap: GRID_GAP,
   },
   mediaRow: {
     flexDirection: "row",
     gap: GRID_GAP,
-  },
-  mediaTile: {
-    width: TILE_SIZE,
-    height: TILE_SIZE,
-    backgroundColor: "#0A0A0A",
-    overflow: "hidden",
   },
   tileImage: {
     width: "100%",
@@ -572,12 +571,12 @@ const styles = StyleSheet.create({
   tileTextContainer: {
     flex: 1,
     backgroundColor: "#0A0A0A",
-    padding: 8,
+    padding: 6,
     justifyContent: "center",
   },
   tileText: {
     fontSize: 11,
-    lineHeight: 15,
+    lineHeight: 14,
     color: "#A0A0A0",
     textAlign: "center",
   },
