@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PostCard } from "@/components/post-card";
 import { ConfessionCard } from "@/components/confession-card";
 import { EventCard } from "@/components/event-card";
+import { ExternalFeedCard } from "@/components/external-feed-card";
 import { FeedSkeleton } from "@/components/feed-skeleton";
 import { useSession } from "@/hooks/use-session";
 import { useRefresh } from "@/hooks/use-refresh";
@@ -21,6 +22,7 @@ import { fetchConfessions } from "@/services/confessions";
 import { fetchUpcomingEvents } from "@/services/events";
 import { fetchReactionsForPosts, type Reaction } from "@/services/reactions";
 import { getUserRepostedPostIds, getRepostCount } from "@/services/reposts";
+import { fetchExternalFeed, type ExternalFeedItem } from "@/services/feed-aggregator";
 import type { PostWithProfile, ConfessionWithLikes, EventWithRSVPs } from "@/services/database.types";
 
 const BOTTOM_TAB_INSET = 80;
@@ -28,7 +30,8 @@ const BOTTOM_TAB_INSET = 80;
 type FeedItem =
   | { type: "post"; data: PostWithProfile }
   | { type: "confession"; data: ConfessionWithLikes }
-  | { type: "event"; data: EventWithRSVPs };
+  | { type: "event"; data: EventWithRSVPs }
+  | { type: "external"; data: ExternalFeedItem };
 
 export default function HomeFeedScreen() {
   const { session } = useSession();
@@ -48,10 +51,11 @@ export default function HomeFeedScreen() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const [posts, confessions, events] = await Promise.all([
+      const [posts, confessions, events, externalItems] = await Promise.all([
         fetchPosts(),
         fetchConfessions(),
         fetchUpcomingEvents(),
+        fetchExternalFeed(currentUserId),
       ]);
 
       const postIds = posts.map((p) => p.id);
@@ -71,12 +75,13 @@ export default function HomeFeedScreen() {
       );
       setRepostCounts(counts);
 
-      const combined: FeedItem[] = [
+      type UserFeedItem = { type: "post"; data: PostWithProfile } | { type: "confession"; data: ConfessionWithLikes } | { type: "event"; data: EventWithRSVPs };
+      const userItems: UserFeedItem[] = [
         ...events.map((e) => ({ type: "event" as const, data: e })),
         ...posts.map((p) => ({ type: "post" as const, data: p })),
         ...confessions.map((c) => ({ type: "confession" as const, data: c })),
       ];
-      combined.sort((a, b) => {
+      userItems.sort((a, b) => {
         if (a.type === "event" && b.type !== "event") return -1;
         if (a.type !== "event" && b.type === "event") return 1;
         if (a.type === "event" && b.type === "event") {
@@ -88,7 +93,19 @@ export default function HomeFeedScreen() {
         const db = new Date(b.data.created_at).getTime();
         return db - da;
       });
-      setItems(combined);
+
+      const externalFeedItems: FeedItem[] = externalItems.map((e) => ({
+        type: "external" as const,
+        data: e,
+      }));
+
+      const merged: FeedItem[] = [...userItems as FeedItem[]];
+      if (externalFeedItems.length > 0) {
+        const insertPos = Math.min(3, merged.length);
+        merged.splice(insertPos, 0, ...externalFeedItems);
+      }
+
+      setItems(merged);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load feed");
     } finally {
@@ -192,6 +209,8 @@ export default function HomeFeedScreen() {
         );
       case "event":
         return <EventCard event={item.data} />;
+      case "external":
+        return <ExternalFeedCard item={item.data} />;
     }
   };
 
