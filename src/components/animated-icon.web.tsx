@@ -14,7 +14,7 @@ export function AnimatedSplashOverlay() {
         duration: DURATION,
         useNativeDriver: false,
       }).start(() => setVisible(false));
-    }, 800);
+    }, 1500);
     return () => clearTimeout(timer);
   }, [opacity]);
 

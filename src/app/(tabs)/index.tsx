@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
+  Image,
   Modal,
   Pressable,
   StyleSheet,
@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PostCard } from "@/components/post-card";
 import { ConfessionCard } from "@/components/confession-card";
 import { EventCard } from "@/components/event-card";
+import { FeedSkeleton } from "@/components/feed-skeleton";
 import { useSession } from "@/hooks/use-session";
 import { useRefresh } from "@/hooks/use-refresh";
 import { fetchPosts } from "@/services/posts";
@@ -208,8 +209,26 @@ export default function HomeFeedScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.titleBar}>
+          <Image
+            source={require("@/assets/images/logo.png")}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+          <Pressable
+            onPress={() => setMenuVisible(true)}
+            style={({ pressed }) => [
+              styles.fabButton,
+              pressed && styles.pressed,
+            ]}
+            accessibilityLabel="Create post"
+            accessibilityRole="button"
+          >
+            <Ionicons name="add" size={22} color="#FFFFFF" />
+          </Pressable>
+        </View>
+        <FeedSkeleton />
       </View>
     );
   }
@@ -218,7 +237,11 @@ export default function HomeFeedScreen() {
     <View style={styles.container}>
       <View style={[styles.safeArea, { paddingTop: insets.top }]}>
         <View style={styles.titleBar}>
-          <Text style={styles.title}>CampusVibe</Text>
+          <Image
+            source={require("@/assets/images/logo.png")}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
           <Pressable
             onPress={() => setMenuVisible(true)}
             style={({ pressed }) => [
@@ -328,6 +351,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: -0.5,
     color: "#FFFFFF",
+  },
+  headerLogo: {
+    width: 36,
+    height: 36,
   },
   fabButton: {
     width: 36,
