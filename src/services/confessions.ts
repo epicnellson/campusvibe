@@ -73,11 +73,23 @@ export async function likeConfession(confessionId: string) {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
+    const { data: existing } = await supabase
+      .from("confession_likes")
+      .select("id")
+      .eq("confession_id", confessionId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existing) return;
+
     const { error } = await supabase.from("confession_likes").insert({
       confession_id: confessionId,
       user_id: user.id,
     });
-    if (error) throw error;
+    if (error) {
+      if (error.code === "23505") return;
+      throw error;
+    }
 
     const { data: confession } = await supabase
       .from("confessions")

@@ -101,6 +101,83 @@ export function FeedSkeleton() {
   );
 }
 
+export function DetailSkeleton() {
+  return (
+    <View style={styles.detailContainer}>
+      <View style={styles.detailHeader}>
+        <ShimmerBlock width={36} height={36} borderRadius={18} />
+        <View style={{ flex: 1, gap: 6, marginLeft: 12 }}>
+          <ShimmerBlock width="40%" height={14} />
+          <ShimmerBlock width="25%" height={10} />
+        </View>
+      </View>
+      <View style={styles.detailBody}>
+        <ShimmerBlock width="95%" height={14} />
+        <ShimmerBlock width="80%" height={14} />
+        <ShimmerBlock width="60%" height={14} />
+      </View>
+      <ShimmerBlock width="100%" height={200} borderRadius={12} />
+      <View style={styles.detailActions}>
+        <ShimmerBlock width={60} height={28} borderRadius={14} />
+        <ShimmerBlock width={60} height={28} borderRadius={14} />
+        <ShimmerBlock width={60} height={28} borderRadius={14} />
+        <ShimmerBlock width={60} height={28} borderRadius={14} />
+      </View>
+      <View style={styles.detailSection}>
+        <ShimmerBlock width="30%" height={12} />
+        <View style={{ gap: 10, marginTop: 10 }}>
+          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+            <ShimmerBlock width={32} height={32} borderRadius={16} />
+            <View style={{ flex: 1, gap: 5 }}>
+              <ShimmerBlock width="35%" height={11} />
+              <ShimmerBlock width="55%" height={11} />
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+            <ShimmerBlock width={32} height={32} borderRadius={16} />
+            <View style={{ flex: 1, gap: 5 }}>
+              <ShimmerBlock width="30%" height={11} />
+              <ShimmerBlock width="45%" height={11} />
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function EventDetailSkeleton() {
+  return (
+    <View style={styles.detailContainer}>
+      <ShimmerBlock width="100%" height={220} borderRadius={0} />
+      <View style={{ padding: 16, gap: 12 }}>
+        <ShimmerBlock width="50%" height={12} />
+        <ShimmerBlock width="85%" height={20} />
+        <ShimmerBlock width="60%" height={14} />
+        <View style={{ gap: 8, marginTop: 8 }}>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+            <ShimmerBlock width={16} height={16} borderRadius={8} />
+            <ShimmerBlock width="40%" height={12} />
+          </View>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+            <ShimmerBlock width={16} height={16} borderRadius={8} />
+            <ShimmerBlock width="35%" height={12} />
+          </View>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+            <ShimmerBlock width={16} height={16} borderRadius={8} />
+            <ShimmerBlock width="50%" height={12} />
+          </View>
+        </View>
+        <View style={{ gap: 8, marginTop: 12 }}>
+          <ShimmerBlock width="95%" height={12} />
+          <ShimmerBlock width="80%" height={12} />
+          <ShimmerBlock width="65%" height={12} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -144,5 +221,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 6,
+  },
+  detailContainer: {
+    flex: 1,
+    backgroundColor: "#000000",
+  },
+  detailHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  detailBody: {
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 16,
+  },
+  detailActions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    borderTopWidth: 0.5,
+    borderTopColor: "#1E1E1E",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#1E1E1E",
+  },
+  detailSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
 });

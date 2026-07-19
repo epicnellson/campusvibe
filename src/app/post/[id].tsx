@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Image,
@@ -21,6 +20,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Avatar } from "@/components/ui/Avatar";
 import { ImageViewer } from "@/components/image-viewer";
+import { DetailSkeleton } from "@/components/feed-skeleton";
 import { spacing, colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
 import { useProfile } from "@/hooks/use-profile";
@@ -309,9 +309,9 @@ export default function PostDetailScreen() {
 
   if (loading) {
     return (
-      <ThemedView style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </ThemedView>
+      <View style={{ flex: 1, backgroundColor: "#000000" }}>
+        <DetailSkeleton />
+      </View>
     );
   }
 

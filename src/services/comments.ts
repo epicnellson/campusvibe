@@ -17,6 +17,19 @@ export async function fetchComments(postId: string): Promise<CommentWithProfile[
   });
 }
 
+export async function fetchCommentCounts(postIds: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (postIds.length === 0) return map;
+  const { data } = await supabase
+    .from("comments")
+    .select("post_id")
+    .in("post_id", postIds);
+  for (const c of data ?? []) {
+    map.set(c.post_id, (map.get(c.post_id) ?? 0) + 1);
+  }
+  return map;
+}
+
 export async function createComment(
   postId: string,
   content: string

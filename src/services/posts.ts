@@ -93,6 +93,15 @@ export async function likePost(postId: string) {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
+    const { data: existing } = await supabase
+      .from("likes")
+      .select("id")
+      .eq("post_id", postId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existing) return;
+
     const { data: post } = await supabase
       .from("posts")
       .select("user_id")
@@ -105,7 +114,10 @@ export async function likePost(postId: string) {
       post_id: postId,
       user_id: user.id,
     });
-    if (error) throw error;
+    if (error) {
+      if (error.code === "23505") return;
+      throw error;
+    }
 
     if (post.user_id !== user.id) {
       const { data: profile } = await supabase

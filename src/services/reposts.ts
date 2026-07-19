@@ -9,6 +9,15 @@ export async function repostPost(postId: string) {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
+    const { data: existing } = await supabase
+      .from("reposts")
+      .select("id")
+      .eq("post_id", postId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existing) return;
+
     const { data: post } = await supabase
       .from("posts")
       .select("user_id")
@@ -19,7 +28,10 @@ export async function repostPost(postId: string) {
       user_id: user.id,
       post_id: postId,
     });
-    if (error) throw error;
+    if (error) {
+      if (error.code === "23505") return;
+      throw error;
+    }
 
     if (post && post.user_id !== user.id) {
       createNotification(post.user_id, user.id, "repost", "post", postId);

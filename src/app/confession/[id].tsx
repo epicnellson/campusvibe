@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Image,
@@ -18,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ImageViewer } from "@/components/image-viewer";
+import { DetailSkeleton } from "@/components/feed-skeleton";
 import { spacing, colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
 import { useRefresh } from "@/hooks/use-refresh";
@@ -193,7 +193,7 @@ export default function ConfessionDetailScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <DetailSkeleton />
       </View>
     );
   }

@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { supabase } from "./supabase";
 
 export type ExternalFeedItem = {
@@ -14,18 +15,15 @@ export type ExternalFeedItem = {
 };
 
 export async function fetchExternalFeed(userId?: string): Promise<ExternalFeedItem[]> {
+  if (Platform.OS === "web") return [];
   try {
-    const params = userId ? `?user_id=${userId}` : "";
-    const { data, error } = await supabase.functions.invoke(`feed-aggregator${params}`, {
-      method: "GET",
+    const { data, error } = await supabase.functions.invoke("feed-aggregator", {
+      method: "POST",
+      body: userId ? { user_id: userId } : {},
     });
-    if (error) {
-      console.error("[feed-aggregator] invoke error:", error);
-      return [];
-    }
+    if (error) return [];
     return data?.items ?? [];
-  } catch (e) {
-    console.error("[fetchExternalFeed] failed:", e);
+  } catch {
     return [];
   }
 }

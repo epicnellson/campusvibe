@@ -90,6 +90,7 @@ export type PostCardProps = {
   repostCount?: number;
   isReposted?: boolean;
   onRepostToggled?: (postId: string, reposted: boolean) => void;
+  commentCount?: number;
 };
 
 function PostCardInner({
@@ -103,6 +104,7 @@ function PostCardInner({
   repostCount = 0,
   isReposted = false,
   onRepostToggled,
+  commentCount = 0,
 }: PostCardProps) {
   const { session } = useSession();
   const currentUserId = session?.user?.id;
@@ -232,6 +234,7 @@ function PostCardInner({
             onLongPress={handleLongPress}
             accessibilityLabel={`Post by ${authorName}`}
             accessibilityRole="link"
+            style={{ flex: 1 }}
           >
             <View style={styles.headerRow}>
               <ThemedText style={styles.authorName} numberOfLines={1}>
@@ -311,6 +314,11 @@ function PostCardInner({
               accessibilityLabel="Comment"
             >
               <Ionicons name="chatbubble-outline" size={16} color="#71717A" />
+              {commentCount > 0 && (
+                <ThemedText style={styles.actionCount}>
+                  {commentCount}
+                </ThemedText>
+              )}
             </AnimatedActionButton>
 
             {!isOwnPost && (

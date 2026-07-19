@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -20,6 +19,7 @@ import { rsvpEvent, unrsvpEvent, deleteEvent } from "@/services/events";
 import { resolveImageUrl } from "@/services/storage";
 import type { EventWithRSVPs } from "@/services/database.types";
 import { supabase } from "@/services/supabase";
+import { EventDetailSkeleton } from "@/components/feed-skeleton";
 
 type EventDetail = EventWithRSVPs;
 
@@ -123,7 +123,7 @@ export default function EventDetailScreen() {
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#6C47FF" />
+        <EventDetailSkeleton />
       </View>
     );
   }
@@ -285,7 +285,7 @@ export default function EventDetailScreen() {
           accessibilityRole="button"
         >
           {rsvpLoading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <Text style={[styles.rsvpButtonText, { color: "#A78BFA" }]}>...</Text>
           ) : (
             <Text style={[styles.rsvpButtonText, isGoing && { color: "#A78BFA" }]}>
               {isGoing ? "✓ Going" : "RSVP · I'm Going"}

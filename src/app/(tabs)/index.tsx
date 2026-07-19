@@ -22,6 +22,7 @@ import { fetchConfessions } from "@/services/confessions";
 import { fetchUpcomingEvents } from "@/services/events";
 import { fetchReactionsForPosts, type Reaction } from "@/services/reactions";
 import { getUserRepostedPostIds, getRepostCount } from "@/services/reposts";
+import { fetchCommentCounts } from "@/services/comments";
 import { fetchExternalFeed, type ExternalFeedItem } from "@/services/feed-aggregator";
 import type { PostWithProfile, ConfessionWithLikes, EventWithRSVPs } from "@/services/database.types";
 
@@ -47,24 +48,26 @@ export default function HomeFeedScreen() {
   const [reactionsMap, setReactionsMap] = useState<Map<string, Reaction[]>>(new Map());
   const [repostedIds, setRepostedIds] = useState<Set<string>>(new Set());
   const [repostCounts, setRepostCounts] = useState<Map<string, number>>(new Map());
+  const [commentCounts, setCommentCounts] = useState<Map<string, number>>(new Map());
 
   const load = useCallback(async () => {
     try {
       setError(null);
-      const [posts, confessions, events, externalItems] = await Promise.all([
+      const [posts, confessions, events] = await Promise.all([
         fetchPosts(),
         fetchConfessions(),
         fetchUpcomingEvents(),
-        fetchExternalFeed(currentUserId),
       ]);
 
       const postIds = posts.map((p) => p.id);
-      const [reactionsData, userReposted] = await Promise.all([
+      const [reactionsData, userReposted, commentCountsData] = await Promise.all([
         fetchReactionsForPosts(postIds),
         currentUserId ? getUserRepostedPostIds(currentUserId) : Promise.resolve(new Set<string>()),
+        fetchCommentCounts(postIds),
       ]);
       setReactionsMap(reactionsData);
       setRepostedIds(userReposted);
+      setCommentCounts(commentCountsData);
 
       const counts = new Map<string, number>();
       await Promise.all(
@@ -94,18 +97,21 @@ export default function HomeFeedScreen() {
         return db - da;
       });
 
-      const externalFeedItems: FeedItem[] = externalItems.map((e) => ({
-        type: "external" as const,
-        data: e,
-      }));
+      setItems(userItems as FeedItem[]);
 
-      const merged: FeedItem[] = [...userItems as FeedItem[]];
-      if (externalFeedItems.length > 0) {
-        const insertPos = Math.min(3, merged.length);
-        merged.splice(insertPos, 0, ...externalFeedItems);
-      }
-
-      setItems(merged);
+      fetchExternalFeed(currentUserId).then((externalItems) => {
+        if (externalItems.length === 0) return;
+        const externalFeedItems: FeedItem[] = externalItems.map((e) => ({
+          type: "external" as const,
+          data: e,
+        }));
+        setItems((prev) => {
+          const merged = [...prev];
+          const insertPos = Math.min(3, merged.length);
+          merged.splice(insertPos, 0, ...externalFeedItems);
+          return merged;
+        });
+      }).catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load feed");
     } finally {
@@ -201,6 +207,7 @@ export default function HomeFeedScreen() {
             repostCount={repostCounts.get(item.data.id) ?? 0}
             isReposted={repostedIds.has(item.data.id)}
             onRepostToggled={handleRepostToggled}
+            commentCount={commentCounts.get(item.data.id) ?? 0}
           />
         );
       case "confession":

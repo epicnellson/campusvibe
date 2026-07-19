@@ -127,8 +127,16 @@ export const fetch = async (req: Request) => {
       })
     : null
 
-  const url = new URL(req.url)
-  const userId = url.searchParams.get("user_id")
+  let userId: string | null = null
+  if (req.method === "GET") {
+    const url = new URL(req.url)
+    userId = url.searchParams.get("user_id")
+  } else {
+    try {
+      const body = await req.json()
+      userId = body?.user_id ?? null
+    } catch { /* no body */ }
+  }
 
   const [unsplash, news, youtube] = await Promise.all([
     fetchUnsplash(),
