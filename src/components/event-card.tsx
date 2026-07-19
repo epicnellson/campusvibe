@@ -174,8 +174,8 @@ const styles = StyleSheet.create({
   },
   eventImage: {
     width: "100%",
-    aspectRatio: 16 / 9,
-    borderRadius: 12,
+    aspectRatio: 4 / 3,
+    borderRadius: 14,
     marginTop: 10,
     backgroundColor: "#0A0A0C",
   },

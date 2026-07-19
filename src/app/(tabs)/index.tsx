@@ -85,13 +85,6 @@ export default function HomeFeedScreen() {
         ...confessions.map((c) => ({ type: "confession" as const, data: c })),
       ];
       userItems.sort((a, b) => {
-        if (a.type === "event" && b.type !== "event") return -1;
-        if (a.type !== "event" && b.type === "event") return 1;
-        if (a.type === "event" && b.type === "event") {
-          const da = new Date(a.data.date + "T00:00:00").getTime();
-          const db = new Date(b.data.date + "T00:00:00").getTime();
-          return da - db;
-        }
         const da = new Date(a.data.created_at).getTime();
         const db = new Date(b.data.created_at).getTime();
         return db - da;

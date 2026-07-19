@@ -466,8 +466,8 @@ const styles = StyleSheet.create({
   },
   postImage: {
     width: "100%",
-    aspectRatio: 16 / 9,
-    borderRadius: 12,
+    aspectRatio: 4 / 3,
+    borderRadius: 14,
     marginTop: 12,
     backgroundColor: "#0A0A0C",
   },
