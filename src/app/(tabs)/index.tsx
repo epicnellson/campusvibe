@@ -227,26 +227,28 @@ export default function HomeFeedScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.titleBar}>
-          <Pressable
-            onPress={() => router.push("/notifications")}
-            style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}
-            accessibilityLabel="Notifications"
-          >
-            <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
-          </Pressable>
-          <Text style={styles.headerTitle}>CampusVibe</Text>
-          <Pressable
-            onPress={() => setMenuVisible(true)}
-            style={({ pressed }) => [styles.fabButton, pressed && styles.pressed]}
-            accessibilityLabel="Create post"
-            accessibilityRole="button"
-          >
-            <Ionicons name="add" size={22} color="#FFFFFF" />
-          </Pressable>
+      <View style={styles.container}>
+        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+          <View style={styles.titleBar}>
+            <Pressable
+              onPress={() => router.push("/notifications")}
+              style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}
+              accessibilityLabel="Notifications"
+            >
+              <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+            </Pressable>
+            <Text style={styles.headerTitle}>CampusVibe</Text>
+            <Pressable
+              onPress={() => setMenuVisible(true)}
+              style={({ pressed }) => [styles.fabButton, pressed && styles.pressed]}
+              accessibilityLabel="Create post"
+              accessibilityRole="button"
+            >
+              <Ionicons name="add" size={22} color="#FFFFFF" />
+            </Pressable>
+          </View>
+          <FeedSkeleton />
         </View>
-        <FeedSkeleton />
       </View>
     );
   }

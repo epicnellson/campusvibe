@@ -6,6 +6,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -32,6 +33,7 @@ export default function EventDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [rsvpLoading, setRsvpLoading] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const goBack = useCallback(() => {
     if (router.canGoBack()) router.back();
@@ -95,6 +97,7 @@ export default function EventDetailScreen() {
 
   const handleDeleteEvent = useCallback(async () => {
     if (!event) return;
+    setShowDeleteConfirm(false);
     try {
       await deleteEvent(event.id);
       triggerFeedRefresh();
@@ -102,7 +105,6 @@ export default function EventDetailScreen() {
     } catch {
       Alert.alert("Error", "Could not delete event. Please try again.");
     }
-    setShowMenu(false);
   }, [event, triggerFeedRefresh]);
 
   const formatDate = (dateStr: string) => {
@@ -146,35 +148,49 @@ export default function EventDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Banner */}
-        <View style={styles.bannerContainer}>
-          {bannerUri ? (
+        {bannerUri ? (
+          <View style={styles.bannerContainer}>
             <Image source={{ uri: bannerUri }} style={styles.bannerImage} resizeMode="cover" />
-          ) : (
-            <View style={[styles.bannerImage, styles.bannerPlaceholder]}>
-              <Ionicons name="calendar-outline" size={56} color="#2A2A2A" />
+            <View style={styles.bannerGradient} />
+            <View style={[styles.bannerNav, { top: insets.top + 10 }]}>
+              <Pressable
+                onPress={() => { if (router.canGoBack()) router.back(); else router.replace("/"); }}
+                style={styles.backButton}
+                accessibilityLabel="Go back"
+                accessibilityRole="button"
+              >
+                <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+              </Pressable>
+              <Pressable
+                onPress={() => setShowMenu(true)}
+                style={styles.backButton}
+                accessibilityLabel="More options"
+              >
+                <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
+              </Pressable>
             </View>
-          )}
-          {/* Gradient overlay at bottom of banner */}
-          <View style={styles.bannerGradient} />
-          {/* Back button */}
-          <View style={[styles.bannerNav, { top: insets.top + 10 }]}>
-            <Pressable
-              onPress={() => { if (router.canGoBack()) router.back(); else router.replace("/"); }}
-              style={styles.backButton}
-              accessibilityLabel="Go back"
-              accessibilityRole="button"
-            >
-              <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
-            </Pressable>
-            <Pressable
-              onPress={() => setShowMenu(true)}
-              style={styles.backButton}
-              accessibilityLabel="More options"
-            >
-              <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
-            </Pressable>
           </View>
-        </View>
+        ) : (
+          <View style={[styles.bannerContainer, { paddingTop: insets.top }]}>
+            <View style={styles.noBannerNav}>
+              <Pressable
+                onPress={() => { if (router.canGoBack()) router.back(); else router.replace("/"); }}
+                style={styles.backButton}
+                accessibilityLabel="Go back"
+                accessibilityRole="button"
+              >
+                <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+              </Pressable>
+              <Pressable
+                onPress={() => setShowMenu(true)}
+                style={styles.backButton}
+                accessibilityLabel="More options"
+              >
+                <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         {/* Content */}
         <View style={styles.content}>
@@ -285,18 +301,50 @@ export default function EventDetailScreen() {
             <Pressable
               onPress={() => {
                 setShowMenu(false);
-                Alert.alert("Delete event", "Are you sure you want to delete this event?", [
-                  { text: "Cancel", style: "cancel" },
-                  { text: "Delete", style: "destructive", onPress: handleDeleteEvent },
-                ]);
+                Share.share({ message: `${event.title} on CampusVibe` });
               }}
               style={({ pressed }) => [styles.actionSheetItem, pressed && { opacity: 0.6 }]}
             >
-              <Ionicons name="trash-outline" size={20} color="#EF4444" />
-              <Text style={[styles.actionSheetLabel, { color: "#EF4444" }]}>Delete event</Text>
+              <Ionicons name="share-outline" size={20} color="#E1E1E1" />
+              <Text style={[styles.actionSheetLabel, { color: "#E1E1E1" }]}>Share event</Text>
             </Pressable>
+            {event.user_id === currentUserId && (
+              <Pressable
+                onPress={() => {
+                  setShowMenu(false);
+                  setShowDeleteConfirm(true);
+                }}
+                style={({ pressed }) => [styles.actionSheetItem, pressed && { opacity: 0.6 }]}
+              >
+                <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                <Text style={[styles.actionSheetLabel, { color: "#EF4444" }]}>Delete event</Text>
+              </Pressable>
+            )}
             <Pressable
               onPress={() => setShowMenu(false)}
+              style={({ pressed }) => [styles.actionSheetCancel, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={styles.actionSheetCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Delete confirmation modal */}
+      <Modal visible={showDeleteConfirm} transparent animationType="fade" onRequestClose={() => setShowDeleteConfirm(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteConfirm(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={styles.actionSheet}>
+            <View style={styles.actionSheetHandle} />
+            <Text style={{ fontSize: 17, fontWeight: "700", color: "#FFFFFF", textAlign: "center", marginBottom: 8 }}>Delete event?</Text>
+            <Text style={{ fontSize: 14, color: "#71717A", textAlign: "center", marginBottom: 20, paddingHorizontal: 16 }}>This action cannot be undone.</Text>
+            <Pressable
+              onPress={handleDeleteEvent}
+              style={({ pressed }) => [styles.actionSheetItem, { justifyContent: "center" }, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={{ fontSize: 16, fontWeight: "600", color: "#EF4444" }}>Delete</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowDeleteConfirm(false)}
               style={({ pressed }) => [styles.actionSheetCancel, pressed && { opacity: 0.6 }]}
             >
               <Text style={styles.actionSheetCancelText}>Cancel</Text>
@@ -354,6 +402,12 @@ const styles = StyleSheet.create({
     right: 14,
     flexDirection: "row",
     justifyContent: "space-between",
+  },
+  noBannerNav: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingBottom: 12,
   },
   backButton: {
     width: 38,

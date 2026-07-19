@@ -187,22 +187,13 @@ function PostCardInner({
       actions.push({
         text: "Delete",
         style: "destructive",
-        onPress: () => {
-          Alert.alert("Delete post", "Are you sure you want to delete this post?", [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Delete",
-              style: "destructive",
-              onPress: async () => {
-                try {
-                  await deletePost(post.id);
-                  onPostDeleted?.(post.id);
-                } catch (e) {
-                  Alert.alert("Error", "Could not delete post. Please try again.");
-                }
-              },
-            },
-          ]);
+        onPress: async () => {
+          try {
+            await deletePost(post.id);
+            onPostDeleted?.(post.id);
+          } catch (e) {
+            Alert.alert("Error", "Could not delete post. Please try again.");
+          }
         },
       });
     }
@@ -263,7 +254,7 @@ function PostCardInner({
               <Image
                 source={{ uri: resolvedImage }}
                 style={styles.postImage}
-                resizeMode="contain"
+                resizeMode="cover"
               />
             ) : null}
           </Pressable>

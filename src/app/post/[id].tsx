@@ -74,6 +74,7 @@ export default function PostDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -187,6 +188,7 @@ export default function PostDetailScreen() {
 
   const handleDeletePost = useCallback(async () => {
     if (!post) return;
+    setShowDeleteConfirm(false);
     try {
       await deletePost(post.id);
       triggerFeedRefresh();
@@ -194,7 +196,6 @@ export default function PostDetailScreen() {
     } catch {
       Alert.alert("Error", "Could not delete post. Please try again.");
     }
-    setShowMenu(false);
   }, [post, goBack, triggerFeedRefresh]);
 
   const handleFollow = useCallback(async () => {
@@ -300,10 +301,7 @@ export default function PostDetailScreen() {
       icon: "trash-outline",
       onPress: () => {
         setShowMenu(false);
-        Alert.alert("Delete post", "Are you sure you want to delete this post?", [
-          { text: "Cancel", style: "cancel" },
-          { text: "Delete", style: "destructive", onPress: handleDeletePost },
-        ]);
+        setShowDeleteConfirm(true);
       },
       color: "#EF4444",
     },
@@ -452,7 +450,7 @@ export default function PostDetailScreen() {
                 <Image
                   source={{ uri: images[0].uri }}
                   style={styles.postImage}
-                  resizeMode="contain"
+                  resizeMode="cover"
                 />
               </Pressable>
             </View>
@@ -652,6 +650,29 @@ export default function PostDetailScreen() {
           </Pressable>
         </View>
       </View>
+
+      {/* Delete confirmation modal */}
+      <Modal visible={showDeleteConfirm} transparent animationType="fade" onRequestClose={() => setShowDeleteConfirm(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteConfirm(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={styles.actionSheet}>
+            <View style={styles.actionSheetHandle} />
+            <ThemedText style={{ fontSize: 17, fontWeight: "700", color: "#FFFFFF", textAlign: "center", marginBottom: 8 }}>Delete post?</ThemedText>
+            <ThemedText style={{ fontSize: 14, color: "#71717A", textAlign: "center", marginBottom: 20, paddingHorizontal: 16 }}>This action cannot be undone.</ThemedText>
+            <Pressable
+              onPress={handleDeletePost}
+              style={({ pressed }) => [styles.actionSheetItem, { justifyContent: "center" }, pressed && styles.pressed]}
+            >
+              <ThemedText style={{ fontSize: 16, fontWeight: "600", color: "#EF4444" }}>Delete</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowDeleteConfirm(false)}
+              style={({ pressed }) => [styles.actionSheetCancel, pressed && styles.pressed]}
+            >
+              <ThemedText style={styles.actionSheetCancelText}>Cancel</ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }

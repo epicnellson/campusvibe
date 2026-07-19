@@ -159,22 +159,13 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
 
   const handleDeleteConfession = useCallback(async () => {
     setShowMenu(false);
-    Alert.alert("Delete confession", "Are you sure you want to delete this confession?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteConfession(confession.id);
-            setShowImageViewer(false);
-            onConfessionDeleted?.(confession.id);
-          } catch {
-            Alert.alert("Error", "Could not delete confession. Please try again.");
-          }
-        },
-      },
-    ]);
+    try {
+      await deleteConfession(confession.id);
+      setShowImageViewer(false);
+      onConfessionDeleted?.(confession.id);
+    } catch {
+      Alert.alert("Error", "Could not delete confession. Please try again.");
+    }
   }, [confession.id, onConfessionDeleted]);
 
   const isOwnPost = confession.user_id === currentUserId;
@@ -211,6 +202,14 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
             <ThemedText style={styles.timestamp}>
               {relativeTime(confession.created_at)}
             </ThemedText>
+            <View style={{ flex: 1 }} />
+            <Pressable
+              onPress={() => setShowMenu(true)}
+              style={{ padding: 4 }}
+              accessibilityLabel="More options"
+            >
+              <Ionicons name="ellipsis-horizontal" size={16} color="#71717A" />
+            </Pressable>
           </View>
 
           <ThemedText style={styles.body}>{confession.content}</ThemedText>

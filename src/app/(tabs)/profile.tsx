@@ -4,6 +4,7 @@ import {
   Alert,
   Animated,
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -53,6 +54,7 @@ export default function ProfileScreen() {
   const [followingCount, setFollowingCount] = useState(0);
   const [userListings, setUserListings] = useState<ListingWithSeller[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>("posts");
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const tabIndicator = useRef(new Animated.Value(0)).current;
   const TABS: ActiveTab[] = ["posts", "listings", "about"];
@@ -112,22 +114,13 @@ export default function ProfileScreen() {
     Share.share({ message: `Check out ${profile?.name ?? "my profile"} on CampusVibe!` });
   };
 
-  const handleLogout = useCallback(() => {
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Log Out",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await supabase.auth.signOut();
-            router.replace("/login");
-          } catch {
-            Alert.alert("Error", "Could not log out. Please try again.");
-          }
-        },
-      },
-    ]);
+  const handleLogout = useCallback(async () => {
+    try {
+      await supabase.auth.signOut();
+      router.replace("/login");
+    } catch {
+      Alert.alert("Error", "Could not log out. Please try again.");
+    }
   }, []);
 
   if (isLoading) {
@@ -286,25 +279,11 @@ export default function ProfileScreen() {
         {/* Sticky top-bar */}
         <View style={styles.topBar}>
           <Pressable
-            onPress={() => router.push("/edit-profile")}
+            onPress={() => setShowProfileMenu(true)}
             style={({ pressed }) => [styles.topBarBtn, pressed && styles.pressed]}
-            accessibilityLabel="Edit Profile"
+            accessibilityLabel="Profile menu"
           >
-            <Ionicons name="settings-outline" size={20} color="#FFFFFF" />
-          </Pressable>
-          <Pressable
-            onPress={handleShare}
-            style={({ pressed }) => [styles.topBarBtn, pressed && styles.pressed]}
-            accessibilityLabel="Share Profile"
-          >
-            <Ionicons name="share-outline" size={20} color="#FFFFFF" />
-          </Pressable>
-          <Pressable
-            onPress={handleLogout}
-            style={({ pressed }) => [styles.topBarBtn, pressed && styles.pressed]}
-            accessibilityLabel="Log Out"
-          >
-            <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+            <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
           </Pressable>
         </View>
 
@@ -395,6 +374,42 @@ export default function ProfileScreen() {
           {activeTab === "about" && renderAboutTab()}
         </View>
       </ScrollView>
+
+      {/* Profile 3-dot menu */}
+      <Modal visible={showProfileMenu} transparent animationType="fade" onRequestClose={() => setShowProfileMenu(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowProfileMenu(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={styles.actionSheet}>
+            <View style={styles.actionSheetHandle} />
+            <Pressable
+              onPress={() => { setShowProfileMenu(false); router.push("/edit-profile"); }}
+              style={({ pressed }) => [styles.actionSheetItem, pressed && styles.pressed]}
+            >
+              <Ionicons name="create-outline" size={20} color="#E1E1E1" />
+              <ThemedText style={styles.actionSheetLabel}>Edit Profile</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => { setShowProfileMenu(false); handleShare(); }}
+              style={({ pressed }) => [styles.actionSheetItem, pressed && styles.pressed]}
+            >
+              <Ionicons name="share-outline" size={20} color="#E1E1E1" />
+              <ThemedText style={styles.actionSheetLabel}>Share Profile</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => { setShowProfileMenu(false); handleLogout(); }}
+              style={({ pressed }) => [styles.actionSheetItem, pressed && styles.pressed]}
+            >
+              <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+              <ThemedText style={[styles.actionSheetLabel, { color: "#EF4444" }]}>Log Out</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowProfileMenu(false)}
+              style={({ pressed }) => [styles.actionSheetCancel, pressed && styles.pressed]}
+            >
+              <ThemedText style={styles.actionSheetCancelText}>Cancel</ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -641,5 +656,49 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.65,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  actionSheet: {
+    backgroundColor: "#1A1A1A",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 34,
+  },
+  actionSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#262626",
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  actionSheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  actionSheetLabel: {
+    fontSize: 16,
+    color: "#E1E1E1",
+    fontWeight: "500",
+  },
+  actionSheetCancel: {
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 4,
+    borderTopWidth: 0.5,
+    borderTopColor: "#262626",
+  },
+  actionSheetCancelText: {
+    fontSize: 16,
+    color: "#71717A",
+    fontWeight: "500",
   },
 });
