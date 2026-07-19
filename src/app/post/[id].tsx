@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -12,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
@@ -456,9 +456,11 @@ export default function PostDetailScreen() {
             <View style={styles.imageSection}>
               <Pressable onPress={() => setShowImageViewer(true)}>
                 <Image
-                  source={{ uri: images[0].uri }}
+                  source={images[0].uri}
                   style={styles.postImage}
-                  resizeMode="cover"
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                  transition={300}
                 />
               </Pressable>
             </View>
@@ -869,7 +871,7 @@ const styles: Record<string, any> = StyleSheet.create({
   },
   postImage: {
     width: "100%" as const,
-    aspectRatio: 4 / 3,
+    minHeight: 200,
     borderRadius: 12,
     backgroundColor: "#0A0A0C",
   },

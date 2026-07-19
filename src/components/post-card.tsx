@@ -258,7 +258,7 @@ function PostCardInner({
               <Image
                 source={resolvedImage}
                 style={styles.postImage}
-                contentFit="cover"
+                contentFit="contain"
                 cachePolicy="memory-disk"
                 transition={300}
                 placeholder={{ blurhash: "LGF5]+Yk^6#M@-5c,1J5@[or[Q6." }}
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
   },
   postImage: {
     width: "100%",
-    aspectRatio: 4 / 3,
+    minHeight: 200,
     borderRadius: 14,
     marginTop: 12,
     backgroundColor: "#0A0A0C",

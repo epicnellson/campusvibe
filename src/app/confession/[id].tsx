@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -11,6 +10,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
@@ -294,9 +294,11 @@ export default function ConfessionDetailScreen() {
         {resolvedImage && (
           <Pressable onPress={() => setShowImageViewer(true)} style={styles.imageSection}>
             <Image
-              source={{ uri: resolvedImage }}
+              source={resolvedImage}
               style={styles.postImage}
-              resizeMode="contain"
+              contentFit="contain"
+              cachePolicy="memory-disk"
+              transition={300}
             />
           </Pressable>
         )}
@@ -503,7 +505,7 @@ const styles = StyleSheet.create({
   },
   postImage: {
     width: "100%" as const,
-    aspectRatio: 4 / 3,
+    minHeight: 200,
     borderRadius: 14,
     backgroundColor: "#0A0A0C",
   },
