@@ -1,5 +1,6 @@
 import { memo, useState } from "react";
-import { Image, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { ThemedText } from "@/components/themed-text";
@@ -76,9 +77,12 @@ function EventCardInner({ event }: EventCardProps) {
 
           {resolvedImage ? (
             <Image
-              source={{ uri: resolvedImage }}
+              source={resolvedImage}
               style={styles.eventImage}
-              resizeMode="cover"
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={300}
+              placeholder={{ blurhash: "LGF5]+Yk^6#M@-5c,1J5@[or[Q6." }}
               onError={() => setImageError(true)}
             />
           ) : null}

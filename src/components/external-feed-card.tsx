@@ -1,5 +1,6 @@
 import { memo, useCallback, useState } from "react";
-import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import type { ExternalFeedItem } from "@/services/feed-aggregator";
 
@@ -64,9 +65,11 @@ export const ExternalFeedCard = memo(function ExternalFeedCard({
 
       {imageUrl && !imgError ? (
         <Image
-          source={{ uri: imageUrl }}
+          source={imageUrl}
           style={styles.image}
-          resizeMode="cover"
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={300}
           onError={() => setImgError(true)}
         />
       ) : null}
@@ -128,7 +131,7 @@ const styles = StyleSheet.create({
   },
   image: {
     width: "100%",
-    height: 180,
+    aspectRatio: 4 / 3,
     marginTop: 10,
   },
   author: {

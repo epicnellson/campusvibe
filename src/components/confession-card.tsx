@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -11,6 +10,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -220,9 +220,12 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
               style={styles.imagePressable}
             >
               <Image
-                source={{ uri: resolvedImage }}
+                source={resolvedImage}
                 style={styles.postImage}
-                resizeMode="cover"
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={300}
+                placeholder={{ blurhash: "LGF5]+Yk^6#M@-5c,1J5@[or[Q6." }}
               />
             </Pressable>
           ) : null}

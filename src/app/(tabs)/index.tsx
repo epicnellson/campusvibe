@@ -17,13 +17,14 @@ import { ExternalFeedCard } from "@/components/external-feed-card";
 import { FeedSkeleton } from "@/components/feed-skeleton";
 import { useSession } from "@/hooks/use-session";
 import { useRefresh } from "@/hooks/use-refresh";
-import { fetchPosts } from "@/services/posts";
-import { fetchConfessions } from "@/services/confessions";
+import { fetchPosts, fetchPostById } from "@/services/posts";
+import { fetchConfessions, fetchConfessionById } from "@/services/confessions";
 import { fetchUpcomingEvents } from "@/services/events";
 import { fetchReactionsForPosts, type Reaction } from "@/services/reactions";
 import { getUserRepostedPostIds, getRepostCount } from "@/services/reposts";
 import { fetchCommentCounts } from "@/services/comments";
 import { fetchExternalFeed, type ExternalFeedItem } from "@/services/feed-aggregator";
+import { supabase } from "@/services/supabase";
 import type { PostWithProfile, ConfessionWithLikes, EventWithRSVPs } from "@/services/database.types";
 
 const BOTTOM_TAB_INSET = 80;
@@ -114,6 +115,66 @@ export default function HomeFeedScreen() {
   }, [currentUserId]);
 
   useEffect(() => { load(); }, [feedKey]);
+
+  // Realtime subscriptions — listen for new posts/confessions/events
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const postChannel = supabase
+      .channel("feed:posts")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, async (payload) => {
+        const newPost = payload.new as { id: string };
+        try {
+          const full = await fetchPostById(newPost.id);
+          setItems((prev) => {
+            if (prev.some((i) => i.type === "post" && i.data.id === full.id)) return prev;
+            return [{ type: "post", data: full }, ...prev];
+          });
+        } catch {}
+      })
+      .subscribe();
+
+    const confessionChannel = supabase
+      .channel("feed:confessions")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "confessions" }, async (payload) => {
+        const newConfession = payload.new as { id: string };
+        try {
+          const full = await fetchConfessionById(newConfession.id);
+          setItems((prev) => {
+            if (prev.some((i) => i.type === "confession" && i.data.id === full.id)) return prev;
+            return [{ type: "confession", data: full }, ...prev];
+          });
+        } catch {}
+      })
+      .subscribe();
+
+    const eventChannel = supabase
+      .channel("feed:events")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "events" }, async (payload) => {
+        const newEvent = payload.new as { id: string };
+        try {
+          const { data } = await supabase
+            .from("events")
+            .select("id, title, description, date, time, location, image_url, created_at, user_id, event_rsvps(id, user_id)")
+            .eq("id", newEvent.id)
+            .single();
+          if (data) {
+            setItems((prev) => {
+              if (prev.some((i) => i.type === "event" && i.data.id === data.id)) return prev;
+              return [{ type: "event", data: data as unknown as EventWithRSVPs }, ...prev];
+            });
+          }
+        } catch {}
+      })
+      .subscribe();
+
+    // Cleanup
+    return () => {
+      supabase.removeChannel(postChannel);
+      supabase.removeChannel(confessionChannel);
+      supabase.removeChannel(eventChannel);
+    };
+  }, [currentUserId]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -298,6 +359,11 @@ export default function HomeFeedScreen() {
             refreshing={refreshing}
             onRefresh={onRefresh}
             showsVerticalScrollIndicator={false}
+            initialNumToRender={8}
+            maxToRenderPerBatch={6}
+            windowSize={11}
+            removeClippedSubviews={true}
+            getItemLayout={undefined}
           />
         )}
       </View>

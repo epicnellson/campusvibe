@@ -1,5 +1,6 @@
 import { memo, useCallback, useState, useRef } from "react";
-import { Alert, Animated, Image, Platform, Pressable, Share, StyleSheet, View } from "react-native";
+import { Alert, Animated, Platform, Pressable, Share, StyleSheet, View } from "react-native";
+import { Image } from "expo-image";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -255,9 +256,12 @@ function PostCardInner({
 
             {resolvedImage ? (
               <Image
-                source={{ uri: resolvedImage }}
+                source={resolvedImage}
                 style={styles.postImage}
-                resizeMode="cover"
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={300}
+                placeholder={{ blurhash: "LGF5]+Yk^6#M@-5c,1J5@[or[Q6." }}
               />
             ) : null}
           </Pressable>
