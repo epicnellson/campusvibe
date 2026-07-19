@@ -381,11 +381,11 @@ export default function ProfileScreen() {
           <Pressable onPress={(e) => e.stopPropagation()} style={styles.actionSheet}>
             <View style={styles.actionSheetHandle} />
             <Pressable
-              onPress={() => { setShowProfileMenu(false); router.push("/edit-profile"); }}
+              onPress={() => { setShowProfileMenu(false); router.push("/settings"); }}
               style={({ pressed }) => [styles.actionSheetItem, pressed && styles.pressed]}
             >
-              <Ionicons name="create-outline" size={20} color="#E1E1E1" />
-              <ThemedText style={styles.actionSheetLabel}>Edit Profile</ThemedText>
+              <Ionicons name="settings-outline" size={20} color="#E1E1E1" />
+              <ThemedText style={styles.actionSheetLabel}>Settings</ThemedText>
             </Pressable>
             <Pressable
               onPress={() => { setShowProfileMenu(false); handleShare(); }}

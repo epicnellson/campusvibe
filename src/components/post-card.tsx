@@ -234,7 +234,7 @@ function PostCardInner({
             onLongPress={handleLongPress}
             accessibilityLabel={`Post by ${authorName}`}
             accessibilityRole="link"
-            style={{ flex: 1 }}
+            style={styles.pressableContent}
           >
             <View style={styles.headerRow}>
               <ThemedText style={styles.authorName} numberOfLines={1}>
@@ -428,6 +428,11 @@ const styles = StyleSheet.create({
   },
   rightColumn: {
     flex: 1,
+    minWidth: 0,
+  },
+  pressableContent: {
+    flex: 1,
+    width: "100%",
   },
   headerRow: {
     flexDirection: "row",
@@ -457,6 +462,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: "#F0F0F0",
     marginTop: 4,
+    width: "100%",
   },
   postImage: {
     width: "100%",

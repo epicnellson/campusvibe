@@ -150,12 +150,13 @@ export default function PostDetailScreen() {
       } else {
         await likePost(post.id);
       }
+      triggerFeedRefresh();
     } catch {
       setPost((prev) =>
         prev ? { ...prev, likes: wasLiked ? [...prev.likes, { id: "", user_id: currentUserId! }] : prev.likes.filter((l) => l.user_id !== currentUserId) } : prev
       );
     }
-  }, [post, userLiked, currentUserId, likeScale]);
+  }, [post, userLiked, currentUserId, likeScale, triggerFeedRefresh]);
 
   const handleShare = useCallback(async () => {
     if (!post) return;
@@ -220,7 +221,10 @@ export default function PostDetailScreen() {
     if (wasReaction === emoji) {
       setUserReaction(null);
       setReactions((prev) => prev.filter((r) => r.user_id !== currentUserId));
-      try { await removeReaction(post.id); } catch { setUserReaction(wasReaction); }
+      try {
+        await removeReaction(post.id);
+        triggerFeedRefresh();
+      } catch { setUserReaction(wasReaction); }
     } else {
       setUserReaction(emoji);
       setReactions((prev) => {
@@ -228,9 +232,12 @@ export default function PostDetailScreen() {
         without.push({ id: "", user_id: currentUserId!, post_id: post.id, emoji, created_at: "" });
         return without;
       });
-      try { await setReaction(post.id, emoji); } catch { setUserReaction(wasReaction); }
+      try {
+        await setReaction(post.id, emoji);
+        triggerFeedRefresh();
+      } catch { setUserReaction(wasReaction); }
     }
-  }, [post, userReaction, currentUserId]);
+  }, [post, userReaction, currentUserId, triggerFeedRefresh]);
 
   const handleRepost = useCallback(async () => {
     if (!post || isOwnPost) return;
@@ -244,11 +251,12 @@ export default function PostDetailScreen() {
       } else {
         await repostPost(post.id);
       }
+      triggerFeedRefresh();
     } catch {
       setIsReposted(wasReposted);
       setRepostCountState((c) => wasReposted ? c + 1 : c - 1);
     }
-  }, [post, isOwnPost, isReposted]);
+  }, [post, isOwnPost, isReposted, triggerFeedRefresh]);
 
   const handleSendReply = useCallback(async () => {
     if (!id || !replyText.trim() || sendingReply) return;

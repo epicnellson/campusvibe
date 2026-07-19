@@ -87,79 +87,73 @@ export async function createPost(content: string, imageUrl?: string): Promise<vo
 }
 
 export async function likePost(postId: string) {
-  return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
-    const { data: existing } = await supabase
-      .from("likes")
-      .select("id")
-      .eq("post_id", postId)
-      .eq("user_id", user.id)
-      .maybeSingle();
+  const { data: existing } = await supabase
+    .from("likes")
+    .select("id")
+    .eq("post_id", postId)
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-    if (existing) return;
+  if (existing) return;
 
-    const { data: post } = await supabase
-      .from("posts")
-      .select("user_id")
-      .eq("id", postId)
-      .single();
+  const { data: post } = await supabase
+    .from("posts")
+    .select("user_id")
+    .eq("id", postId)
+    .single();
 
-    if (!post) throw new Error("Post not found");
+  if (!post) throw new Error("Post not found");
 
-    const { error } = await supabase.from("likes").insert({
-      post_id: postId,
-      user_id: user.id,
-    });
-    if (error) {
-      if (error.code === "23505") return;
-      throw error;
-    }
-
-    if (post.user_id !== user.id) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("name")
-        .eq("id", user.id)
-        .single();
-      notifyPostLike(post.user_id, profile?.name ?? "Someone", postId);
-      createNotification(post.user_id, user.id, "like", "post", postId);
-    }
+  const { error } = await supabase.from("likes").insert({
+    post_id: postId,
+    user_id: user.id,
   });
+  if (error) {
+    if (error.code === "23505") return;
+    throw error;
+  }
+
+  if (post.user_id !== user.id) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("name")
+      .eq("id", user.id)
+      .single();
+    notifyPostLike(post.user_id, profile?.name ?? "Someone", postId);
+    createNotification(post.user_id, user.id, "like", "post", postId);
+  }
 }
 
 export async function unlikePost(postId: string) {
-  return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
-    const { error } = await supabase
-      .from("likes")
-      .delete()
-      .eq("post_id", postId)
-      .eq("user_id", user.id);
-    if (error) throw error;
-  });
+  const { error } = await supabase
+    .from("likes")
+    .delete()
+    .eq("post_id", postId)
+    .eq("user_id", user.id);
+  if (error) throw error;
 }
 
 export async function deletePost(postId: string) {
-  return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
-    const { error } = await supabase
-      .from("posts")
-      .delete()
-      .eq("id", postId);
-    if (error) throw error;
-  });
+  const { error } = await supabase
+    .from("posts")
+    .delete()
+    .eq("id", postId);
+  if (error) throw error;
 }
 
 async function fetchProfileNames(userIds: string[]): Promise<Map<string, { name: string; department: string }>> {

@@ -67,80 +67,74 @@ export async function createConfession(content: string, imageUrl?: string): Prom
 }
 
 export async function likeConfession(confessionId: string) {
-  return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
-    const { data: existing } = await supabase
-      .from("confession_likes")
-      .select("id")
-      .eq("confession_id", confessionId)
-      .eq("user_id", user.id)
-      .maybeSingle();
+  const { data: existing } = await supabase
+    .from("confession_likes")
+    .select("id")
+    .eq("confession_id", confessionId)
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-    if (existing) return;
+  if (existing) return;
 
-    const { error } = await supabase.from("confession_likes").insert({
-      confession_id: confessionId,
-      user_id: user.id,
-    });
-    if (error) {
-      if (error.code === "23505") return;
-      throw error;
-    }
-
-    const { data: confession } = await supabase
-      .from("confessions")
-      .select("user_id")
-      .eq("id", confessionId)
-      .single();
-
-    if (confession && confession.user_id !== user.id) {
-      createNotification(confession.user_id, user.id, "like", "confession", confessionId);
-    }
-
-    if (confession) {
-      const { count } = await supabase
-        .from("confession_likes")
-        .select("id", { count: "exact", head: true })
-        .eq("confession_id", confessionId);
-
-      if (count && count >= 10 && count < 15) {
-        notifyPopularConfession(confession.user_id, count);
-      }
-    }
+  const { error } = await supabase.from("confession_likes").insert({
+    confession_id: confessionId,
+    user_id: user.id,
   });
+  if (error) {
+    if (error.code === "23505") return;
+    throw error;
+  }
+
+  const { data: confession } = await supabase
+    .from("confessions")
+    .select("user_id")
+    .eq("id", confessionId)
+    .single();
+
+  if (confession && confession.user_id !== user.id) {
+    createNotification(confession.user_id, user.id, "like", "confession", confessionId);
+  }
+
+  if (confession) {
+    const { count } = await supabase
+      .from("confession_likes")
+      .select("id", { count: "exact", head: true })
+      .eq("confession_id", confessionId);
+
+    if (count && count >= 10 && count < 15) {
+      notifyPopularConfession(confession.user_id, count);
+    }
+  }
 }
 
 export async function deleteConfession(confessionId: string) {
-  return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
-    const { error } = await supabase
-      .from("confessions")
-      .delete()
-      .eq("id", confessionId);
-    if (error) throw error;
-  });
+  const { error } = await supabase
+    .from("confessions")
+    .delete()
+    .eq("id", confessionId);
+  if (error) throw error;
 }
 
 export async function unlikeConfession(confessionId: string) {
-  return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
-    const { error } = await supabase
-      .from("confession_likes")
-      .delete()
-      .eq("confession_id", confessionId)
-      .eq("user_id", user.id);
-    if (error) throw error;
-  });
+  const { error } = await supabase
+    .from("confession_likes")
+    .delete()
+    .eq("confession_id", confessionId)
+    .eq("user_id", user.id);
+  if (error) throw error;
 }
