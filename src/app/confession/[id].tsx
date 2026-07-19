@@ -10,13 +10,13 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ImageViewer } from "@/components/image-viewer";
+import { ResponsiveImage } from "@/components/responsive-image";
 import { DetailSkeleton } from "@/components/feed-skeleton";
 import { spacing, colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
@@ -293,12 +293,9 @@ export default function ConfessionDetailScreen() {
 
         {resolvedImage && (
           <Pressable onPress={() => setShowImageViewer(true)} style={styles.imageSection}>
-            <Image
+            <ResponsiveImage
               source={resolvedImage}
-              style={styles.postImage}
-              contentFit="contain"
-              cachePolicy="memory-disk"
-              transition={300}
+              borderRadius={0}
             />
           </Pressable>
         )}

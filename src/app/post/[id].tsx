@@ -11,7 +11,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,6 +19,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Avatar } from "@/components/ui/Avatar";
 import { ImageViewer } from "@/components/image-viewer";
+import { ResponsiveImage } from "@/components/responsive-image";
 import { DetailSkeleton } from "@/components/feed-skeleton";
 import { spacing, colors } from "@/theme";
 import { useSession } from "@/hooks/use-session";
@@ -455,12 +455,9 @@ export default function PostDetailScreen() {
           {images.length > 0 && (
             <View style={styles.imageSection}>
               <Pressable onPress={() => setShowImageViewer(true)}>
-                <Image
+                <ResponsiveImage
                   source={images[0].uri}
-                  style={styles.postImage}
-                  contentFit="contain"
-                  cachePolicy="memory-disk"
-                  transition={300}
+                  borderRadius={0}
                 />
               </Pressable>
             </View>

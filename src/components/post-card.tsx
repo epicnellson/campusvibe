@@ -1,11 +1,11 @@
 import { memo, useCallback, useState, useRef } from "react";
 import { Alert, Animated, Platform, Pressable, Share, StyleSheet, View } from "react-native";
-import { Image } from "expo-image";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
+import { ResponsiveImage } from "@/components/responsive-image";
 import { Avatar } from "@/components/ui/Avatar";
 import { useSession } from "@/hooks/use-session";
 import { likePost, unlikePost, deletePost } from "@/services/posts";
@@ -255,13 +255,9 @@ function PostCardInner({
             <ThemedText style={styles.body}>{post.content}</ThemedText>
 
             {resolvedImage ? (
-              <Image
+              <ResponsiveImage
                 source={resolvedImage}
-                style={styles.postImage}
-                contentFit="contain"
-                cachePolicy="memory-disk"
-                transition={300}
-                placeholder={{ blurhash: "LGF5]+Yk^6#M@-5c,1J5@[or[Q6." }}
+                borderRadius={14}
               />
             ) : null}
           </Pressable>

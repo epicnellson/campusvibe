@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
+import { ResponsiveImage } from "@/components/responsive-image";
 import { useSession } from "@/hooks/use-session";
 import { resolveImageUrl } from "@/services/storage";
 import { deleteConfession } from "@/services/confessions";
@@ -219,13 +220,9 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
               onPress={() => setShowImageViewer(true)}
               style={styles.imagePressable}
             >
-              <Image
+              <ResponsiveImage
                 source={resolvedImage}
-                style={styles.postImage}
-                contentFit="contain"
-                cachePolicy="memory-disk"
-                transition={300}
-                placeholder={{ blurhash: "LGF5]+Yk^6#M@-5c,1J5@[or[Q6." }}
+                borderRadius={14}
               />
             </Pressable>
           ) : null}
