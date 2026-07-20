@@ -55,7 +55,7 @@ async function fetchYouTube(): Promise<ExternalFeedItem[]> {
   if (!YOUTUBE_KEY) return [];
   try {
     const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=SL&maxResults=10&key=${YOUTUBE_KEY}`
+      `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&maxResults=10&key=${YOUTUBE_KEY}`
     );
     if (!res.ok) return [];
     const data = await res.json();
