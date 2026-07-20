@@ -1,7 +1,8 @@
 import { memo, useCallback, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import type { ExternalFeedItem } from "@/services/feed-aggregator";
 
 function formatTime(dateStr?: string): string {
@@ -23,36 +24,22 @@ export const ExternalFeedCard = memo(function ExternalFeedCard({
 }) {
   const [imgError, setImgError] = useState(false);
 
-  const openLink = useCallback(() => {
-    if (item.link) Linking.openURL(item.link);
-  }, [item.link]);
-
-  const sourceIcon =
-    item.source === "unsplash"
-      ? "image-outline"
-      : item.source === "youtube"
-        ? "logo-youtube"
-        : "newspaper-outline";
-
-  const sourceLabel =
-    item.source === "unsplash"
-      ? "Unsplash"
-      : item.source === "youtube"
-        ? "YouTube"
-        : "News";
+  const openInApp = useCallback(() => {
+    router.push({
+      pathname: "/external-content",
+      params: {
+        url: item.link ?? "",
+        type: item.type,
+        title: item.title ?? "",
+        image_url: item.image_url ?? item.thumbnail_url ?? "",
+      },
+    });
+  }, [item.link, item.type, item.title, item.image_url, item.thumbnail_url]);
 
   const imageUrl = item.image_url || item.thumbnail_url;
 
   return (
-    <Pressable style={styles.card} onPress={openLink} accessibilityRole="link">
-      <View style={styles.header}>
-        <View style={styles.sourceBadge}>
-          <Ionicons name={sourceIcon as any} size={14} color="#AAA" />
-          <Text style={styles.sourceText}>{sourceLabel}</Text>
-        </View>
-        <Text style={styles.time}>{formatTime(item.published_at)}</Text>
-      </View>
-
+    <Pressable style={styles.card} onPress={openInApp} accessibilityRole="button">
       <Text style={styles.title} numberOfLines={2}>
         {item.title}
       </Text>
@@ -74,15 +61,14 @@ export const ExternalFeedCard = memo(function ExternalFeedCard({
         />
       ) : null}
 
-      {item.author ? (
-        <Text style={styles.author}>by {item.author}</Text>
-      ) : null}
-
-      {item.type === "video" ? (
-        <View style={styles.playBadge}>
-          <Ionicons name="play" size={18} color="#FFF" />
-        </View>
-      ) : null}
+      <View style={styles.footer}>
+        <Text style={styles.time}>{formatTime(item.published_at)}</Text>
+        {item.type === "video" ? (
+          <View style={styles.playBadge}>
+            <Ionicons name="play" size={14} color="#FFF" />
+          </View>
+        ) : null}
+      </View>
     </Pressable>
   );
 });
@@ -95,33 +81,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingTop: 10,
-  },
-  sourceBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  sourceText: {
-    fontSize: 12,
-    color: "#AAA",
-    fontWeight: "500",
-  },
-  time: {
-    fontSize: 12,
-    color: "#666",
-  },
   title: {
     fontSize: 15,
     fontWeight: "600",
     color: "#E1E1E1",
     paddingHorizontal: 12,
-    paddingTop: 8,
+    paddingTop: 10,
   },
   description: {
     fontSize: 13,
@@ -134,21 +99,22 @@ const styles = StyleSheet.create({
     aspectRatio: 4 / 3,
     marginTop: 10,
   },
-  author: {
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  time: {
     fontSize: 12,
     color: "#666",
-    paddingHorizontal: 12,
-    paddingTop: 6,
-    paddingBottom: 10,
   },
   playBadge: {
-    position: "absolute",
-    bottom: 12,
-    right: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
   },

@@ -39,11 +39,11 @@ async function fetchUnsplash(): Promise<ExternalFeedItem[]> {
       source: "unsplash" as const,
       type: "image" as const,
       title: p.alt_description || "Campus life",
-      description: p.user?.name ? `Photo by ${p.user.name}` : undefined,
+      description: undefined,
       image_url: p.urls?.regular,
       thumbnail_url: p.urls?.thumb,
       link: p.links?.html,
-      author: p.user?.name,
+      author: undefined,
       published_at: p.created_at,
     }));
   } catch {
@@ -63,12 +63,12 @@ async function fetchYouTube(): Promise<ExternalFeedItem[]> {
       id: `yt-${v.id}`,
       source: "youtube" as const,
       type: "video" as const,
-      title: v.snippet?.title || "YouTube Video",
+      title: v.snippet?.title || "Video",
       description: v.snippet?.description?.slice(0, 200),
       thumbnail_url: v.snippet?.thumbnails?.medium?.url,
       image_url: v.snippet?.thumbnails?.high?.url,
       link: `https://youtube.com/watch?v=${v.id}`,
-      author: v.snippet?.channelTitle,
+      author: undefined,
       published_at: v.snippet?.publishedAt,
     }));
   } catch {

@@ -196,6 +196,13 @@ function RootLayout() {
       headerShown: false,
     }}
   />
+  <Stack.Screen
+    name="external-content"
+    options={{
+      ...modalOptions,
+      animation: "fade_from_bottom",
+    }}
+  />
                 </Stack>
               </RefreshProvider>
             </ToastProvider>
