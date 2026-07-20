@@ -68,9 +68,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <View
         style={[
           styles.container,
-          { bottom: insets.bottom + spacing.md },
+          { bottom: insets.bottom + spacing.md, pointerEvents: "box-none" as const },
         ]}
-        pointerEvents="box-none"
       >
         {toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} onDone={() => remove(toast.id)} />
