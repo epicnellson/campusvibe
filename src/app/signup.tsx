@@ -1,6 +1,6 @@
 import { Redirect, router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -51,7 +51,9 @@ export default function SignupScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#6C47FF" />
+        <View style={{ width: 140, height: 24, borderRadius: 8, backgroundColor: "#222" }} />
+        <View style={{ width: 200, height: 14, borderRadius: 7, backgroundColor: "#222", marginTop: 12 }} />
+        <View style={{ width: "80%", height: 48, borderRadius: 12, backgroundColor: "#222", marginTop: 24 }} />
       </View>
     );
   }

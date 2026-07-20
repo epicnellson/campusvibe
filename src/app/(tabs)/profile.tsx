@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Image,
@@ -126,7 +125,10 @@ export default function ProfileScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <View style={styles.skeletonAvatar} />
+        <View style={[styles.skeletonBlock, { width: 120, height: 16, marginTop: 16 }]} />
+        <View style={[styles.skeletonBlock, { width: 80, height: 12, marginTop: 8 }]} />
+        <View style={[styles.skeletonBlock, { width: 200, height: 12, marginTop: 8 }]} />
       </View>
     );
   }
@@ -137,7 +139,11 @@ export default function ProfileScreen() {
     if (postsLoading) {
       return (
         <View style={styles.tabEmpty}>
-          <ActivityIndicator size="small" color="#71717A" />
+          <View style={styles.skeletonGrid}>
+            {[...Array(6)].map((_, i) => (
+              <View key={i} style={[styles.skeletonBlock, { width: TILE_SIZE, height: TILE_SIZE }]} />
+            ))}
+          </View>
         </View>
       );
     }
@@ -424,6 +430,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#000000",
     alignItems: "center",
     justifyContent: "center",
+  },
+  skeletonAvatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#222",
+  },
+  skeletonBlock: {
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#222",
+  },
+  skeletonGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 2,
   },
   topBar: {
     flexDirection: "row",

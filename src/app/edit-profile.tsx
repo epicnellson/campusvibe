@@ -74,8 +74,10 @@ export default function EditProfileScreen() {
 
   if (sessionLoading || profileLoading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000000" }}>
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000000", gap: 12 }}>
+        <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#222" }} />
+        <View style={{ width: 140, height: 14, borderRadius: 7, backgroundColor: "#222" }} />
+        <View style={{ width: 100, height: 12, borderRadius: 6, backgroundColor: "#222" }} />
       </View>
     );
   }

@@ -1,5 +1,3 @@
-import { supabase } from "./supabase";
-
 export type ExternalFeedItem = {
   id: string;
   source: "unsplash" | "youtube";
@@ -9,7 +7,7 @@ export type ExternalFeedItem = {
   image_url?: string;
   thumbnail_url?: string;
   link?: string;
-  author?: string;
+  video_id?: string;
   published_at?: string;
 };
 
@@ -43,7 +41,7 @@ async function fetchUnsplash(): Promise<ExternalFeedItem[]> {
       image_url: p.urls?.regular,
       thumbnail_url: p.urls?.thumb,
       link: p.links?.html,
-      author: undefined,
+      video_id: undefined,
       published_at: p.created_at,
     }));
   } catch {
@@ -68,7 +66,7 @@ async function fetchYouTube(): Promise<ExternalFeedItem[]> {
       thumbnail_url: v.snippet?.thumbnails?.medium?.url,
       image_url: v.snippet?.thumbnails?.high?.url,
       link: `https://youtube.com/watch?v=${v.id}`,
-      author: undefined,
+      video_id: v.id as string,
       published_at: v.snippet?.publishedAt,
     }));
   } catch {
@@ -76,40 +74,14 @@ async function fetchYouTube(): Promise<ExternalFeedItem[]> {
   }
 }
 
-export async function fetchExternalFeed(userId?: string): Promise<ExternalFeedItem[]> {
+export async function fetchExternalFeed(): Promise<ExternalFeedItem[]> {
   try {
     const [unsplash, youtube] = await Promise.all([
       fetchUnsplash(),
       fetchYouTube(),
     ]);
 
-    let allItems = [...unsplash, ...youtube];
-
-    // Filter out already-seen items (best-effort, non-blocking)
-    if (userId && allItems.length > 0) {
-      try {
-        const { data: seen } = await supabase
-          .from("seen_posts" as any)
-          .select("external_id")
-          .eq("user_id", userId)
-          .gte("seen_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-        const seenIds = new Set((seen ?? []).map((s: any) => s.external_id));
-        allItems = allItems.filter((item) => !seenIds.has(item.id));
-
-        if (allItems.length > 0) {
-          const toInsert = allItems.slice(0, 30).map((item) => ({
-            user_id: userId,
-            external_id: item.id,
-            source: item.source,
-          }));
-          await supabase.from("seen_posts" as any).insert(toInsert);
-        }
-      } catch {
-        // seen_posts table may not exist yet — ignore
-      }
-    }
-
+    const allItems = [...unsplash, ...youtube];
     return shuffleArray(allItems);
   } catch {
     return [];

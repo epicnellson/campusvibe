@@ -1,8 +1,8 @@
 import { memo, useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
-import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { YouTubeEmbed } from "@/components/youtube-embed";
 import type { ExternalFeedItem } from "@/services/feed-aggregator";
 
 function formatTime(dateStr?: string): string {
@@ -39,7 +39,7 @@ export const ExternalFeedCard = memo(function ExternalFeedCard({
   const imageUrl = item.image_url || item.thumbnail_url;
 
   return (
-    <Pressable style={styles.card} onPress={openInApp} accessibilityRole="button">
+    <View style={styles.card}>
       <Text style={styles.title} numberOfLines={2}>
         {item.title}
       </Text>
@@ -50,26 +50,25 @@ export const ExternalFeedCard = memo(function ExternalFeedCard({
         </Text>
       ) : null}
 
-      {imageUrl && !imgError ? (
-        <Image
-          source={imageUrl}
-          style={styles.image}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          transition={300}
-          onError={() => setImgError(true)}
-        />
+      {item.type === "video" && item.video_id ? (
+        <YouTubeEmbed videoId={item.video_id} />
+      ) : imageUrl && !imgError ? (
+        <Pressable onPress={openInApp}>
+          <Image
+            source={imageUrl}
+            style={styles.image}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={300}
+            onError={() => setImgError(true)}
+          />
+        </Pressable>
       ) : null}
 
       <View style={styles.footer}>
         <Text style={styles.time}>{formatTime(item.published_at)}</Text>
-        {item.type === "video" ? (
-          <View style={styles.playBadge}>
-            <Ionicons name="play" size={14} color="#FFF" />
-          </View>
-        ) : null}
       </View>
-    </Pressable>
+    </View>
   );
 });
 
@@ -102,20 +101,11 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   time: {
     fontSize: 12,
     color: "#666",
-  },
-  playBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

@@ -1,18 +1,40 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
+  Animated,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
-  Platform,
   useWindowDimensions,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { StatusBar } from "expo-status-bar";
+
+function ContentSkeleton() {
+  const shimmer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 800, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(shimmer, { toValue: 0, duration: 800, useNativeDriver: Platform.OS !== "web" }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [shimmer]);
+
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.35] });
+
+  return (
+    <View style={styles.skeletonContainer}>
+      <Animated.View style={[styles.skeletonBlock, { opacity }]} />
+    </View>
+  );
+}
 
 export default function ExternalContentScreen() {
   const params = useLocalSearchParams<{
@@ -52,7 +74,6 @@ export default function ExternalContentScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
       <View style={styles.header}>
         <Pressable onPress={close} style={styles.closeButton} accessibilityLabel="Close">
           <Ionicons name="close" size={28} color="#FFF" />
@@ -64,6 +85,8 @@ export default function ExternalContentScreen() {
         ) : null}
         <View style={{ width: 44 }} />
       </View>
+
+      {loading && <ContentSkeleton />}
 
       {isYouTube && youtubeEmbedUrl ? (
         <WebView
@@ -79,9 +102,6 @@ export default function ExternalContentScreen() {
         />
       ) : imageUrl ? (
         <View style={styles.imageContainer}>
-          {loading && (
-            <ActivityIndicator size="large" color="#FFF" style={styles.loader} />
-          )}
           <Image
             source={{ uri: imageUrl }}
             style={styles.fullImage}
@@ -105,12 +125,6 @@ export default function ExternalContentScreen() {
           }}
         />
       ) : null}
-
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#FFF" />
-        </View>
-      )}
 
       {loadError && (
         <View style={styles.errorContainer}>
@@ -168,21 +182,25 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  loader: {
-    position: "absolute",
-    zIndex: 1,
-  },
-  loadingOverlay: {
+  skeletonContainer: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#000",
+    zIndex: 2,
+  },
+  skeletonBlock: {
+    width: "80%",
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: "#222",
   },
   errorContainer: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#000",
+    zIndex: 3,
   },
   errorText: {
     color: "#666",

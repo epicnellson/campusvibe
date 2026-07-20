@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, Platform, StyleSheet, View } from "react-native";
 
-function ShimmerBlock({ width, height, borderRadius = 8 }: { width: number | `${number}%`; height: number; borderRadius?: number }) {
+export function ShimmerBlock({ width, height, borderRadius = 8 }: { width: number | `${number}%`; height: number; borderRadius?: number }) {
   const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {

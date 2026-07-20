@@ -1,6 +1,6 @@
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, TextInput, View, ActivityIndicator } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -49,7 +49,12 @@ export default function VerifyScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6C47FF" />
+        <View style={{ width: 200, height: 14, borderRadius: 7, backgroundColor: "#222" }} />
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 20 }}>
+          {[...Array(6)].map((_, i) => (
+            <View key={i} style={{ width: 44, height: 52, borderRadius: 10, backgroundColor: "#222" }} />
+          ))}
+        </View>
       </View>
     );
   }

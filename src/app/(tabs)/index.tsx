@@ -93,7 +93,7 @@ export default function HomeFeedScreen() {
 
       setItems(userItems as FeedItem[]);
 
-      fetchExternalFeed(currentUserId).then((externalItems) => {
+      fetchExternalFeed().then((externalItems) => {
         if (externalItems.length === 0) return;
         const externalFeedItems: FeedItem[] = externalItems.map((e) => ({
           type: "external" as const,

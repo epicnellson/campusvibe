@@ -1,6 +1,6 @@
 import { Redirect, router } from "expo-router";
 import { useRef, useState } from "react";
-import { ActivityIndicator, Animated as RNAnimated, KeyboardAvoidingView, Platform, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Animated as RNAnimated, KeyboardAvoidingView, Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DepartmentYearStep } from "@/components/onboarding/department-year-step";
 import { FeaturesStep } from "@/components/onboarding/features-step";
@@ -34,7 +34,8 @@ export default function OnboardingScreen() {
   if (isLoading || profileLoading) {
     return (
       <ThemedView style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <View style={{ width: 140, height: 24, borderRadius: 8, backgroundColor: "#222" }} />
+        <View style={{ width: "80%", height: 48, borderRadius: 12, backgroundColor: "#222", marginTop: 24 }} />
       </ThemedView>
     );
   }

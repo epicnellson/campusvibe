@@ -1,7 +1,6 @@
 import { Redirect, router } from "expo-router";
 import { useState } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -71,8 +70,10 @@ export default function CreateEventScreen() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000000" }}>
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000000", gap: 12 }}>
+        <View style={{ width: "70%", height: 14, borderRadius: 7, backgroundColor: "#222" }} />
+        <View style={{ width: "90%", height: 40, borderRadius: 8, backgroundColor: "#222" }} />
+        <View style={{ width: "60%", height: 14, borderRadius: 7, backgroundColor: "#222" }} />
       </View>
     );
   }

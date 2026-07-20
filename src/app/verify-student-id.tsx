@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Redirect, router } from "expo-router";
-import { ActivityIndicator, Animated, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Animated, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -43,7 +43,8 @@ export default function VerifyStudentIdScreen() {
   if (isLoading || profileLoading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#6C47FF" />
+        <View style={{ width: 200, height: 20, borderRadius: 10, backgroundColor: "#222" }} />
+        <View style={{ width: "80%", height: 180, borderRadius: 16, backgroundColor: "#222", marginTop: 24 }} />
       </View>
     );
   }
