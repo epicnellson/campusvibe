@@ -1,6 +1,5 @@
 import { memo, useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { YouTubeEmbed } from "@/components/youtube-embed";
@@ -26,31 +25,46 @@ export const ExternalFeedCard = memo(function ExternalFeedCard({
 }) {
   const [imgError, setImgError] = useState(false);
 
-  const openInApp = useCallback(() => {
+  const navigateToDetail = useCallback(() => {
     router.push({
-      pathname: "/external-content",
+      pathname: "/external/[id]",
       params: {
-        url: item.link ?? "",
-        type: item.type,
+        id: item.id,
         title: item.title ?? "",
+        description: item.description ?? "",
         image_url: item.image_url ?? item.thumbnail_url ?? "",
+        link: item.link ?? "",
+        type: item.type,
+        source: item.source,
+        source_name: item.source_name ?? "",
+        published_at: item.published_at ?? "",
+        video_id: item.video_id ?? "",
+        author: item.author ?? "",
       },
     });
-  }, [item.link, item.type, item.title, item.image_url, item.thumbnail_url]);
+  }, [item]);
 
   const imageUrl = item.image_url || item.thumbnail_url;
   const isVideo = item.type === "video" && item.video_id;
 
+  const sourceIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
+    news: "newspaper-outline",
+    youtube: "logo-youtube",
+    unsplash: "camera-outline",
+  };
+  const iconName = sourceIcons[item.source] ?? "globe-outline";
+
   return (
-    <View style={styles.container}>
+    <Pressable
+      onPress={navigateToDetail}
+      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
+      accessibilityLabel={`${item.title}`}
+      accessibilityRole="link"
+    >
       <View style={styles.contentRow}>
         <View style={styles.leftColumn}>
           <View style={styles.avatarPlaceholder}>
-            <Ionicons
-              name={isVideo ? "play" : "image-outline"}
-              size={18}
-              color="#71717A"
-            />
+            <Ionicons name={iconName} size={18} color="#71717A" />
           </View>
         </View>
 
@@ -74,13 +88,13 @@ export const ExternalFeedCard = memo(function ExternalFeedCard({
           {isVideo ? (
             <YouTubeEmbed videoId={item.video_id!} />
           ) : imageUrl && !imgError ? (
-            <Pressable onPress={openInApp} style={styles.imagePressable}>
+            <View style={styles.imagePressable}>
               <ResponsiveImage source={imageUrl} borderRadius={14} />
-            </Pressable>
+            </View>
           ) : null}
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 });
 
@@ -92,6 +106,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: "#1E1E1E",
     backgroundColor: "#000000",
+  },
+  pressed: {
+    opacity: 0.85,
   },
   contentRow: {
     flexDirection: "row",

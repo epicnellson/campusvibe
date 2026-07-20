@@ -1,7 +1,7 @@
 export type ExternalFeedItem = {
   id: string;
-  source: "unsplash" | "youtube";
-  type: "image" | "video";
+  source: "unsplash" | "youtube" | "news";
+  type: "image" | "video" | "article";
   title: string;
   description?: string;
   image_url?: string;
@@ -9,10 +9,13 @@ export type ExternalFeedItem = {
   link?: string;
   video_id?: string;
   published_at?: string;
+  source_name?: string;
+  author?: string;
 };
 
 const UNSPLASH_KEY = process.env.EXPO_PUBLIC_UNSPLASH_ACCESS_KEY ?? "";
 const YOUTUBE_KEY = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY ?? "";
+const NEWS_KEY = process.env.EXPO_PUBLIC_NEWS_API_KEY ?? "";
 
 function shuffleArray<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -43,6 +46,8 @@ async function fetchUnsplash(): Promise<ExternalFeedItem[]> {
       link: p.links?.html,
       video_id: undefined,
       published_at: p.created_at,
+      source_name: "Unsplash",
+      author: p.user?.name,
     }));
   } catch {
     return [];
@@ -68,7 +73,38 @@ async function fetchYouTube(): Promise<ExternalFeedItem[]> {
       link: `https://youtube.com/watch?v=${v.id}`,
       video_id: v.id as string,
       published_at: v.snippet?.publishedAt,
+      source_name: "YouTube",
+      author: v.snippet?.channelTitle,
     }));
+  } catch {
+    return [];
+  }
+}
+
+async function fetchNews(): Promise<ExternalFeedItem[]> {
+  if (!NEWS_KEY) return [];
+  try {
+    const res = await fetch(
+      `https://newsapi.org/v2/top-headlines?q=university+students+campus&language=en&pageSize=10&apiKey=${NEWS_KEY}`
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.articles ?? [])
+      .filter((a: any) => a.title && a.title !== "[Removed]")
+      .map((a: any, i: number) => ({
+        id: `news-${i}-${Date.now()}`,
+        source: "news" as const,
+        type: "article" as const,
+        title: a.title as string,
+        description: a.description?.slice(0, 300),
+        image_url: a.urlToImage || undefined,
+        thumbnail_url: a.urlToImage || undefined,
+        link: a.url,
+        video_id: undefined,
+        published_at: a.publishedAt,
+        source_name: a.source?.name || "News",
+        author: a.author || undefined,
+      }));
   } catch {
     return [];
   }
@@ -76,12 +112,13 @@ async function fetchYouTube(): Promise<ExternalFeedItem[]> {
 
 export async function fetchExternalFeed(): Promise<ExternalFeedItem[]> {
   try {
-    const [unsplash, youtube] = await Promise.all([
+    const [unsplash, youtube, news] = await Promise.all([
       fetchUnsplash(),
       fetchYouTube(),
+      fetchNews(),
     ]);
 
-    const allItems = [...unsplash, ...youtube];
+    const allItems = [...unsplash, ...youtube, ...news];
     return shuffleArray(allItems);
   } catch {
     return [];

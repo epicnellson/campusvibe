@@ -183,6 +183,13 @@ function RootLayout() {
     }}
   />
   <Stack.Screen
+    name="external/[id]"
+    options={{
+      title: "Article",
+      headerShown: false,
+    }}
+  />
+  <Stack.Screen
     name="confession/[id]"
     options={{
       title: "Confession",
