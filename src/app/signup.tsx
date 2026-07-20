@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { spacing, fontSize, fontWeight, colors } from "@/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSession } from "@/hooks/use-session";
-import { sendOTP } from "@/services/auth";
+import { sendOTP, signInWithGoogle } from "@/services/auth";
 
 export default function SignupScreen() {
   const theme = useTheme();
@@ -18,6 +18,7 @@ export default function SignupScreen() {
   const [agreeAge, setAgreeAge] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const emailRef = useRef<TextInput>(null);
 
@@ -32,6 +33,20 @@ export default function SignupScreen() {
     const timer = setTimeout(() => emailRef.current?.focus(), 300);
     return () => clearTimeout(timer);
   }, []);
+
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      if (e instanceof Error && e.message !== "Google sign-in was cancelled") {
+        setError(e.message);
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -122,6 +137,20 @@ export default function SignupScreen() {
             />
           </ThemedView>
 
+          <ThemedView style={styles.dividerRow}>
+            <ThemedView style={styles.dividerLine} />
+            <ThemedText themeColor="textTertiary" style={styles.dividerText}>or</ThemedText>
+            <ThemedView style={styles.dividerLine} />
+          </ThemedView>
+
+          <Button
+            title={googleLoading ? "Opening Google..." : "Continue with Google"}
+            onPress={handleGoogleSignIn}
+            disabled={googleLoading}
+            variant="secondary"
+            size="lg"
+          />
+
           <Button
             title="Back to welcome"
             variant="ghost"
@@ -164,6 +193,19 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: spacing.md,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.borderLight,
+  },
+  dividerText: {
+    fontSize: fontSize.sm,
   },
   error: {
     color: colors.error,
