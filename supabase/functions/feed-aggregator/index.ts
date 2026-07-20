@@ -1,5 +1,3 @@
-import { createClient } from "npm:@supabase/supabase-js@2"
-
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -8,8 +6,8 @@ const CORS_HEADERS = {
 
 type ExternalItem = {
   id: string
-  source: "unsplash" | "newsapi" | "youtube"
-  type: "image" | "news" | "video"
+  source: "unsplash" | "youtube"
+  type: "image" | "video"
   title: string
   description?: string
   image_url?: string
@@ -22,7 +20,6 @@ type ExternalItem = {
 async function fetchUnsplash(): Promise<ExternalItem[]> {
   const key = Deno.env.get("UNSPLASH_API_KEY")
   if (!key) return []
-
   try {
     const res = await fetch(
       `https://api.unsplash.com/photos/random?query=campus+students+study+lifestyle&count=10&orientation=landscape`,
@@ -48,38 +45,9 @@ async function fetchUnsplash(): Promise<ExternalItem[]> {
   }
 }
 
-async function fetchNews(): Promise<ExternalItem[]> {
-  const key = Deno.env.get("NEWSAPI_KEY")
-  if (!key) return []
-
-  try {
-    const res = await fetch(
-      `https://newsapi.org/v2/top-headlines?country=sl&category=technology&pageSize=10`,
-      { headers: { Authorization: `Bearer ${key}` } }
-    )
-    if (!res.ok) return []
-    const data = await res.json()
-    return (data.articles ?? []).map((a: any, i: number) => ({
-      id: `news-${i}-${a.url?.slice(-20)}`,
-      source: "newsapi" as const,
-      type: "news" as const,
-      title: a.title || "Tech News",
-      description: a.description,
-      image_url: a.urlToImage,
-      link: a.url,
-      author: a.author,
-      published_at: a.publishedAt,
-    }))
-  } catch (e) {
-    console.error("[feed-aggregator] NewsAPI error:", e)
-    return []
-  }
-}
-
 async function fetchYouTube(): Promise<ExternalItem[]> {
   const key = Deno.env.get("YOUTUBE_API_KEY")
   if (!key) return []
-
   try {
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=SL&maxResults=10&key=${key}`
@@ -118,55 +86,12 @@ export const fetch = async (req: Request) => {
     return new Response(null, { status: 204, headers: CORS_HEADERS })
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? ""
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-
-  const admin = supabaseKey
-    ? createClient(supabaseUrl, supabaseKey, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      })
-    : null
-
-  let userId: string | null = null
-  if (req.method === "GET") {
-    const url = new URL(req.url)
-    userId = url.searchParams.get("user_id")
-  } else {
-    try {
-      const body = await req.json()
-      userId = body?.user_id ?? null
-    } catch { /* no body */ }
-  }
-
-  const [unsplash, news, youtube] = await Promise.all([
+  const [unsplash, youtube] = await Promise.all([
     fetchUnsplash(),
-    fetchNews(),
     fetchYouTube(),
   ])
 
-  let allItems = [...unsplash, ...news, ...youtube]
-
-  if (admin && userId) {
-    const { data: seen } = await admin
-      .from("seen_posts")
-      .select("external_id")
-      .eq("user_id", userId)
-      .gte("seen_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-
-    const seenIds = new Set((seen ?? []).map((s) => s.external_id))
-    allItems = allItems.filter((item) => !seenIds.has(item.id))
-
-    if (allItems.length > 0) {
-      const toInsert = allItems.slice(0, 30).map((item) => ({
-        user_id: userId,
-        external_id: item.id,
-        source: item.source,
-      }))
-      await admin.from("seen_posts").insert(toInsert)
-    }
-  }
-
-  allItems = shuffleArray(allItems)
+  const allItems = shuffleArray([...unsplash, ...youtube])
 
   return Response.json(
     { items: allItems },
