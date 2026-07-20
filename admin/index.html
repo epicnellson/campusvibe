@@ -784,10 +784,10 @@
         return `
           <div class="modal-image-wrap" id="modal-image-wrap">
             ${hasPhoto
-              ? `<img id="modal-img" src="${user.student_id_photo}" alt="Student ID" draggable="false"
+              ? `<img id="modal-img" src="${user.student_id_photo}" alt="Verification document" draggable="false"
                      style="transform:translate(${state.panX}px,${state.panY}px) scale(${state.zoomLevel})" />
                    <div class="zoom-hint">Scroll to zoom · Drag to pan · Double-click to reset</div>`
-              : `<div class="no-photo">No student ID photo uploaded</div>`
+              : `<div class="no-photo">No verification document uploaded</div>`
             }
           </div>
           <div class="modal-info">
@@ -803,6 +803,10 @@
               <div class="info-field">
                 <div class="label">Academic Year</div>
                 <div class="value">${formatYear(user.year)}</div>
+              </div>
+              <div class="info-field">
+                <div class="label">Document Type</div>
+                <div class="value">${escapeHtml(formatDocType(user.student_document_type))}</div>
               </div>
               <div class="info-field">
                 <div class="label">Signed Up</div>
@@ -1199,6 +1203,17 @@
         if (!iso) return '—';
         const d = new Date(iso);
         return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+
+      function formatDocType(type) {
+        const map = {
+          student_id: 'Student ID Card',
+          enrollment_letter: 'Enrollment Letter',
+          class_schedule: 'Class Schedule',
+          library_card: 'Library Card',
+          other: 'Other University Document',
+        };
+        return map[type] || type || '—';
       }
 
       function showToast(msg) {

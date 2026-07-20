@@ -8,7 +8,15 @@ import { Button } from "@/components/ui/button";
 import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
 import { useSession } from "@/hooks/use-session";
-import { uploadStudentId } from "@/services/storage";
+import { uploadStudentId, type StudentDocumentType } from "@/services/storage";
+
+const DOCUMENT_TYPES: { value: StudentDocumentType; label: string; icon: string }[] = [
+  { value: "student_id", label: "Student ID Card", icon: "🪪" },
+  { value: "enrollment_letter", label: "Enrollment Letter", icon: "📄" },
+  { value: "class_schedule", label: "Class Schedule", icon: "📅" },
+  { value: "library_card", label: "Library Card", icon: "📚" },
+  { value: "other", label: "Other University Document", icon: "🎓" },
+];
 
 export default function VerifyStudentIdScreen() {
   const { session, isLoading } = useSession();
@@ -16,6 +24,7 @@ export default function VerifyStudentIdScreen() {
 
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageFileSize, setImageFileSize] = useState<number | undefined>(undefined);
+  const [documentType, setDocumentType] = useState<StudentDocumentType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState(false);
@@ -98,15 +107,19 @@ export default function VerifyStudentIdScreen() {
   };
 
   const handleUpload = async () => {
+    if (!documentType) {
+      setError("Please select the type of document you're uploading");
+      return;
+    }
     if (!imageUri) {
-      setError("Please select an image of your student ID");
+      setError("Please select a photo of your document");
       return;
     }
     setUploading(true);
     setError(null);
     simulateProgress();
     try {
-      const result = await uploadStudentId(session.user.id, imageUri, imageFileSize);
+      const result = await uploadStudentId(session.user.id, imageUri, imageFileSize, undefined, documentType);
       if (!result.success) {
         setError(result.error ?? "Upload failed");
         setUploading(false);
@@ -137,9 +150,9 @@ export default function VerifyStudentIdScreen() {
           <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
             <ThemedView style={styles.centerContent}>
               <ThemedText style={styles.successIcon}>✓</ThemedText>
-              <ThemedText style={styles.title}>ID uploaded!</ThemedText>
+              <ThemedText style={styles.title}>Document uploaded!</ThemedText>
               <ThemedText themeColor="textSecondary" style={styles.subtitle}>
-                Your student ID is now being reviewed. This usually takes
+                Your verification document is now being reviewed. This usually takes
                 24-48 hours. You can browse the app in the meantime.
               </ThemedText>
             </ThemedView>
@@ -159,12 +172,35 @@ export default function VerifyStudentIdScreen() {
             style={styles.content}
           >
             <ThemedView style={styles.centerContent}>
-              <ThemedText style={styles.title}>Verify your student ID</ThemedText>
+              <ThemedText style={styles.title}>Verify your student status</ThemedText>
               <ThemedText themeColor="textSecondary" style={styles.subtitle}>
                 To keep CampusVibe safe and authentic, we need to verify
-                you are a real student. Upload a photo of your student ID
-                card. It will not be shared publicly.
+                you are a real student. Upload a student document — it will
+                not be shared publicly.
               </ThemedText>
+
+              <ThemedView style={styles.docTypeContainer}>
+                <ThemedText themeColor="textSecondary" style={styles.docTypeLabel}>
+                  What are you uploading?
+                </ThemedText>
+                {DOCUMENT_TYPES.map((dt) => (
+                  <Pressable
+                    key={dt.value}
+                    onPress={() => setDocumentType(dt.value)}
+                    style={({ pressed }) => [
+                      styles.docTypeRow,
+                      documentType === dt.value && styles.docTypeRowSelected,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <ThemedText style={styles.docTypeIcon}>{dt.icon}</ThemedText>
+                    <ThemedText style={styles.docTypeText}>{dt.label}</ThemedText>
+                    <ThemedText style={styles.docTypeCheck}>
+                      {documentType === dt.value ? "●" : "○"}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </ThemedView>
 
               {imageUri ? (
                 <ThemedView style={styles.previewCard}>
@@ -207,9 +243,9 @@ export default function VerifyStudentIdScreen() {
             )}
 
             <Button
-              title={uploading ? "Uploading..." : imageUri ? "Upload ID" : "Select your student ID"}
+              title={uploading ? "Uploading..." : imageUri ? "Upload document" : "Select your document"}
               onPress={handleUpload}
-              disabled={uploading || !imageUri}
+              disabled={uploading || !imageUri || !documentType}
               size="lg"
             />
 
@@ -267,6 +303,42 @@ const styles = StyleSheet.create({
   subtitle: {
     textAlign: "center",
     lineHeight: 22,
+  },
+  docTypeContainer: {
+    width: "100%",
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  docTypeLabel: {
+    fontSize: fontSize.sm,
+    marginBottom: spacing.xs,
+  },
+  docTypeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    gap: spacing.sm,
+    backgroundColor: colors.backgroundElement,
+  },
+  docTypeRowSelected: {
+    borderColor: colors.primary,
+    backgroundColor: "rgba(108, 71, 255, 0.1)",
+  },
+  docTypeIcon: {
+    fontSize: 18,
+  },
+  docTypeText: {
+    flex: 1,
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+  },
+  docTypeCheck: {
+    fontSize: 16,
+    color: colors.primary,
   },
   successIcon: {
     fontSize: 48,

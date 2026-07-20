@@ -88,7 +88,7 @@ export default function SettingsScreen() {
             >
               <View style={styles.rowLeft}>
                 <Ionicons name="school-outline" size={20} color="#A1A1AA" />
-                <ThemedText style={styles.rowLabel}>Student ID</ThemedText>
+                <ThemedText style={styles.rowLabel}>Verification</ThemedText>
               </View>
               <View style={styles.rowRight}>
                 <ThemedText style={[

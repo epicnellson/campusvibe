@@ -21,8 +21,8 @@ export function requireVerified(profile: Profile | null): boolean {
 
   if (profile.verification_status === "rejected") {
     Alert.alert(
-      "ID rejected",
-      "Your student ID was rejected. Please upload a new one to continue.",
+      "Document rejected",
+      "Your verification document was rejected. Please upload a new one to continue.",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Upload", onPress: () => router.push("/verify-student-id" as any) },
@@ -33,16 +33,16 @@ export function requireVerified(profile: Profile | null): boolean {
 
   if (profile.verification_status === "pending") {
     Alert.alert(
-      "ID pending review",
-      "Your student ID is being reviewed. You'll be able to post once it's approved."
+      "Document pending review",
+      "Your verification document is being reviewed. You'll be able to post once it's approved."
     );
     return false;
   }
 
   // verification_status is null — hasn't uploaded yet
   Alert.alert(
-    "Verify your student ID",
-    "Upload your student ID card to start posting.",
+    "Verify your student status",
+    "Upload a student document to start posting.",
     [
       { text: "Cancel", style: "cancel" },
       { text: "Upload", onPress: () => router.push("/verify-student-id" as any) },

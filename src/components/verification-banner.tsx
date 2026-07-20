@@ -20,9 +20,9 @@ export function VerificationBanner({ status }: Props) {
       <Pressable onPress={handlePress} style={({ pressed }) => [styles.banner, styles.rejected, pressed && styles.pressed]}>
         <ThemedText style={styles.icon}>⚠️</ThemedText>
         <ThemedView style={styles.textContainer}>
-          <ThemedText style={styles.title}>ID rejected</ThemedText>
+          <ThemedText style={styles.title}>Document rejected</ThemedText>
           <ThemedText style={styles.message}>
-            Your student ID was rejected. Tap to upload a new one.
+            Your verification document was rejected. Tap to upload a new one.
           </ThemedText>
         </ThemedView>
       </Pressable>
@@ -34,9 +34,9 @@ export function VerificationBanner({ status }: Props) {
       <ThemedView style={[styles.banner, styles.pending]}>
         <ThemedText style={styles.icon}>⏳</ThemedText>
         <ThemedView style={styles.textContainer}>
-          <ThemedText style={styles.title}>ID pending review</ThemedText>
+          <ThemedText style={styles.title}>Document pending review</ThemedText>
           <ThemedText style={styles.message}>
-            Your student ID is being reviewed. You can post once approved.
+            Your verification document is being reviewed. You can post once approved.
           </ThemedText>
         </ThemedView>
       </ThemedView>
@@ -47,9 +47,9 @@ export function VerificationBanner({ status }: Props) {
     <Pressable onPress={handlePress} style={({ pressed }) => [styles.banner, styles.required, pressed && styles.pressed]}>
       <ThemedText style={styles.icon}>🪪</ThemedText>
       <ThemedView style={styles.textContainer}>
-        <ThemedText style={styles.title}>Verify your student ID</ThemedText>
+        <ThemedText style={styles.title}>Verify your student status</ThemedText>
         <ThemedText style={styles.message}>
-          Upload your student ID card to start posting. Tap here.
+          Upload a student document to start posting. Tap here.
         </ThemedText>
       </ThemedView>
     </Pressable>

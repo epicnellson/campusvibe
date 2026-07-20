@@ -108,11 +108,14 @@ function mimeToExt(mime?: string): string | null {
   return map[mime.toLowerCase()] ?? null;
 }
 
+export type StudentDocumentType = "student_id" | "enrollment_letter" | "class_schedule" | "library_card" | "other";
+
 export async function uploadStudentId(
   userId: string,
   uri: string,
   fileSize?: number,
-  mimeType?: string
+  mimeType?: string,
+  documentType?: StudentDocumentType
 ): Promise<UploadResult> {
   try {
     const rawExt = mimeToExt(mimeType) || getExtension(uri.split("/").pop() ?? uri) || "";
@@ -139,6 +142,16 @@ export async function uploadStudentId(
     if (uploadError) {
       console.error("[uploadStudentId] upload error details:", JSON.stringify(uploadError));
       return { success: false, error: formatStorageError(uploadError) };
+    }
+
+    // Save the document type on the profile
+    if (documentType) {
+      try {
+        await supabase
+          .from("profiles")
+          .update({ student_document_type: documentType })
+          .eq("id", userId);
+      } catch {} // non-critical
     }
 
     // Notify the server that this user has uploaded their ID

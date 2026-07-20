@@ -24,6 +24,7 @@ export type Profile = {
   is_admin: boolean;
   banned: boolean;
   verification_status: "pending" | "approved" | "rejected" | null;
+  student_document_type: "student_id" | "enrollment_letter" | "class_schedule" | "library_card" | "other" | null;
   created_at: string;
   updated_at: string;
 };

@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     try {
       const { data: profiles, error } = await supabaseAdmin
         .from("profiles")
-        .select("id, email, name, department, year, created_at, verification_status")
+        .select("id, email, name, department, year, created_at, verification_status, student_document_type")
         .or("verification_status.is.null,verification_status.eq.pending")
         .order("created_at", { ascending: false });
 
@@ -178,11 +178,11 @@ Deno.serve(async (req) => {
           const subject =
             action === "approve"
               ? "You're verified! Welcome to CampusVibe 🎉"
-              : "Student ID verification issue";
+              : "Verification document issue";
           const innerBody =
             action === "approve"
-              ? `Hi ${name},\n\nGreat news! Your student ID has been verified. You can now post, message, and fully participate in CampusVibe.\n\nWelcome aboard! 🎉\n\n- The CampusVibe Team`
-              : `Hi ${name},\n\nUnfortunately, your student ID could not be verified. This might be because the photo was blurry or incomplete.\n\nPlease open the app and re-upload a clearer photo of your student ID card.\n\n- The CampusVibe Team`;
+              ? `Hi ${name},\n\nGreat news! Your student document has been verified. You can now post, message, and fully participate in CampusVibe.\n\nWelcome aboard! 🎉\n\n- The CampusVibe Team`
+              : `Hi ${name},\n\nUnfortunately, your verification document could not be verified. This might be because the image was blurry or incomplete.\n\nPlease open the app and re-upload a clearer photo of your student document.\n\n- The CampusVibe Team`;
 
           try {
             await fetch("https://api.resend.com/emails", {
@@ -317,7 +317,7 @@ async function handleDashboard(supabaseAdmin: any, headers: Record<string, strin
     // 2. All users for the user management table
     const { data: allUsers, error: usersError } = await supabaseAdmin
       .from("profiles")
-      .select("id, email, name, department, year, verification_status, created_at, is_admin, banned")
+      .select("id, email, name, department, year, verification_status, created_at, is_admin, banned, student_document_type")
       .order("created_at", { ascending: false });
 
     if (usersError) throw usersError;
