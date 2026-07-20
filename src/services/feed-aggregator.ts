@@ -1,4 +1,3 @@
-import { Platform } from "react-native";
 import { supabase } from "./supabase";
 
 export type ExternalFeedItem = {
@@ -15,7 +14,6 @@ export type ExternalFeedItem = {
 };
 
 export async function fetchExternalFeed(userId?: string): Promise<ExternalFeedItem[]> {
-  if (Platform.OS === "web") return [];
   try {
     const { data, error } = await supabase.functions.invoke("feed-aggregator", {
       method: "POST",
