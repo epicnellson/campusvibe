@@ -100,9 +100,16 @@ export default function HomeFeedScreen() {
           data: e,
         }));
         setItems((prev) => {
-          const merged = [...prev];
-          const insertPos = Math.min(3, merged.length);
-          merged.splice(insertPos, 0, ...externalFeedItems);
+          const merged = [...prev, ...externalFeedItems];
+          merged.sort((a, b) => {
+            const getTs = (item: FeedItem) => {
+              if (item.type === "external") {
+                return item.data.published_at ? new Date(item.data.published_at).getTime() : 0;
+              }
+              return new Date(item.data.created_at).getTime();
+            };
+            return getTs(b) - getTs(a);
+          });
           return merged;
         });
       }).catch(() => {});
