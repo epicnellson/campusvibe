@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, type PressableProps, type ViewStyle, ActivityIndicator } from "react-native";
 import { ThemedText } from "@/components/themed-text";
-import { colors, spacing, borderRadius, fontSize, fontWeight, shadows } from "@/theme";
+import { spacing, borderRadius, fontSize, fontWeight, shadows } from "@/theme";
+import { useTheme } from "@/hooks/use-theme";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -24,12 +25,28 @@ export function Button({
   disabled,
   ...rest
 }: ButtonProps) {
+  const theme = useTheme();
+
+  const variantStyles: Record<ButtonVariant, ViewStyle> = {
+    primary: { backgroundColor: theme.primary, ...shadows.small },
+    secondary: { backgroundColor: theme.backgroundElement },
+    ghost: { backgroundColor: theme.transparent },
+    danger: { backgroundColor: theme.danger, ...shadows.small },
+  };
+
+  const textColor: Record<ButtonVariant, string> = {
+    primary: theme.textOnDark,
+    secondary: theme.text,
+    ghost: theme.primary,
+    danger: theme.textOnDark,
+  };
+
   return (
     <Pressable
       style={({ pressed }) => [
         styles.base,
         styles[`size_${size}`],
-        styles[`variant_${variant}`],
+        variantStyles[variant],
         pressed && styles.pressed,
         disabled && styles.disabled,
         style as ViewStyle,
@@ -42,7 +59,7 @@ export function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === "primary" || variant === "danger" ? "#FFFFFF" : colors.primary}
+          color={textColor[variant]}
         />
       ) : (
         <>
@@ -51,10 +68,7 @@ export function Button({
             style={[
               styles.text,
               styles[`text_${size}`],
-              variant === "primary" && styles.textPrimary,
-              variant === "danger" && styles.textDanger,
-              variant === "secondary" && styles.textSecondary,
-              variant === "ghost" && styles.textGhost,
+              { color: textColor[variant] },
               icon ? { marginLeft: spacing.sm } : undefined,
             ]}
           >
@@ -88,20 +102,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
   },
-  variant_primary: {
-    backgroundColor: colors.primary,
-    ...shadows.small,
-  },
-  variant_secondary: {
-    backgroundColor: colors.backgroundElement,
-  },
-  variant_ghost: {
-    backgroundColor: colors.transparent,
-  },
-  variant_danger: {
-    backgroundColor: colors.error,
-    ...shadows.small,
-  },
   text: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.semibold,
@@ -109,8 +109,4 @@ const styles = StyleSheet.create({
   text_sm: { fontSize: fontSize.sm },
   text_md: { fontSize: fontSize.md },
   text_lg: { fontSize: fontSize.lg },
-  textPrimary: { color: "#FFFFFF" },
-  textDanger: { color: "#FFFFFF" },
-  textSecondary: { color: colors.text },
-  textGhost: { color: colors.primary },
 });

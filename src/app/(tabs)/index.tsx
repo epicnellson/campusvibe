@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
+  ViewToken,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PostCard } from "@/components/post-card";
 import { ConfessionCard } from "@/components/confession-card";
 import { EventCard } from "@/components/event-card";
@@ -17,175 +18,345 @@ import { ExternalFeedCard } from "@/components/external-feed-card";
 import { FeedSkeleton } from "@/components/feed-skeleton";
 import { useSession } from "@/hooks/use-session";
 import { useRefresh } from "@/hooks/use-refresh";
-import { fetchPosts, fetchPostById } from "@/services/posts";
-import { fetchConfessions, fetchConfessionById } from "@/services/confessions";
-import { fetchUpcomingEvents } from "@/services/events";
+import { useTheme } from "@/hooks/use-theme";
+import { fetchPostById } from "@/services/posts";
+import { fetchConfessionById } from "@/services/confessions";
 import { fetchReactionsForPosts, type Reaction } from "@/services/reactions";
 import { getUserRepostedPostIds, getRepostCount } from "@/services/reposts";
 import { fetchCommentCounts } from "@/services/comments";
-import { fetchExternalFeed, type ExternalFeedItem } from "@/services/feed-aggregator";
-import { supabase } from "@/services/supabase";
+import { createFeedComposer, type FeedItem as ComposerFeedItem } from "@/services/feed";
+import { db } from "@/services/firebase";
+import { db_ops } from "@/services/db";
+import { collection, query, where, orderBy, limit as fbLimit, onSnapshot } from "firebase/firestore";
 import type { PostWithProfile, ConfessionWithLikes, EventWithRSVPs } from "@/services/database.types";
+import type { ExternalFeedItem } from "@/services/feed/types";
 
 const BOTTOM_TAB_INSET = 80;
 
-type FeedItem =
+type FeedDisplayItem =
   | { type: "post"; data: PostWithProfile }
   | { type: "confession"; data: ConfessionWithLikes }
   | { type: "event"; data: EventWithRSVPs }
   | { type: "external"; data: ExternalFeedItem };
 
+function toDisplayItem(item: ComposerFeedItem): FeedDisplayItem | null {
+  const raw = item.meta?.rawRow as Record<string, any> | undefined;
+  const table = item.meta?.rawTable as string | undefined;
+
+  if (item.source === "campus" && raw && table === "posts") {
+    return { type: "post", data: raw as unknown as PostWithProfile };
+  }
+  if (item.source === "campus" && raw && table === "confessions") {
+    return { type: "confession", data: raw as unknown as ConfessionWithLikes };
+  }
+  if (item.source === "campus" && raw && table === "events") {
+    return { type: "event", data: raw as unknown as EventWithRSVPs };
+  }
+
+  return {
+    type: "external",
+    data: {
+      id: item.id,
+      source: item.source as ExternalFeedItem["source"],
+      type: item.type === "text" || item.type === "article" ? "article" : item.type as ExternalFeedItem["type"],
+      title: item.content.title ?? "",
+      description: item.content.body ?? undefined,
+      image_url: item.media[0]?.url ?? item.media[0]?.thumbnailUrl ?? undefined,
+      thumbnail_url: item.media[0]?.thumbnailUrl ?? undefined,
+      link: item.urls.original ?? undefined,
+      video_id: item.media[0]?.videoId ?? undefined,
+      published_at: item.timestamps.publishedAt?.toISOString() ?? undefined,
+      source_name: item.author.name ?? item.source,
+      author: item.author.name,
+    },
+  };
+}
+
+function getItemId(item: FeedDisplayItem): string {
+  if (item.type === "external") return item.data.id;
+  return item.data.id;
+}
+
+function getPostId(item: FeedDisplayItem): string | null {
+  if (item.type === "post") return item.data.id;
+  return null;
+}
+
 export default function HomeFeedScreen() {
+  const colors = useTheme();
   const { session } = useSession();
   const { feedKey } = useRefresh();
-  const insets = useSafeAreaInsets();
   const currentUserId = session?.user?.id;
-  const [items, setItems] = useState<FeedItem[]>([]);
+  const [items, setItems] = useState<FeedDisplayItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [feedHasMore, setFeedHasMore] = useState(true);
+  const [emptyLoadCount, setEmptyLoadCount] = useState(0);
 
   const [reactionsMap, setReactionsMap] = useState<Map<string, Reaction[]>>(new Map());
   const [repostedIds, setRepostedIds] = useState<Set<string>>(new Set());
   const [repostCounts, setRepostCounts] = useState<Map<string, number>>(new Map());
   const [commentCounts, setCommentCounts] = useState<Map<string, number>>(new Map());
 
-  const load = useCallback(async () => {
+  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50, minimumViewTime: 300 }).current;
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const loadGenerationRef = useRef(0);
+  const loadingMoreRef = useRef(false);
+  const hasInitiallyLoaded = useRef(false);
+  const composerRef = useRef<ReturnType<typeof createFeedComposer> | null>(null);
+
+  const getComposer = useCallback(() => {
+    if (!currentUserId) return null;
+    if (!composerRef.current) {
+      composerRef.current = createFeedComposer(currentUserId);
+    }
+    return composerRef.current;
+  }, [currentUserId]);
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken<FeedDisplayItem>[] }) => {
+    if (!currentUserId) return;
+
+    const visibleIds: string[] = [];
+    let foundVideo: string | null = null;
+
+    for (const vi of viewableItems) {
+      if (!vi.item) continue;
+      const id = getItemId(vi.item);
+      visibleIds.push(id);
+
+      if (vi.item.type === "external" && vi.item.data.type === "video" && vi.item.data.video_id) {
+        foundVideo = vi.item.data.video_id;
+      }
+    }
+
+    setActiveVideoId(foundVideo);
+
+    const newIds = visibleIds.filter((id) => !seenIdsRef.current.has(id));
+    if (newIds.length > 0) {
+      for (const id of newIds) seenIdsRef.current.add(id);
+      const composer = composerRef.current;
+      if (composer) composer.touchItems(newIds);
+    }
+  }).current;
+
+  const enrichCampusItems = useCallback(async (displayItems: FeedDisplayItem[]) => {
+    if (!currentUserId) return;
+
+    const postIds = displayItems
+      .filter((i) => i.type === "post")
+      .map((i) => i.data.id);
+
+    if (postIds.length === 0) return;
+
+    const [reactionsData, userReposted, commentCountsData] = await Promise.all([
+      fetchReactionsForPosts(postIds),
+      getUserRepostedPostIds(currentUserId),
+      fetchCommentCounts(postIds),
+    ]);
+
+    setReactionsMap(reactionsData);
+    setRepostedIds(userReposted);
+    setCommentCounts(commentCountsData);
+
+    const counts = new Map<string, number>();
+    await Promise.all(
+      postIds.map(async (id) => {
+        const c = await getRepostCount(id);
+        if (c > 0) counts.set(id, c);
+      })
+    );
+    setRepostCounts(counts);
+  }, [currentUserId]);
+
+  const load = useCallback(async (isRefresh = false) => {
+    const gen = ++loadGenerationRef.current;
+    const composer = getComposer();
+    if (!composer) { setLoading(false); setRefreshing(false); return; }
+
+    setEmptyLoadCount(0);
+    setFeedHasMore(true);
+
     try {
       setError(null);
-      const [posts, confessions, events] = await Promise.all([
-        fetchPosts(),
-        fetchConfessions(),
-        fetchUpcomingEvents(),
-      ]);
 
-      const postIds = posts.map((p) => p.id);
-      const [reactionsData, userReposted, commentCountsData] = await Promise.all([
-        fetchReactionsForPosts(postIds),
-        currentUserId ? getUserRepostedPostIds(currentUserId) : Promise.resolve(new Set<string>()),
-        fetchCommentCounts(postIds),
-      ]);
-      setReactionsMap(reactionsData);
-      setRepostedIds(userReposted);
-      setCommentCounts(commentCountsData);
+      const useIncremental = isRefresh && hasInitiallyLoaded.current;
 
-      const counts = new Map<string, number>();
-      await Promise.all(
-        postIds.map(async (id) => {
-          const c = await getRepostCount(id);
-          if (c > 0) counts.set(id, c);
-        })
-      );
-      setRepostCounts(counts);
+      if (useIncremental) {
+        const page = await composer.refresh();
+        if (gen !== loadGenerationRef.current) return;
 
-      type UserFeedItem = { type: "post"; data: PostWithProfile } | { type: "confession"; data: ConfessionWithLikes } | { type: "event"; data: EventWithRSVPs };
-      const userItems: UserFeedItem[] = [
-        ...events.map((e) => ({ type: "event" as const, data: e })),
-        ...posts.map((p) => ({ type: "post" as const, data: p })),
-        ...confessions.map((c) => ({ type: "confession" as const, data: c })),
-      ];
-      userItems.sort((a, b) => {
-        const da = new Date(a.data.created_at).getTime();
-        const db = new Date(b.data.created_at).getTime();
-        return db - da;
-      });
-
-      setItems(userItems as FeedItem[]);
-
-      fetchExternalFeed().then((externalItems) => {
-        if (externalItems.length === 0) return;
-        const externalFeedItems: FeedItem[] = externalItems.map((e) => ({
-          type: "external" as const,
-          data: e,
-        }));
-        setItems((prev) => {
-          const merged = [...prev, ...externalFeedItems];
-          merged.sort((a, b) => {
-            const getTs = (item: FeedItem) => {
-              if (item.type === "external") {
-                return item.data.published_at ? new Date(item.data.published_at).getTime() : 0;
-              }
-              return new Date(item.data.created_at).getTime();
-            };
-            return getTs(b) - getTs(a);
-          });
-          return merged;
+        const displayItems: FeedDisplayItem[] = [];
+        for (const item of page.items) {
+          const display = toDisplayItem(item);
+          if (display) displayItems.push(display);
+        }
+        setItems((prev) => [...displayItems, ...prev]);
+        setFeedHasMore(page.hasMore);
+        await enrichCampusItems(displayItems);
+      } else {
+        const page = await composer.loadInitial((progressiveItems, hasMore) => {
+          if (gen !== loadGenerationRef.current) return;
+          const displayItems: FeedDisplayItem[] = [];
+          for (const item of progressiveItems) {
+            const display = toDisplayItem(item);
+            if (display) displayItems.push(display);
+          }
+          setItems(displayItems);
+          setFeedHasMore(hasMore);
+          enrichCampusItems(displayItems);
         });
-      }).catch(() => {});
+        if (gen !== loadGenerationRef.current) return;
+
+        const displayItems: FeedDisplayItem[] = [];
+        for (const item of page.items) {
+          const display = toDisplayItem(item);
+          if (display) displayItems.push(display);
+        }
+        setItems(displayItems);
+        setFeedHasMore(page.hasMore);
+        await enrichCampusItems(displayItems);
+      }
     } catch (e) {
+      if (gen !== loadGenerationRef.current) return;
       setError(e instanceof Error ? e.message : "Failed to load feed");
     } finally {
       setLoading(false);
       setRefreshing(false);
+      hasInitiallyLoaded.current = true;
     }
-  }, [currentUserId]);
+  }, [getComposer, enrichCampusItems]);
 
   useEffect(() => { load(); }, [feedKey]);
 
-  // Realtime subscriptions — listen for new posts/confessions/events
+  const loadMoreExternal = useCallback(async () => {
+    if (loadingMoreRef.current) return;
+    const composer = getComposer();
+    if (!composer) return;
+
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const gen = loadGenerationRef.current;
+      const page = await composer.loadMore();
+      if (gen !== loadGenerationRef.current) return;
+
+      if (page.items.length > 0) {
+        const newDisplayItems: FeedDisplayItem[] = [];
+        for (const item of page.items) {
+          const display = toDisplayItem(item);
+          if (display) newDisplayItems.push(display);
+        }
+        setItems((prev) => [...prev, ...newDisplayItems]);
+        setEmptyLoadCount(0);
+      } else {
+        setEmptyLoadCount((prev) => {
+          const next = prev + 1;
+          if (next >= 3) setFeedHasMore(false);
+          return next;
+        });
+      }
+    } catch {
+      setEmptyLoadCount((prev) => {
+        const next = prev + 1;
+        if (next >= 3) setFeedHasMore(false);
+        return next;
+      });
+    }
+    finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [getComposer]);
+
+  const onEndReached = useCallback(() => {
+    if (!loading && hasInitiallyLoaded.current && feedHasMore) {
+      loadMoreExternal();
+    }
+  }, [loading, loadMoreExternal, feedHasMore]);
+
   useEffect(() => {
     if (!currentUserId) return;
 
-    const postChannel = supabase
-      .channel("feed:posts")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, async (payload) => {
-        const newPost = payload.new as { id: string };
-        try {
-          const full = await fetchPostById(newPost.id);
-          setItems((prev) => {
-            if (prev.some((i) => i.type === "post" && i.data.id === full.id)) return prev;
-            return [{ type: "post", data: full }, ...prev];
-          });
-        } catch {}
-      })
-      .subscribe();
+    const unsubscribes: (() => void)[] = [];
 
-    const confessionChannel = supabase
-      .channel("feed:confessions")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "confessions" }, async (payload) => {
-        const newConfession = payload.new as { id: string };
-        try {
-          const full = await fetchConfessionById(newConfession.id);
-          setItems((prev) => {
-            if (prev.some((i) => i.type === "confession" && i.data.id === full.id)) return prev;
-            return [{ type: "confession", data: full }, ...prev];
-          });
-        } catch {}
-      })
-      .subscribe();
-
-    const eventChannel = supabase
-      .channel("feed:events")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "events" }, async (payload) => {
-        const newEvent = payload.new as { id: string };
-        try {
-          const { data } = await supabase
-            .from("events")
-            .select("id, title, description, date, time, location, image_url, created_at, user_id, event_rsvps(id, user_id)")
-            .eq("id", newEvent.id)
-            .single();
-          if (data) {
-            setItems((prev) => {
-              if (prev.some((i) => i.type === "event" && i.data.id === data.id)) return prev;
-              return [{ type: "event", data: data as unknown as EventWithRSVPs }, ...prev];
-            });
+    const postsQuery = query(collection(db, "posts"), orderBy("created_at", "desc"), fbLimit(1));
+    unsubscribes.push(
+      onSnapshot(postsQuery, async (snapshot) => {
+        for (const change of snapshot.docChanges()) {
+          if (change.type === "added") {
+            const newPost = { id: change.doc.id, ...change.doc.data() } as { id: string };
+            try {
+              const full = await fetchPostById(newPost.id);
+              setItems((prev) => {
+                if (prev.some((i) => i.type === "post" && i.data.id === full.id)) return prev;
+                return [{ type: "post", data: full }, ...prev];
+              });
+            } catch {}
           }
-        } catch {}
+        }
       })
-      .subscribe();
+    );
 
-    // Cleanup
+    const confessionsQuery = query(collection(db, "confessions"), orderBy("created_at", "desc"), fbLimit(1));
+    unsubscribes.push(
+      onSnapshot(confessionsQuery, async (snapshot) => {
+        for (const change of snapshot.docChanges()) {
+          if (change.type === "added") {
+            const newConfession = { id: change.doc.id, ...change.doc.data() } as { id: string };
+            try {
+              const full = await fetchConfessionById(newConfession.id);
+              setItems((prev) => {
+                if (prev.some((i) => i.type === "confession" && i.data.id === full.id)) return prev;
+                return [{ type: "confession", data: full }, ...prev];
+              });
+            } catch {}
+          }
+        }
+      })
+    );
+
+    const today = new Date().toISOString().split("T")[0];
+    const eventsQuery = query(
+      collection(db, "events"),
+      where("date", ">=", today),
+      orderBy("date", "asc"),
+      fbLimit(1)
+    );
+    unsubscribes.push(
+      onSnapshot(eventsQuery, async (snapshot) => {
+        for (const change of snapshot.docChanges()) {
+          if (change.type === "added") {
+            const eventId = change.doc.id;
+            try {
+              const event = await db_ops.get("events", eventId);
+              if (event) {
+                const eventWithRSVPs = {
+                  ...event,
+                  event_rsvps: (event.rsvps ?? []).map((uid: string) => ({ user_id: uid })),
+                };
+                setItems((prev) => {
+                  if (prev.some((i) => i.type === "event" && i.data.id === eventId)) return prev;
+                  return [{ type: "event", data: eventWithRSVPs as unknown as EventWithRSVPs }, ...prev];
+                });
+              }
+            } catch {}
+          }
+        }
+      })
+    );
+
     return () => {
-      supabase.removeChannel(postChannel);
-      supabase.removeChannel(confessionChannel);
-      supabase.removeChannel(eventChannel);
+      for (const unsub of unsubscribes) unsub();
     };
   }, [currentUserId]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    load();
+    load(true);
   }, [load]);
 
   const handleLikeToggled = useCallback((postId: string, liked: boolean) => {
@@ -254,7 +425,7 @@ export default function HomeFeedScreen() {
     });
   }, [currentUserId]);
 
-  const renderItem = ({ item }: { item: FeedItem }) => {
+  const renderItem = useCallback(({ item }: { item: FeedDisplayItem }) => {
     switch (item.type) {
       case "post":
         return (
@@ -278,9 +449,21 @@ export default function HomeFeedScreen() {
       case "event":
         return <EventCard event={item.data} />;
       case "external":
-        return <ExternalFeedCard item={item.data} />;
+        return <ExternalFeedCard item={item.data} isActiveVideo={item.data.video_id ? item.data.video_id === activeVideoId : undefined} />;
     }
-  };
+  }, [reactionsMap, repostedIds, repostCounts, commentCounts, currentUserId, activeVideoId, handleLikeToggled, handlePostDeleted, handleReactionChanged, handleRepostToggled, handleConfessionLikeToggled, handleConfessionDeleted]);
+
+  const keyExtractor = useCallback((item: FeedDisplayItem) => `${item.type}-${getItemId(item)}`, []);
+
+  const ListFooter = useCallback(() => {
+    if (!loadingMore) return null;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color={colors.primary} />
+        <Text style={styles.footerText}>Loading more...</Text>
+      </View>
+    );
+  }, [loadingMore, colors.primary]);
 
   const openCreator = (mode: "post" | "confession" | "event") => {
     setMenuVisible(false);
@@ -296,23 +479,30 @@ export default function HomeFeedScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+        <View style={styles.safeArea}>
           <View style={styles.titleBar}>
             <Pressable
               onPress={() => router.push("/notifications")}
               style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}
               accessibilityLabel="Notifications"
             >
-              <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+              <Ionicons name="notifications-outline" size={22} color={colors.textOnDark} />
             </Pressable>
             <Text style={styles.headerTitle}>CampusVibe</Text>
+            <Pressable
+              onPress={() => router.push("/search")}
+              style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}
+              accessibilityLabel="Search"
+            >
+              <Ionicons name="search-outline" size={22} color={colors.textOnDark} />
+            </Pressable>
             <Pressable
               onPress={() => setMenuVisible(true)}
               style={({ pressed }) => [styles.fabButton, pressed && styles.pressed]}
               accessibilityLabel="Create post"
               accessibilityRole="button"
             >
-              <Ionicons name="add" size={22} color="#FFFFFF" />
+              <Ionicons name="add" size={22} color={colors.textOnDark} />
             </Pressable>
           </View>
           <FeedSkeleton />
@@ -323,14 +513,14 @@ export default function HomeFeedScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+      <View style={styles.safeArea}>
         <View style={styles.titleBar}>
           <Pressable
             onPress={() => router.push("/notifications")}
             style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}
             accessibilityLabel="Notifications"
           >
-            <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+            <Ionicons name="notifications-outline" size={22} color={colors.textOnDark} />
           </Pressable>
           <Text style={styles.headerTitle}>CampusVibe</Text>
           <Pressable
@@ -342,7 +532,7 @@ export default function HomeFeedScreen() {
             accessibilityLabel="Create post"
             accessibilityRole="button"
           >
-            <Ionicons name="add" size={22} color="#FFFFFF" />
+            <Ionicons name="add" size={22} color={colors.textOnDark} />
           </Pressable>
         </View>
 
@@ -359,7 +549,7 @@ export default function HomeFeedScreen() {
         ) : (
           <FlatList
             data={items}
-            keyExtractor={(item) => `${item.type}-${item.data.id}`}
+            keyExtractor={keyExtractor}
             renderItem={renderItem}
             contentContainerStyle={styles.list}
             ItemSeparatorComponent={null}
@@ -370,7 +560,11 @@ export default function HomeFeedScreen() {
             maxToRenderPerBatch={6}
             windowSize={11}
             removeClippedSubviews={true}
-            getItemLayout={undefined}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            onEndReached={onEndReached}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={ListFooter}
           />
         )}
       </View>
@@ -381,15 +575,15 @@ export default function HomeFeedScreen() {
         animationType="fade"
         onRequestClose={() => setMenuVisible(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
+        <Pressable style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} onPress={() => setMenuVisible(false)}>
           <View style={styles.menuSheet}>
             <Text style={styles.menuTitle}>Create</Text>
             <Pressable
               onPress={() => openCreator("post")}
               style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
             >
-              <View style={[styles.menuIcon, { backgroundColor: "#6C47FF" }]}>
-                <Ionicons name="create-outline" size={20} color="#FFF" />
+              <View style={[styles.menuIcon, { backgroundColor: colors.primary }]}>
+                <Ionicons name="create-outline" size={20} color={colors.textOnDark} />
               </View>
               <Text style={styles.menuLabel}>Post</Text>
               <Text style={styles.menuDesc}>Share something with everyone</Text>
@@ -398,8 +592,8 @@ export default function HomeFeedScreen() {
               onPress={() => openCreator("confession")}
               style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
             >
-              <View style={[styles.menuIcon, { backgroundColor: "#FF9500" }]}>
-                <Ionicons name="eye-off-outline" size={20} color="#FFF" />
+              <View style={[styles.menuIcon, { backgroundColor: colors.warning }]}>
+                <Ionicons name="eye-off-outline" size={20} color={colors.textOnDark} />
               </View>
               <Text style={styles.menuLabel}>Confession</Text>
               <Text style={styles.menuDesc}>Post anonymously</Text>
@@ -408,8 +602,8 @@ export default function HomeFeedScreen() {
               onPress={() => openCreator("event")}
               style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
             >
-              <View style={[styles.menuIcon, { backgroundColor: "#1DB954" }]}>
-                <Ionicons name="calendar-outline" size={20} color="#FFF" />
+              <View style={[styles.menuIcon, { backgroundColor: colors.secondary }]}>
+                <Ionicons name="calendar-outline" size={20} color={colors.textOnDark} />
               </View>
               <Text style={styles.menuLabel}>Event</Text>
               <Text style={styles.menuDesc}>Create a campus event</Text>
@@ -441,12 +635,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     paddingBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-    color: "#FFFFFF",
   },
   headerTitle: {
     fontSize: 24,
@@ -480,10 +668,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
   },
-  loadingText: {
-    fontSize: 15,
-    color: "#71717A",
-  },
   errorText: {
     fontSize: 15,
     textAlign: "center",
@@ -500,13 +684,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#71717A",
   },
+  footerLoader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 20,
+    paddingBottom: 40,
+  },
+  footerText: {
+    fontSize: 13,
+    color: "#71717A",
+  },
   pressed: {
     opacity: 0.7,
   },
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
   menuSheet: {
     borderTopLeftRadius: 24,
@@ -514,7 +709,7 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 56,
     gap: 8,
-    backgroundColor: "#141414",
+    backgroundColor: "#111111",
   },
   menuTitle: {
     fontSize: 17,

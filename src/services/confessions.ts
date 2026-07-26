@@ -1,4 +1,5 @@
-import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
+import { getCurrentUser } from "@/services/firebase";
 import { withRetry } from "@/services/retry";
 import { sanitizeText } from "@/services/sanitize";
 import { checkModeration } from "@/services/moderation";
@@ -8,46 +9,31 @@ import type { ConfessionWithLikes } from "@/services/database.types";
 
 export async function fetchConfessions(): Promise<ConfessionWithLikes[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase
-      .from("confessions")
-      .select(
-        `
-      id,
-      content,
-      image_url,
-      created_at,
-      updated_at,
-      user_id,
-      confession_likes(id, user_id)
-    `
-      )
-      .order("created_at", { ascending: false });
+    const confessions = await db_ops.query("confessions", {
+      orderBy: [{ field: "created_at", direction: "desc" }],
+    });
 
-    if (error) throw error;
-    return (data ?? []) as unknown as ConfessionWithLikes[];
+    return confessions.map((c) => ({
+      ...c,
+      confession_likes: (c.likes ?? []).map((uid: string) => ({ user_id: uid })),
+    })) as unknown as ConfessionWithLikes[];
   });
 }
 
 export async function fetchConfessionById(confessionId: string): Promise<ConfessionWithLikes> {
   return withRetry(async () => {
-    const { data, error } = await supabase
-      .from("confessions")
-      .select(
-        `id, content, image_url, created_at, updated_at, user_id, confession_likes(id, user_id)`
-      )
-      .eq("id", confessionId)
-      .single();
-    if (error) throw error;
-    return data as unknown as ConfessionWithLikes;
+    const c = await db_ops.get("confessions", confessionId);
+    if (!c) throw new Error("Confession not found");
+    return {
+      ...c,
+      confession_likes: (c.likes ?? []).map((uid: string) => ({ user_id: uid })),
+    } as unknown as ConfessionWithLikes;
   });
 }
 
 export async function createConfession(content: string, imageUrl?: string): Promise<void> {
   return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    const user = getCurrentUser();
 
     const { flagged, categories } = await checkModeration(content);
     if (flagged) {
@@ -57,84 +43,42 @@ export async function createConfession(content: string, imageUrl?: string): Prom
       );
     }
 
-    const { error } = await supabase.from("confessions").insert({
-      user_id: user.id,
+    await db_ops.add("confessions", {
+      user_id: user.uid,
       content: sanitizeText(content),
       image_url: imageUrl || null,
+      likes: [],
     });
-    if (error) throw error;
   });
 }
 
 export async function likeConfession(confessionId: string) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+  const user = getCurrentUser();
 
-  const { data: existing } = await supabase
-    .from("confession_likes")
-    .select("id")
-    .eq("confession_id", confessionId)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const confession = await db_ops.get("confessions", confessionId);
+  if (!confession) throw new Error("Confession not found");
 
-  if (existing) return;
+  const currentLikes: string[] = confession.likes ?? [];
+  if (currentLikes.includes(user.uid)) return;
 
-  const { error } = await supabase.from("confession_likes").insert({
-    confession_id: confessionId,
-    user_id: user.id,
-  });
-  if (error) {
-    if (error.code === "23505") return;
-    throw error;
+  await db_ops.addToArray("confessions", confessionId, "likes", user.uid);
+
+  if (confession.user_id !== user.uid) {
+    createNotification(confession.user_id, user.uid, "like", "confession", confessionId);
   }
 
-  const { data: confession } = await supabase
-    .from("confessions")
-    .select("user_id")
-    .eq("id", confessionId)
-    .single();
-
-  if (confession && confession.user_id !== user.id) {
-    createNotification(confession.user_id, user.id, "like", "confession", confessionId);
-  }
-
-  if (confession) {
-    const { count } = await supabase
-      .from("confession_likes")
-      .select("id", { count: "exact", head: true })
-      .eq("confession_id", confessionId);
-
-    if (count && count >= 10 && count < 15) {
-      notifyPopularConfession(confession.user_id, count);
-    }
+  const newCount = currentLikes.length + 1;
+  if (newCount >= 10 && newCount < 15) {
+    notifyPopularConfession(confession.user_id, newCount);
   }
 }
 
 export async function deleteConfession(confessionId: string) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-
-  const { error } = await supabase
-    .from("confessions")
-    .delete()
-    .eq("id", confessionId);
-  if (error) throw error;
+  getCurrentUser();
+  await db_ops.delete("confessions", confessionId);
 }
 
 export async function unlikeConfession(confessionId: string) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-
-  const { error } = await supabase
-    .from("confession_likes")
-    .delete()
-    .eq("confession_id", confessionId)
-    .eq("user_id", user.id);
-  if (error) throw error;
+  const user = getCurrentUser();
+  await db_ops.removeFromArray("confessions", confessionId, "likes", user.uid);
 }

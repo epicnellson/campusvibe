@@ -1,7 +1,9 @@
-import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
+import { getCurrentUser, db, auth } from "@/services/firebase";
 import { withRetry } from "@/services/retry";
 import { sanitizeText } from "@/services/sanitize";
 import { notifyMessage } from "@/services/notifications";
+import { collection, query, where, onSnapshot, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayUnion } from "firebase/firestore";
 import type {
   Channel,
   Message,
@@ -12,34 +14,22 @@ export async function fetchUserChannels(
   userId: string
 ): Promise<(Channel & { members: { user_id: string }[] })[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase
-      .from("channel_members")
-      .select(
-        `
-      channel_id,
-      channels!inner(
-        id,
-        name,
-        type,
-        department,
-        created_at
-      )
-    `
-      )
-      .eq("user_id", userId);
+    const memberships = await db_ops.query("channel_members", {
+      conditions: [{ field: "user_id", op: "==", value: userId }],
+    });
 
-    if (error) throw error;
+    const channelIds = [...new Set(memberships.map((m) => m.channel_id))];
+    const channels = await Promise.all(
+      channelIds.map((id) => db_ops.get("channels", id))
+    );
 
-    const channelList = data?.map((d: any) => d.channels) ?? [];
-
-    // For DM channels, also fetch member names to display as channel name
+    const validChannels = channels.filter(Boolean) as (Channel & { id: string })[];
     const channelsWithMembers = await Promise.all(
-      channelList.map(async (ch: Channel) => {
-        const { data: members } = await supabase
-          .from("channel_members")
-          .select("user_id")
-          .eq("channel_id", ch.id);
-        return { ...ch, members: members ?? [] };
+      validChannels.map(async (ch) => {
+        const members = await db_ops.query("channel_members", {
+          conditions: [{ field: "channel_id", op: "==", value: ch.id }],
+        });
+        return { ...ch, members: members.map((m) => ({ user_id: m.user_id })) };
       })
     );
 
@@ -49,23 +39,24 @@ export async function fetchUserChannels(
 
 export async function fetchMessages(channelId: string): Promise<MessageWithSender[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase
-      .from("messages")
-      .select(
-        `
-      id,
-      content,
-      created_at,
-      channel_id,
-      user_id,
-      sender:user_id(name)
-    `
-      )
-      .eq("channel_id", channelId)
-      .order("created_at", { ascending: true });
+    const messages = await db_ops.query("messages", {
+      conditions: [{ field: "channel_id", op: "==", value: channelId }],
+    });
 
-    if (error) throw error;
-    return (data ?? []) as unknown as MessageWithSender[];
+    messages.sort((a: any, b: any) => {
+      const ta = a.created_at?.seconds ?? a.created_at ?? 0;
+      const tb = b.created_at?.seconds ?? b.created_at ?? 0;
+      return (typeof ta === "number" ? ta : new Date(ta).getTime()) - (typeof tb === "number" ? tb : new Date(tb).getTime());
+    });
+
+    const senderIds = [...new Set(messages.map((m) => m.user_id).filter(Boolean))];
+    const profiles = await Promise.all(senderIds.map((id) => db_ops.get("profiles", id)));
+    const profileMap = new Map(profiles.filter(Boolean).map((p) => [p!.id, p]));
+
+    return messages.map((m) => ({
+      ...m,
+      sender: profileMap.get(m.user_id) ?? null,
+    })) as unknown as MessageWithSender[];
   });
 }
 
@@ -73,78 +64,54 @@ export async function sendMessage(
   channelId: string,
   content: string
 ): Promise<void> {
-  return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+  const user = getCurrentUser();
 
-    const { error } = await supabase.from("messages").insert({
-      channel_id: channelId,
-      user_id: user.id,
-      content: sanitizeText(content),
-    });
-    if (error) throw error;
-
-    // Notify other DM participants
-    const { data: members } = await supabase
-      .from("channel_members")
-      .select("user_id")
-      .eq("channel_id", channelId);
-
-    const otherUserIds = (members ?? [])
-      .map((m) => m.user_id)
-      .filter((uid) => uid !== user.id);
-
-    if (otherUserIds.length > 0) {
-      const { data: sender } = await supabase
-        .from("profiles")
-        .select("name")
-        .eq("id", user.id)
-        .single();
-
-      for (const recipientId of otherUserIds) {
-        notifyMessage(recipientId, sender?.name ?? "Someone", channelId);
-      }
-    }
+  await db_ops.add("messages", {
+    channel_id: channelId,
+    user_id: user.uid,
+    content: sanitizeText(content),
   });
+
+  db_ops.query("channel_members", {
+    conditions: [{ field: "channel_id", op: "==", value: channelId }],
+  }).then((members) => {
+    const otherUserIds = members
+      .map((m) => m.user_id)
+      .filter((uid) => uid !== user.uid);
+    if (otherUserIds.length > 0) {
+      db_ops.get("profiles", user.uid).then((sender) => {
+        for (const recipientId of otherUserIds) {
+          notifyMessage(recipientId, sender?.name ?? "Someone", channelId).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }).catch(() => {});
 }
 
 export function subscribeToMessages(
   channelId: string,
   onMessage: (msg: MessageWithSender) => void
 ) {
-  const subscription = supabase
-    .channel(`messages:${channelId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "messages",
-        filter: `channel_id=eq.${channelId}`,
-      },
-      async (payload) => {
-        const msg = payload.new as Message;
-        // Fetch sender name for the new message
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("name")
-          .eq("id", msg.user_id)
-          .single();
+  const q = query(
+    collection(db, "messages"),
+    where("channel_id", "==", channelId)
+  );
 
+  const unsubscribe = onSnapshot(q, async (snapshot) => {
+    for (const change of snapshot.docChanges()) {
+      if (change.type === "added") {
+        const msg = { id: change.doc.id, ...change.doc.data() } as Message;
+        const profile = await db_ops.get("profiles", msg.user_id);
         const msgWithSender: MessageWithSender = {
           ...msg,
-          sender: profile ?? null,
+          sender: profile as any ?? null,
         };
         onMessage(msgWithSender);
       }
-    )
-    .subscribe();
+    }
+  });
 
-  return () => {
-    subscription.unsubscribe();
-  };
+  return unsubscribe;
 }
 
 export async function joinDefaultChannels(
@@ -152,27 +119,33 @@ export async function joinDefaultChannels(
   department: string
 ): Promise<void> {
   return withRetry(async () => {
-    const { data: channels } = await supabase
-      .from("channels")
-      .select("id, name")
-      .in("type", ["general", "hostel"])
-      .or(
-        `and(type.eq.department,department.eq.${department.replace(/[^a-zA-Z0-9 _-]/g, "")})`
-      );
-
-    if (!channels?.length) return;
-
-    const memberships = channels.map((ch) => ({
-      channel_id: ch.id,
-      user_id: userId,
-    }));
-
-    const { error } = await supabase.from("channel_members").upsert(memberships, {
-      onConflict: "channel_id, user_id",
-      ignoreDuplicates: true,
+    const allChannels = await db_ops.query("channels", {
+      conditions: [
+        {
+          field: "type",
+          op: "in",
+          value: ["general", "hostel"],
+        },
+      ],
     });
 
-    if (error) throw error;
+    const deptChannels = await db_ops.query("channels", {
+      conditions: [
+        { field: "type", op: "==", value: "department" },
+        { field: "department", op: "==", value: department },
+      ],
+    });
+
+    const channelsToJoin = [...allChannels, ...deptChannels];
+    if (!channelsToJoin.length) return;
+
+    for (const ch of channelsToJoin) {
+      const membershipId = `${ch.id}_${userId}`;
+      await db_ops.set("channel_members", membershipId, {
+        channel_id: ch.id,
+        user_id: userId,
+      });
+    }
   });
 }
 
@@ -181,51 +154,520 @@ export async function getOrCreateDMChannel(
   userId2: string
 ): Promise<string> {
   return withRetry(async () => {
-    // Find existing DM channel between these two users
-    const { data: existing } = await supabase.rpc("get_dm_channel", {
-      user1: userId1,
-      user2: userId2,
+    // Deterministic channel ID prevents race condition duplicates
+    const sorted = [userId1, userId2].sort();
+    const deterministicId = `dm_${sorted[0]}_${sorted[1]}`;
+
+    // Check if this DM already exists
+    const existing = await db_ops.get("channels", deterministicId);
+    if (existing) {
+      return deterministicId;
+    }
+
+    // Create with deterministic ID
+    await db_ops.set("channels", deterministicId, {
+      name: "DM",
+      type: "dm",
+      created_at: new Date().toISOString(),
     });
 
-    if (existing) return existing;
+    await Promise.all([
+      db_ops.set("channel_members", `${deterministicId}_${userId1}`, {
+        channel_id: deterministicId,
+        user_id: userId1,
+      }),
+      db_ops.set("channel_members", `${deterministicId}_${userId2}`, {
+        channel_id: deterministicId,
+        user_id: userId2,
+      }),
+    ]);
 
-    // Create new DM channel
-    const { data: channel, error: channelError } = await supabase
-      .from("channels")
-      .insert({
-        name: "DM",
-        type: "dm",
-      })
-      .select("id")
-      .single();
-
-    if (channelError) throw channelError;
-
-    // Add both users
-    const { error: membersError } = await supabase
-      .from("channel_members")
-      .insert([
-        { channel_id: channel.id, user_id: userId1 },
-        { channel_id: channel.id, user_id: userId2 },
-      ]);
-
-    if (membersError) throw membersError;
-
-    return channel.id;
+    return deterministicId;
   });
 }
 
 export async function fetchAllUsers(
   search: string
-): Promise<{ id: string; name: string; department: string }[]> {
+): Promise<{ id: string; name: string; department: string; avatar_url?: string | null; email?: string }[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, name, department")
-      .ilike("name", `%${search}%`)
-      .limit(20);
+    const profiles = await db_ops.query("profiles", {
+      limitCount: 100,
+    });
 
-    if (error) throw error;
-    return data ?? [];
+    const searchLower = search.toLowerCase();
+    return profiles
+      .filter((p) => {
+        const name = p.name?.toLowerCase() ?? "";
+        const email = p.email?.toLowerCase() ?? "";
+        return name.includes(searchLower) || email.includes(searchLower);
+      })
+      .slice(0, 30) as any;
+  });
+}
+
+export async function fetchChannelLastMessage(
+  channelId: string
+): Promise<{ content: string; created_at: string; senderName: string; type?: string } | null> {
+  return withRetry(async () => {
+    const messages = await db_ops.query("messages", {
+      conditions: [{ field: "channel_id", op: "==", value: channelId }],
+    });
+    if (messages.length === 0) return null;
+    messages.sort((a: any, b: any) => {
+      const ta = a.created_at?.seconds ?? a.created_at ?? 0;
+      const tb = b.created_at?.seconds ?? b.created_at ?? 0;
+      return (typeof tb === "number" ? tb : new Date(tb).getTime()) - (typeof ta === "number" ? ta : new Date(ta).getTime());
+    });
+    const msg = messages[0] as any;
+    const sender = await db_ops.get("profiles", msg.user_id);
+    // Normalize timestamp to ISO string
+    let createdAt = msg.created_at ?? "";
+    if (createdAt?.seconds) {
+      createdAt = new Date(createdAt.seconds * 1000).toISOString();
+    } else if (typeof createdAt === "number") {
+      createdAt = new Date(createdAt).toISOString();
+    }
+    return {
+      content: msg.content ?? "",
+      created_at: createdAt,
+      senderName: sender?.name ?? "",
+      type: msg.type ?? "text",
+    };
+  });
+}
+
+export async function fetchUnreadCount(
+  channelId: string,
+  userId: string
+): Promise<number> {
+  return withRetry(async () => {
+    const lastReadKey = `chat_read_${channelId}_${userId}`;
+    const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+    const lastRead = await AsyncStorage.getItem(lastReadKey);
+    if (!lastRead) {
+      const messages = await db_ops.query("messages", {
+        conditions: [{ field: "channel_id", op: "==", value: channelId }],
+      });
+      return messages.filter((m: any) => m.user_id !== userId).length;
+    }
+    const messages = await db_ops.query("messages", {
+      conditions: [
+        { field: "channel_id", op: "==", value: channelId },
+        { field: "created_at", op: ">", value: lastRead },
+      ],
+    });
+    return messages.filter((m: any) => m.user_id !== userId).length;
+  });
+}
+
+export async function markChannelRead(channelId: string, userId: string): Promise<void> {
+  const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+  await AsyncStorage.setItem(`chat_read_${channelId}_${userId}`, new Date().toISOString());
+}
+
+export async function toggleReaction(
+  messageId: string,
+  emoji: string
+): Promise<void> {
+  const user = getCurrentUser();
+  const msgRef = doc(db, "messages", messageId);
+  const msgSnap = await getDoc(msgRef);
+  if (!msgSnap.exists()) return;
+
+  const data = msgSnap.data();
+  const reactions: Record<string, string> = data.reactions ?? {};
+
+  if (reactions[user.uid] === emoji) {
+    delete reactions[user.uid];
+  } else {
+    reactions[user.uid] = emoji;
+  }
+
+  await updateDoc(msgRef, { reactions });
+}
+
+export async function sendReply(
+  channelId: string,
+  content: string,
+  replyToId: string
+): Promise<void> {
+  const user = getCurrentUser();
+  await db_ops.add("messages", {
+    channel_id: channelId,
+    user_id: user.uid,
+    content: sanitizeText(content),
+    reply_to: replyToId,
+  });
+
+  db_ops.query("channel_members", {
+    conditions: [{ field: "channel_id", op: "==", value: channelId }],
+  }).then((members) => {
+    const otherUserIds = members
+      .map((m) => m.user_id)
+      .filter((uid) => uid !== user.uid);
+    if (otherUserIds.length > 0) {
+      db_ops.get("profiles", user.uid).then((sender) => {
+        for (const recipientId of otherUserIds) {
+          notifyMessage(recipientId, sender?.name ?? "Someone", channelId).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }).catch(() => {});
+}
+
+export async function fetchChannelMembers(
+  channelId: string
+): Promise<string[]> {
+  const members = await db_ops.query("channel_members", {
+    conditions: [{ field: "channel_id", op: "==", value: channelId }],
+  });
+  return members.map((m) => m.user_id);
+}
+
+export async function fetchUserProfiles(
+  userIds: string[]
+): Promise<Map<string, { name: string; avatar_url: string | null }>> {
+  const profiles = await Promise.all(
+    userIds.map((id) => db_ops.get("profiles", id))
+  );
+  const map = new Map<string, { name: string; avatar_url: string | null }>();
+  for (const p of profiles) {
+    if (p) map.set(p.id, { name: p.name, avatar_url: p.avatar_url });
+  }
+  return map;
+}
+
+export type ChannelUpdate = {
+  channelId: string;
+  lastMessage: string;
+  lastMessageTime: string;
+  type?: string;
+};
+
+export function subscribeToChannelUpdates(
+  channelIds: string[],
+  onUpdate: (update: ChannelUpdate) => void
+): () => void {
+  const unsubscribes: (() => void)[] = [];
+
+  for (const channelId of channelIds) {
+    const q = query(
+      collection(db, "messages"),
+      where("channel_id", "==", channelId)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as any[];
+      docs.sort((a: any, b: any) => {
+        const ta = a.created_at?.seconds ?? a.created_at ?? 0;
+        const tb = b.created_at?.seconds ?? b.created_at ?? 0;
+        return (typeof tb === "number" ? tb : new Date(tb).getTime()) - (typeof ta === "number" ? ta : new Date(ta).getTime());
+      });
+      if (docs.length > 0) {
+        const latest = docs[0];
+        onUpdate({
+          channelId,
+          lastMessage: latest.content ?? "",
+          lastMessageTime: latest.created_at ?? "",
+          type: latest.type ?? "text",
+        });
+      }
+    });
+
+    unsubscribes.push(unsubscribe);
+  }
+
+  return () => unsubscribes.forEach((unsub) => unsub());
+}
+
+export async function sendImageMessage(
+  channelId: string,
+  content: string,
+  mediaUrl: string
+): Promise<void> {
+  const user = getCurrentUser();
+  await db_ops.add("messages", {
+    channel_id: channelId,
+    user_id: user.uid,
+    content: sanitizeText(content || "📷 Photo"),
+    type: "image",
+    media_url: mediaUrl,
+  });
+
+  db_ops.query("channel_members", {
+    conditions: [{ field: "channel_id", op: "==", value: channelId }],
+  }).then((members) => {
+    const otherUserIds = members
+      .map((m) => m.user_id)
+      .filter((uid) => uid !== user.uid);
+    if (otherUserIds.length > 0) {
+      db_ops.get("profiles", user.uid).then((sender) => {
+        for (const recipientId of otherUserIds) {
+          notifyMessage(recipientId, sender?.name ?? "Someone", channelId).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }).catch(() => {});
+}
+
+export async function sendFileMessage(
+  channelId: string,
+  fileName: string,
+  fileUrl: string,
+  fileSize?: number
+): Promise<void> {
+  const user = getCurrentUser();
+  await db_ops.add("messages", {
+    channel_id: channelId,
+    user_id: user.uid,
+    content: sanitizeText(`📎 ${fileName}`),
+    type: "file",
+    media_url: fileUrl,
+    file_name: fileName,
+    file_size: fileSize,
+  });
+
+  db_ops.query("channel_members", {
+    conditions: [{ field: "channel_id", op: "==", value: channelId }],
+  }).then((members) => {
+    const otherUserIds = members
+      .map((m) => m.user_id)
+      .filter((uid) => uid !== user.uid);
+    if (otherUserIds.length > 0) {
+      db_ops.get("profiles", user.uid).then((sender) => {
+        for (const recipientId of otherUserIds) {
+          notifyMessage(recipientId, sender?.name ?? "Someone", channelId).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }).catch(() => {});
+}
+
+export async function sendViewOnceMessage(
+  channelId: string,
+  content: string,
+  mediaUrl?: string,
+  type: "text" | "image" = "text"
+): Promise<void> {
+  const user = getCurrentUser();
+  await db_ops.add("messages", {
+    channel_id: channelId,
+    user_id: user.uid,
+    content: sanitizeText(content),
+    type: "view_once",
+    media_url: mediaUrl,
+    viewed: false,
+  });
+
+  db_ops.query("channel_members", {
+    conditions: [{ field: "channel_id", op: "==", value: channelId }],
+  }).then((members) => {
+    const otherUserIds = members
+      .map((m) => m.user_id)
+      .filter((uid) => uid !== user.uid);
+    if (otherUserIds.length > 0) {
+      db_ops.get("profiles", user.uid).then((sender) => {
+        for (const recipientId of otherUserIds) {
+          notifyMessage(recipientId, sender?.name ?? "Someone", channelId).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }).catch(() => {});
+}
+
+export async function markViewOnce(messageId: string): Promise<void> {
+  const msgRef = doc(db, "messages", messageId);
+  await updateDoc(msgRef, { viewed: true });
+}
+
+export async function editMessage(messageId: string, newContent: string): Promise<void> {
+  const msgRef = doc(db, "messages", messageId);
+  await updateDoc(msgRef, {
+    content: sanitizeText(newContent),
+    edited: true,
+    edited_at: new Date().toISOString(),
+  });
+}
+
+export async function deleteMessageForEveryone(messageId: string): Promise<void> {
+  const msgRef = doc(db, "messages", messageId);
+  await deleteDoc(msgRef);
+}
+
+export async function pinMessage(channelId: string, messageId: string): Promise<void> {
+  const user = getCurrentUser();
+  const pinId = `${channelId}_${messageId}`;
+  await db_ops.set("pinned_messages", pinId, {
+    channel_id: channelId,
+    message_id: messageId,
+    pinned_by: user.uid,
+    created_at: new Date().toISOString(),
+  });
+}
+
+export async function unpinMessage(channelId: string, messageId: string): Promise<void> {
+  const pinId = `${channelId}_${messageId}`;
+  await db_ops.delete("pinned_messages", pinId);
+}
+
+export async function fetchPinnedMessages(channelId: string): Promise<{ id: string; message_id: string; pinned_by: string }[]> {
+  const pins = await db_ops.query("pinned_messages", {
+    conditions: [{ field: "channel_id", op: "==", value: channelId }],
+  });
+  return pins as any;
+}
+
+export async function forwardMessage(messageId: string, targetChannelId: string): Promise<void> {
+  const user = getCurrentUser();
+  const msgSnap = await getDoc(doc(db, "messages", messageId));
+  if (!msgSnap.exists()) return;
+  const msgData = msgSnap.data();
+  await db_ops.add("messages", {
+    channel_id: targetChannelId,
+    user_id: user.uid,
+    content: msgData.content,
+    type: msgData.type ?? "text",
+    media_url: msgData.media_url ?? null,
+    file_name: msgData.file_name ?? null,
+    file_size: msgData.file_size ?? null,
+    voice_url: msgData.voice_url ?? null,
+    voice_duration: msgData.voice_duration ?? null,
+  });
+}
+
+export async function blockUser(blockedId: string): Promise<void> {
+  const user = getCurrentUser();
+  const blockId = `${user.uid}_${blockedId}`;
+  await db_ops.set("blocked_users", blockId, {
+    blocker_id: user.uid,
+    blocked_id: blockedId,
+    created_at: new Date().toISOString(),
+  });
+}
+
+export async function unblockUser(blockedId: string): Promise<void> {
+  const user = getCurrentUser();
+  const blockId = `${user.uid}_${blockedId}`;
+  await db_ops.delete("blocked_users", blockId);
+}
+
+export async function isBlocked(blockedId: string): Promise<boolean> {
+  const user = getCurrentUser();
+  if (!user) return false;
+  const blockId = `${user.uid}_${blockedId}`;
+  const blockDoc = await db_ops.get("blocked_users", blockId);
+  return !!blockDoc;
+}
+
+export async function getBlockedUserIds(): Promise<string[]> {
+  const user = getCurrentUser();
+  if (!user) return [];
+  const blocks = await db_ops.query("blocked_users", {
+    conditions: [{ field: "blocker_id", op: "==", value: user.uid }],
+  });
+  return blocks.map((b: any) => b.blocked_id);
+}
+
+export async function markSeen(messageId: string): Promise<void> {
+  const user = getCurrentUser();
+  if (!user) return;
+  const msgRef = doc(db, "messages", messageId);
+  await updateDoc(msgRef, {
+    seen_by: arrayUnion(user.uid),
+  });
+}
+
+export async function updateOnlineStatus(): Promise<void> {
+  const user = getCurrentUser();
+  if (!user) return;
+  await db_ops.set("online_status", user.uid, {
+    last_seen: new Date().toISOString(),
+    userId: user.uid,
+  });
+}
+
+export async function getOnlineStatus(userId: string): Promise<{ last_seen: string } | null> {
+  const status = await db_ops.get("online_status", userId);
+  return status as any;
+}
+
+export function subscribeToOnlineStatus(
+  userId: string,
+  callback: (online: boolean) => void
+): () => void {
+  const statusRef = doc(db, "online_status", userId);
+  return onSnapshot(statusRef, (snap) => {
+    const data = snap.data();
+    if (!data?.last_seen) {
+      callback(false);
+      return;
+    }
+    const lastSeen = new Date(data.last_seen).getTime();
+    const now = Date.now();
+    callback(now - lastSeen < 2 * 60 * 1000);
+  });
+}
+
+export async function reportUser(targetUserId: string, reason: string): Promise<void> {
+  const user = getCurrentUser();
+  await db_ops.add("reports", {
+    content_id: targetUserId,
+    content_type: "user",
+    reason,
+    reporter_id: user.uid,
+    target_user_id: targetUserId,
+  });
+}
+
+export async function reportMessage(messageId: string, reason: string, channelOwnerId: string): Promise<void> {
+  const user = getCurrentUser();
+  await db_ops.add("reports", {
+    content_id: messageId,
+    content_type: "message",
+    reason,
+    reporter_id: user.uid,
+    target_user_id: channelOwnerId,
+  });
+}
+
+export async function sendVoiceMessage(
+  channelId: string,
+  voiceUrl: string,
+  duration: number
+): Promise<void> {
+  const user = getCurrentUser();
+  await db_ops.add("messages", {
+    channel_id: channelId,
+    user_id: user.uid,
+    content: "🎙️ Voice message",
+    type: "voice",
+    voice_url: voiceUrl,
+    voice_duration: duration,
+  });
+
+  db_ops.query("channel_members", {
+    conditions: [{ field: "channel_id", op: "==", value: channelId }],
+  }).then((members) => {
+    const otherUserIds = members
+      .map((m) => m.user_id)
+      .filter((uid) => uid !== user.uid);
+    if (otherUserIds.length > 0) {
+      db_ops.get("profiles", user.uid).then((sender) => {
+        for (const recipientId of otherUserIds) {
+          notifyMessage(recipientId, sender?.name ?? "Someone", channelId).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }).catch(() => {});
+}
+
+export async function deleteMessageForMe(messageId: string): Promise<void> {
+  const user = getCurrentUser();
+  const msgRef = doc(db, "messages", messageId);
+  await updateDoc(msgRef, {
+    [`deleted_for_${user.uid}`]: true,
   });
 }

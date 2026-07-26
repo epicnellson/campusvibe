@@ -1,26 +1,12 @@
 /**
- * Auth flow tests
- *
- * Tests:
- * - Email domain validation (university email only)
- * - OTP send + verify
- * - Session persistence check
+ * Auth flow tests — Firebase Email Link
  */
 
-import { validateEmailDomain, sendOTP, verifyOTP } from "@/services/auth";
+import { validateEmailDomain, sendMagicLink, completeEmailLinkSignIn } from "@/services/auth";
+import { auth } from "@/services/firebase";
+import { sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
 
-// Mock supabase
-const mockSignInWithOtp = jest.fn();
-const mockVerifyOtp = jest.fn();
-
-jest.mock("@/services/supabase", () => ({
-  supabase: {
-    auth: {
-      signInWithOtp: (...args: unknown[]) => mockSignInWithOtp(...args),
-      verifyOtp: (...args: unknown[]) => mockVerifyOtp(...args),
-    },
-  },
-}));
+jest.mock("firebase/auth");
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -41,58 +27,54 @@ describe("validateEmailDomain", () => {
   });
 
   it("returns error for invalid email without domain", () => {
-    const result = validateEmailDomain("invalid");
-    expect(result).toBe("Invalid email address");
+    expect(validateEmailDomain("invalid")).toBe("Invalid email address");
   });
 
   it("handles empty email", () => {
-    const result = validateEmailDomain("");
-    expect(result).toBe("Invalid email address");
+    expect(validateEmailDomain("")).toBe("Invalid email address");
   });
 });
 
-describe("sendOTP", () => {
-  it("calls supabase auth signInWithOtp with email", async () => {
-    mockSignInWithOtp.mockResolvedValueOnce({ error: null });
+describe("sendMagicLink", () => {
+  it("calls Firebase sendSignInLinkToEmail with email and actionCodeSettings", async () => {
+    (sendSignInLinkToEmail as jest.Mock).mockResolvedValueOnce(undefined);
 
-    await sendOTP("test@university.edu");
+    await sendMagicLink("test@university.edu");
 
-    expect(mockSignInWithOtp).toHaveBeenCalledWith({
-      email: "test@university.edu",
+    expect(sendSignInLinkToEmail).toHaveBeenCalledWith(auth, "test@university.edu", {
+      url: expect.stringContaining("auth/callback"),
+      handleCodeInApp: true,
     });
   });
 
-  it("throws if supabase returns error", async () => {
-    mockSignInWithOtp.mockResolvedValueOnce({
-      error: new Error("Rate limit exceeded"),
-    });
+  it("throws if Firebase returns error", async () => {
+    (sendSignInLinkToEmail as jest.Mock).mockRejectedValueOnce(
+      new Error("Rate limit exceeded")
+    );
 
-    await expect(sendOTP("test@university.edu")).rejects.toThrow(
+    await expect(sendMagicLink("test@university.edu")).rejects.toThrow(
       "Rate limit exceeded"
     );
   });
 });
 
-describe("verifyOTP", () => {
-  it("calls supabase auth verifyOtp with email and token", async () => {
-    mockVerifyOtp.mockResolvedValueOnce({ error: null });
-
-    await verifyOTP("test@university.edu", "123456");
-
-    expect(mockVerifyOtp).toHaveBeenCalledWith({
-      email: "test@university.edu",
-      token: "123456",
-      type: "email",
+describe("completeEmailLinkSignIn", () => {
+  it("calls Firebase signInWithEmailLink with email and link", async () => {
+    (isSignInWithEmailLink as jest.Mock).mockReturnValueOnce(true);
+    (signInWithEmailLink as jest.Mock).mockResolvedValueOnce({
+      user: { uid: "user-1", email: "test@university.edu" },
     });
+
+    await completeEmailLinkSignIn("test@university.edu", "https://example.com/...");
+
+    expect(signInWithEmailLink).toHaveBeenCalledWith(auth, "test@university.edu", "https://example.com/...");
   });
 
-  it("throws if verification fails", async () => {
-    mockVerifyOtp.mockResolvedValueOnce({
-      error: new Error("Invalid or expired token"),
-    });
+  it("throws if link is invalid", async () => {
+    (isSignInWithEmailLink as jest.Mock).mockReturnValueOnce(false);
 
     await expect(
-      verifyOTP("test@university.edu", "000000")
-    ).rejects.toThrow("Invalid or expired token");
+      completeEmailLinkSignIn("test@university.edu", "https://invalid-link.com")
+    ).rejects.toThrow("Invalid sign-in link");
   });
 });

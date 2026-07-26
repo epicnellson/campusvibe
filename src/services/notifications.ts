@@ -1,4 +1,5 @@
-import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
+import { auth } from "@/services/firebase";
 import type { NotificationPreferences } from "@/services/database.types";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
@@ -15,9 +16,7 @@ async function sendExpoPush(msg: ExpoPushMessage): Promise<void> {
   try {
     const res = await fetch(EXPO_PUSH_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(msg),
     });
     if (!res.ok) {
@@ -30,47 +29,26 @@ async function sendExpoPush(msg: ExpoPushMessage): Promise<void> {
 }
 
 export async function registerPushToken(token: string): Promise<void> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = auth.currentUser;
   if (!user) return;
-
-  await supabase.from("push_tokens").upsert(
-    { user_id: user.id, token },
-    { onConflict: "user_id" }
-  );
+  await db_ops.set("push_tokens", user.uid, { user_id: user.uid, token });
 }
 
 export async function getNotificationPreferences(): Promise<NotificationPreferences | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = auth.currentUser;
   if (!user) return null;
-
-  const { data } = await supabase
-    .from("profiles")
-    .select("notification_preferences")
-    .eq("id", user.id)
-    .single();
-
-  return (data?.notification_preferences as NotificationPreferences) ?? null;
+  const profile = await db_ops.get("profiles", user.uid);
+  return (profile?.notification_preferences as NotificationPreferences) ?? null;
 }
 
 export async function updateNotificationPreferences(
   prefs: Partial<NotificationPreferences>
 ): Promise<void> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = auth.currentUser;
   if (!user) return;
-
   const current = await getNotificationPreferences();
   const merged = { ...current, ...prefs };
-
-  await supabase
-    .from("profiles")
-    .update({ notification_preferences: merged })
-    .eq("id", user.id);
+  await db_ops.update("profiles", user.uid, { notification_preferences: merged });
 }
 
 export async function notifyPostLike(
@@ -79,22 +57,11 @@ export async function notifyPostLike(
   postId: string
 ): Promise<void> {
   if (!postOwnerId) return;
-
-  const { data: prefs } = await supabase
-    .from("profiles")
-    .select("notification_preferences")
-    .eq("id", postOwnerId)
-    .single();
-
-  const prefsData = prefs?.notification_preferences as NotificationPreferences | undefined;
+  const profile = await db_ops.get("profiles", postOwnerId);
+  const prefsData = profile?.notification_preferences as NotificationPreferences | undefined;
   if (!prefsData?.likes) return;
 
-  const { data: tokenData } = await supabase
-    .from("push_tokens")
-    .select("token")
-    .eq("user_id", postOwnerId)
-    .maybeSingle();
-
+  const tokenData = await db_ops.get("push_tokens", postOwnerId);
   if (!tokenData?.token) return;
 
   await sendExpoPush({
@@ -111,22 +78,11 @@ export async function notifyMessage(
   channelId: string
 ): Promise<void> {
   if (!recipientId) return;
-
-  const { data: prefs } = await supabase
-    .from("profiles")
-    .select("notification_preferences")
-    .eq("id", recipientId)
-    .single();
-
-  const prefsData = prefs?.notification_preferences as NotificationPreferences | undefined;
+  const profile = await db_ops.get("profiles", recipientId);
+  const prefsData = profile?.notification_preferences as NotificationPreferences | undefined;
   if (!prefsData?.messages) return;
 
-  const { data: tokenData } = await supabase
-    .from("push_tokens")
-    .select("token")
-    .eq("user_id", recipientId)
-    .maybeSingle();
-
+  const tokenData = await db_ops.get("push_tokens", recipientId);
   if (!tokenData?.token) return;
 
   await sendExpoPush({
@@ -141,17 +97,7 @@ export async function notifyNewEvent(
   eventTitle: string,
   eventId: string
 ): Promise<void> {
-  // Get all users who have new_events enabled and have a push token
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select(
-      `
-      id,
-      notification_preferences
-    `
-    );
-
-  if (!profiles?.length) return;
+  const profiles = await db_ops.query("profiles");
 
   const eligibleUserIds = profiles
     .filter((p) => {
@@ -162,25 +108,24 @@ export async function notifyNewEvent(
 
   if (!eligibleUserIds.length) return;
 
-  const { data: tokens } = await supabase
-    .from("push_tokens")
-    .select("token")
-    .in("user_id", eligibleUserIds);
+  const tokens = await Promise.all(
+    eligibleUserIds.map((id) => db_ops.get("push_tokens", id))
+  );
 
-  if (!tokens?.length) return;
+  const validTokens = tokens.filter(Boolean).map((t) => t!.token);
+  if (!validTokens.length) return;
 
-  // Expo allows batching up to 100 per request
   const batchSize = 100;
-  for (let i = 0; i < tokens.length; i += batchSize) {
-    const batch = tokens.slice(i, i + batchSize).map((t) => ({
-      to: t.token,
+  for (let i = 0; i < validTokens.length; i += batchSize) {
+    const batch = validTokens.slice(i, i + batchSize).map((t) => ({
+      to: t,
       title: "New Event",
       body: `${eventTitle} has been posted!`,
       data: { type: "event", eventId },
       sound: "default" as const,
     }));
     try {
-      await fetch("https://exp.host/--/api/v2/push/send", {
+      await fetch(EXPO_PUSH_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(batch),
@@ -196,22 +141,11 @@ export async function notifyPopularConfession(
   likeCount: number
 ): Promise<void> {
   if (!ownerId) return;
-
-  const { data: prefs } = await supabase
-    .from("profiles")
-    .select("notification_preferences")
-    .eq("id", ownerId)
-    .single();
-
-  const prefsData = prefs?.notification_preferences as NotificationPreferences | undefined;
+  const profile = await db_ops.get("profiles", ownerId);
+  const prefsData = profile?.notification_preferences as NotificationPreferences | undefined;
   if (!prefsData?.popular_confessions) return;
 
-  const { data: tokenData } = await supabase
-    .from("push_tokens")
-    .select("token")
-    .eq("user_id", ownerId)
-    .maybeSingle();
-
+  const tokenData = await db_ops.get("push_tokens", ownerId);
   if (!tokenData?.token) return;
 
   await sendExpoPush({

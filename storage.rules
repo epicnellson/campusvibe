@@ -1,0 +1,66 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Helper functions ──────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(pathUserId) {
+      return isAuthenticated() && request.auth.uid == pathUserId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        firestore.get(/databases/(default)/documents/profiles/$(request.auth.uid)).data.is_admin == true;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isPdf() {
+      return request.resource.contentType == 'application/pdf';
+    }
+
+    function isUnder5MB() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // ── profile-photos ────────────────────────────────
+    match /profile-photos/{userId}/{allPaths=**} {
+      // Anyone can view profile photos
+      allow read: if isAuthenticated();
+      // Owner can upload their own profile photo (image only, <5MB)
+      allow create: if isOwner(userId) && isImage() && isUnder5MB();
+      allow update: if isOwner(userId) && isImage() && isUnder5MB();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // ── post-images ───────────────────────────────────
+    match /post-images/{postId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      // Any verified user can upload post images
+      allow create: if isAuthenticated() && isImage() && isUnder5MB();
+      allow delete: if isAuthenticated() || isAdmin();
+    }
+
+    // ── listing-photos ────────────────────────────────
+    match /listing-photos/{listingId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isImage() && isUnder5MB();
+      allow delete: if isAuthenticated() || isAdmin();
+    }
+
+    // ── student-id-verification ───────────────────────
+    match /student-id-verification/{userId}/{allPaths=**} {
+      // Owner can read their own docs; admin can read all
+      allow read: if isOwner(userId) || isAdmin();
+      // Owner can upload their student ID (image or PDF, <5MB)
+      allow create: if isOwner(userId) && (isImage() || isPdf()) && isUnder5MB();
+      // Admin can delete (to reject)
+      allow delete: if isAdmin();
+    }
+  }
+}

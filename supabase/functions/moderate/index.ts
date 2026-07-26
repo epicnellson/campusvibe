@@ -36,7 +36,7 @@ export const fetch = async (req: Request) => {
     return Response.json({ error: "Missing content" }, { status: 400, headers: CORS_HEADERS })
   }
 
-  const apiKey = Deno.env.get("EXPO_PUBLIC_OPENAI_API_KEY")
+  const apiKey = Deno.env.get("OPENAI_API_KEY")
   if (!apiKey) {
     return Response.json({ flagged: false, categories: [] }, { headers: CORS_HEADERS })
   }

@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/themed-text";
 import { useTheme } from "@/hooks/use-theme";
-import { spacing, borderRadius } from "@/theme";
+import { spacing } from "@/theme";
 
 type IoniconsName = keyof typeof Ionicons.glyphMap;
 
@@ -18,10 +18,11 @@ const TAB_ICONS: { active: IoniconsName; inactive: IoniconsName }[] = [
   { active: "home", inactive: "home-outline" },
   { active: "chatbubbles", inactive: "chatbubbles-outline" },
   { active: "storefront", inactive: "storefront-outline" },
+  { active: "search", inactive: "search-outline" },
   { active: "person", inactive: "person-outline" },
 ];
 
-const TAB_LABELS = ["Feed", "Chats", "Marketplace", "Profile"];
+const TAB_LABELS = ["Feed", "Chats", "Market", "Search", "Profile"];
 
 const FALLBACK_BG = "#111111";
 const FALLBACK_PRIMARY = "#6C47FF";
@@ -128,11 +129,12 @@ const styles = StyleSheet.create({
   },
   container: {
     flexDirection: "row",
+    alignItems: "center",
     borderRadius: 28,
     borderWidth: StyleSheet.hairlineWidth,
     marginHorizontal: 16,
     paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 6,
     boxShadow: "0 6px 16px rgba(108, 71, 255, 0.25)",
     elevation: 10,
   },

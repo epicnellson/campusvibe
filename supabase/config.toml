@@ -20,6 +20,9 @@ import_map = "./import_map.json"
 verify_jwt = false
 import_map = "./import_map.json"
 
+[functions.feed-proxy]
+verify_jwt = false
+
 [auth]
 enabled = true
 site_url = "http://localhost:8081"

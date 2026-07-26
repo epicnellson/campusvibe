@@ -5,7 +5,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Button } from "@/components/ui/button";
-import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
+import { spacing, borderRadius, fontSize, fontWeight } from "@/theme";
+import { useTheme } from "@/hooks/use-theme";
 import { useProfile } from "@/hooks/use-profile";
 import { useSession } from "@/hooks/use-session";
 import { uploadStudentId, type StudentDocumentType } from "@/services/storage";
@@ -18,7 +19,187 @@ const DOCUMENT_TYPES: { value: StudentDocumentType; label: string; icon: string 
   { value: "other", label: "Other University Document", icon: "🎓" },
 ];
 
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  safeArea: {
+    flex: 1,
+    maxWidth: 800,
+    width: "100%",
+  },
+  wrapper: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    justifyContent: "flex-start",
+    gap: spacing.lg,
+    paddingTop: spacing.xl,
+  },
+  centerContent: {
+    gap: spacing.md,
+    alignItems: "center",
+    width: "100%",
+  },
+  title: {
+    fontSize: fontSize.xxl,
+    fontWeight: fontWeight.bold,
+    lineHeight: 34,
+    textAlign: "center",
+  },
+  subtitle: {
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  docTypeContainer: {
+    width: "100%",
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  docTypeLabel: {
+    fontSize: fontSize.sm,
+    marginBottom: spacing.xs,
+  },
+  docTypeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: "#3A3A3A",
+    gap: spacing.sm,
+    backgroundColor: "#121212",
+  },
+  docTypeRowSelected: {
+    borderColor: "#6C47FF",
+    backgroundColor: "#8B6EFF",
+  },
+  docTypeIcon: {
+    fontSize: 18,
+  },
+  docTypeText: {
+    flex: 1,
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+  },
+  docTypeCheck: {
+    fontSize: 16,
+    color: "#6C47FF",
+  },
+  successIcon: {
+    fontSize: 48,
+    textAlign: "center",
+    color: "#34C759",
+  },
+  uploadBox: {
+    width: "100%",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  uploadArea: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.xl * 2 + 8,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    borderColor: "#3A3A3A",
+    borderStyle: "dashed",
+    gap: spacing.sm,
+    overflow: "visible",
+  },
+  cameraIcon: {
+    fontSize: 40,
+    lineHeight: 48,
+  },
+  uploadLabel: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    textAlign: "center",
+  },
+  uploadHint: {
+    fontSize: fontSize.sm,
+    textAlign: "center",
+  },
+  photoButton: {
+    width: "100%",
+    alignItems: "center",
+    paddingVertical: spacing.md + 4,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: "#3A3A3A",
+    minHeight: 48,
+  },
+  photoButtonText: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: "#6C47FF",
+  },
+  previewCard: {
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: "#3A3A3A",
+    backgroundColor: "#121212",
+    width: "100%",
+  },
+  previewImage: {
+    width: 280,
+    height: 180,
+    borderRadius: borderRadius.md,
+  },
+  removeButton: {
+    paddingVertical: spacing.xs,
+  },
+  removeText: {
+    fontSize: fontSize.sm,
+    textDecorationLine: "underline",
+  },
+  progressContainer: {
+    gap: spacing.xs,
+    alignItems: "center",
+  },
+  progressTrack: {
+    width: "100%",
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#2A2A2A",
+    overflow: "hidden",
+  },
+  progressBar: {
+    height: "100%",
+    backgroundColor: "#6C47FF",
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: fontSize.xs,
+  },
+  skipButton: {
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+  },
+  skipText: {
+    fontSize: fontSize.md,
+  },
+  error: {
+    color: "#FF3B30",
+    fontSize: fontSize.sm,
+    textAlign: "center",
+  },
+});
+
 export default function VerifyStudentIdScreen() {
+  const colors = useTheme();
   const { session, isLoading } = useSession();
   const { profile, isLoading: profileLoading } = useProfile();
 
@@ -43,8 +224,8 @@ export default function VerifyStudentIdScreen() {
   if (isLoading || profileLoading) {
     return (
       <View style={styles.container}>
-        <View style={{ width: 200, height: 20, borderRadius: 10, backgroundColor: "#222" }} />
-        <View style={{ width: "80%", height: 180, borderRadius: 16, backgroundColor: "#222", marginTop: 24 }} />
+        <View style={{ width: 200, height: 20, borderRadius: 10, backgroundColor: colors.skeleton }} />
+        <View style={{ width: "80%", height: 180, borderRadius: 16, backgroundColor: colors.skeleton, marginTop: 24 }} />
       </View>
     );
   }
@@ -268,181 +449,3 @@ export default function VerifyStudentIdScreen() {
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  safeArea: {
-    flex: 1,
-    maxWidth: 800,
-    width: "100%",
-  },
-  wrapper: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: spacing.lg,
-    justifyContent: "flex-start",
-    gap: spacing.lg,
-    paddingTop: spacing.xl,
-  },
-  centerContent: {
-    gap: spacing.md,
-    alignItems: "center",
-    width: "100%",
-  },
-  title: {
-    fontSize: fontSize.xxl,
-    fontWeight: fontWeight.bold,
-    lineHeight: 34,
-    textAlign: "center",
-  },
-  subtitle: {
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  docTypeContainer: {
-    width: "100%",
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-  },
-  docTypeLabel: {
-    fontSize: fontSize.sm,
-    marginBottom: spacing.xs,
-  },
-  docTypeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    gap: spacing.sm,
-    backgroundColor: colors.backgroundElement,
-  },
-  docTypeRowSelected: {
-    borderColor: colors.primary,
-    backgroundColor: "rgba(108, 71, 255, 0.1)",
-  },
-  docTypeIcon: {
-    fontSize: 18,
-  },
-  docTypeText: {
-    flex: 1,
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-  },
-  docTypeCheck: {
-    fontSize: 16,
-    color: colors.primary,
-  },
-  successIcon: {
-    fontSize: 48,
-    textAlign: "center",
-    color: colors.success,
-  },
-  uploadBox: {
-    width: "100%",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  uploadArea: {
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.xl * 2 + 8,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.lg,
-    borderWidth: 2,
-    borderColor: colors.borderLight,
-    borderStyle: "dashed",
-    gap: spacing.sm,
-    overflow: "visible",
-  },
-  cameraIcon: {
-    fontSize: 40,
-    lineHeight: 48,
-  },
-  uploadLabel: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
-    textAlign: "center",
-  },
-  uploadHint: {
-    fontSize: fontSize.sm,
-    textAlign: "center",
-  },
-  photoButton: {
-    width: "100%",
-    alignItems: "center",
-    paddingVertical: spacing.md + 4,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    minHeight: 48,
-  },
-  photoButtonText: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-    color: colors.primary,
-  },
-  previewCard: {
-    alignItems: "center",
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    backgroundColor: colors.backgroundElement,
-    width: "100%",
-  },
-  previewImage: {
-    width: 280,
-    height: 180,
-    borderRadius: borderRadius.md,
-  },
-  removeButton: {
-    paddingVertical: spacing.xs,
-  },
-  removeText: {
-    fontSize: fontSize.sm,
-    textDecorationLine: "underline",
-  },
-  progressContainer: {
-    gap: spacing.xs,
-    alignItems: "center",
-  },
-  progressTrack: {
-    width: "100%",
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: colors.primary,
-    borderRadius: 2,
-  },
-  progressText: {
-    fontSize: fontSize.xs,
-  },
-  skipButton: {
-    alignItems: "center",
-    paddingVertical: spacing.sm,
-  },
-  skipText: {
-    fontSize: fontSize.md,
-  },
-  error: {
-    color: colors.error,
-    fontSize: fontSize.sm,
-    textAlign: "center",
-  },
-});

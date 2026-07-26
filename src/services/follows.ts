@@ -1,4 +1,5 @@
-import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
+import { getCurrentUser } from "@/services/firebase";
 import { withRetry } from "@/services/retry";
 import { createNotification } from "@/services/in-app-notifications";
 import type { Profile } from "@/services/database.types";
@@ -9,81 +10,66 @@ export async function fetchSuggestedUsers(
   limit: number = 3
 ): Promise<Pick<Profile, "id" | "name" | "department" | "avatar_url">[]> {
   return withRetry(async () => {
-    let query = supabase
-      .from("profiles")
-      .select("id, name, department, avatar_url")
-      .neq("id", userId)
-      .limit(limit);
+    let profiles = await db_ops.query("profiles", {
+      conditions: [{ field: "id", op: "!=", value: userId }],
+      limitCount: 20,
+    });
 
     if (department) {
-      const { data, error } = await query
-        .eq("department", department)
-        .limit(limit);
+      const sameDept = profiles.filter((p) => p.department === department);
+      if (sameDept.length >= limit) return sameDept.slice(0, limit);
 
-      if (error) throw error;
-      // If we got enough from same department, return them
-      if (data && data.length >= limit) return data;
-
-      // Otherwise fill with random users
-      const existingIds = (data ?? []).map((u) => u.id);
-      const remaining = limit - existingIds.length;
-
-      // We need to also check if we could not get the matching users at all
-      // Let's just try a simpler approach
-      const remainingCount = remaining > 0 ? remaining : 0;
-      if (remainingCount > 0) {
-        const { data: random, error: randomError } = await supabase
-          .from("profiles")
-          .select("id, name, department, avatar_url")
-          .neq("id", userId)
-          .not("id", "in", existingIds.length > 0 ? `(${existingIds.join(",")})` : "(00000000-0000-0000-0000-000000000000)")
-          .limit(remainingCount);
-
-        if (randomError) throw randomError;
-        return [...(data ?? []), ...(random ?? [])];
-      }
-
-      return data ?? [];
+      const otherIds = new Set(sameDept.map((p) => p.id));
+      const others = profiles.filter((p) => !otherIds.has(p.id));
+      return [...sameDept, ...others].slice(0, limit) as any;
     }
 
-    // No department - just get random users
-    const { data, error } = await query;
-    if (error) throw error;
-    return data ?? [];
+    return profiles.slice(0, limit) as any;
   });
 }
 
 export async function followUser(followingId: string): Promise<void> {
   return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    const { error } = await supabase.from("follows").insert({
-      follower_id: user.id,
+    const user = getCurrentUser();
+    const followId = `${user.uid}_${followingId}`;
+    await db_ops.set("follows", followId, {
+      follower_id: user.uid,
       following_id: followingId,
     });
-
-    if (error) throw error;
-
-    createNotification(followingId, user.id, "follow", "profile", user.id);
+    createNotification(followingId, user.uid, "follow", "profile", user.uid);
   });
 }
 
 export async function unfollowUser(followingId: string): Promise<void> {
   return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    const user = getCurrentUser();
+    const followId = `${user.uid}_${followingId}`;
+    await db_ops.delete("follows", followId);
+  });
+}
 
-    const { error } = await supabase
-      .from("follows")
-      .delete()
-      .eq("follower_id", user.id)
-      .eq("following_id", followingId);
+export async function getMutualFollows(
+  userId: string
+): Promise<Pick<Profile, "id" | "name" | "department" | "avatar_url" | "verification_status">[]> {
+  return withRetry(async () => {
+    const [following, followers] = await Promise.all([
+      db_ops.query("follows", {
+        conditions: [{ field: "follower_id", op: "==", value: userId }],
+      }),
+      db_ops.query("follows", {
+        conditions: [{ field: "following_id", op: "==", value: userId }],
+      }),
+    ]);
 
-    if (error) throw error;
+    const followingIds = new Set(following.map((f: any) => f.following_id));
+    const followerIds = new Set(followers.map((f: any) => f.follower_id));
+    const mutualIds = [...followingIds].filter((id) => followerIds.has(id));
+
+    if (mutualIds.length === 0) return [];
+
+    const profiles = await Promise.all(
+      mutualIds.map((id) => db_ops.get("profiles", id))
+    );
+    return profiles.filter(Boolean) as any;
   });
 }

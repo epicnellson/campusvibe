@@ -1,4 +1,5 @@
-import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
+import { getCurrentUser } from "@/services/firebase";
 import { withRetry } from "@/services/retry";
 
 export const REPORT_REASONS = [
@@ -15,17 +16,13 @@ export async function submitReport(
   reason: string
 ): Promise<void> {
   return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    const { error } = await supabase.from("reports").insert({
+    const user = getCurrentUser();
+    await db_ops.add("reports", {
       content_id: contentId,
       content_type: contentType,
       reason,
-      reporter_id: user.id,
+      reporter_id: user.uid,
+      status: "pending",
     });
-    if (error) throw error;
   });
 }

@@ -19,6 +19,7 @@
   ],
   "exclude": [
     "admin",
+    "functions",
     "__tests__",
     "supabase"
   ]

@@ -6,16 +6,114 @@ import { ConfessionCard } from "@/components/confession-card";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { spacing, fontSize, fontWeight, colors } from "@/theme";
+import { FeedSkeleton } from "@/components/feed-skeleton";
+import { spacing, fontSize, fontWeight } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
 import { useSession } from "@/hooks/use-session";
+import { useTheme } from "@/hooks/use-theme";
 import { fetchConfessions } from "@/services/confessions";
 import { requireVerified } from "@/services/verification";
 import type { ConfessionWithLikes } from "@/services/database.types";
 
 const BOTTOM_TAB_INSET = 80;
 
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  safeArea: {
+    flex: 1,
+    maxWidth: 800,
+    width: "100%",
+    paddingBottom: BOTTOM_TAB_INSET,
+  },
+  headerBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backIcon: {
+    fontSize: 22,
+    color: "#6C47FF",
+    fontWeight: fontWeight.bold,
+  },
+  title: {
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.bold,
+  },
+  composeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  composeButtonText: {
+    color: "#FFFFFF",
+    fontSize: 24,
+    fontWeight: fontWeight.semibold,
+    lineHeight: 26,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  warningBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF3CD",
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+    gap: spacing.sm,
+  },
+  warningIcon: {
+    fontSize: 16,
+  },
+  warningText: {
+    flex: 1,
+    color: "#856404",
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+  },
+  list: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.lg,
+  },
+  separator: {
+    height: spacing.sm,
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+  },
+  errorText: {
+    color: "#FF3B30",
+  },
+});
+
 export default function ConfessionsScreen() {
+  const colors = useTheme();
   const { session } = useSession();
   const { profile } = useProfile();
   const currentUserId = session?.user?.id;
@@ -62,7 +160,7 @@ export default function ConfessionsScreen() {
   if (loading) {
     return (
       <ThemedView style={styles.center}>
-        <ThemedText themeColor="textSecondary">Loading...</ThemedText>
+        <FeedSkeleton />
       </ThemedView>
     );
   }
@@ -73,7 +171,7 @@ export default function ConfessionsScreen() {
         <ThemedView style={styles.headerBar}>
           <View style={styles.headerLeft}>
             <Pressable
-              onPress={() => router.back()}
+              onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
               style={({ pressed }) => [
                 styles.backButton,
                 pressed && styles.pressed,
@@ -143,97 +241,3 @@ export default function ConfessionsScreen() {
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  safeArea: {
-    flex: 1,
-    maxWidth: 800,
-    width: "100%",
-    paddingBottom: BOTTOM_TAB_INSET,
-  },
-  headerBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  backIcon: {
-    fontSize: 22,
-    color: colors.primary,
-    fontWeight: fontWeight.bold,
-  },
-  title: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-  },
-  composeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  composeButtonText: {
-    color: "#ffffff",
-    fontSize: 24,
-    fontWeight: fontWeight.semibold,
-    lineHeight: 26,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  warningBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF3CD",
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: 8,
-    gap: spacing.sm,
-  },
-  warningIcon: {
-    fontSize: 16,
-  },
-  warningText: {
-    flex: 1,
-    color: "#856404",
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-  },
-  list: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.lg,
-  },
-  separator: {
-    height: spacing.sm,
-  },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.lg,
-  },
-  errorText: {
-    color: colors.error,
-  },
-});

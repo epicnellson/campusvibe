@@ -17,19 +17,14 @@ import {
   type InAppNotification,
 } from "@/services/in-app-notifications";
 import { resolveImageUrl } from "@/services/storage";
+import { useTheme } from "@/hooks/use-theme";
+import { NotificationsListSkeleton } from "@/components/feed-skeleton";
 
 const ICON_MAP: Record<string, string> = {
   like: "heart",
   repost: "repeat",
   follow: "person-add",
   comment: "chatbubble",
-};
-
-const COLOR_MAP: Record<string, string> = {
-  like: "#EF4444",
-  repost: "#22C55E",
-  follow: "#6C47FF",
-  comment: "#F59E0B",
 };
 
 const SCREEN_MAP: Record<string, string> = {
@@ -51,119 +46,6 @@ function formatRelative(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
-export default function NotificationsScreen() {
-  const insets = useSafeAreaInsets();
-  const [items, setItems] = useState<InAppNotification[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      const data = await fetchNotifications(30);
-      setItems(data);
-    } catch (e) {
-      console.warn("Failed to load notifications:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    markAllRead().catch(() => {});
-  }, [load]);
-
-  const handlePress = useCallback(
-    (item: InAppNotification) => {
-      if (item.content_type === "profile") {
-        router.push("/");
-      } else {
-        const screen = SCREEN_MAP[item.content_type] ?? "/post/";
-        router.push(`${screen}${item.content_id}` as any);
-      }
-    },
-    []
-  );
-
-  const renderItem = ({ item }: { item: InAppNotification }) => {
-    const icon = ICON_MAP[item.type] ?? "notifications";
-    const color = COLOR_MAP[item.type] ?? "#71717A";
-    const actorName =
-      (item.actor as any)?.name ?? "Someone";
-    const avatarUrl = (item.actor as any)?.avatar_url
-      ? resolveImageUrl((item.actor as any).avatar_url, "profile-photos")
-      : null;
-
-    return (
-      <Pressable
-        onPress={() => handlePress(item)}
-        style={({ pressed }) => [
-          styles.row,
-          !item.read && styles.unreadRow,
-          pressed && styles.pressed,
-        ]}
-      >
-        <View style={styles.avatarContainer}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Ionicons name="person" size={16} color="#666" />
-            </View>
-          )}
-          <View style={[styles.iconBadge, { backgroundColor: color }]}>
-            <Ionicons name={icon as any} size={10} color="#FFF" />
-          </View>
-        </View>
-
-        <View style={styles.rowContent}>
-          <Text style={styles.message} numberOfLines={2}>
-            <Text style={styles.actorName}>{actorName}</Text>{" "}
-            {actorMessage(item.type)}
-          </Text>
-          <Text style={styles.time}>{formatRelative(item.created_at)}</Text>
-        </View>
-
-        {!item.read && <View style={styles.unreadDot} />}
-      </Pressable>
-    );
-  };
-
-  return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
-        <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-          style={styles.backBtn}
-        >
-          <Ionicons name="chevron-back" size={22} color="#FFF" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <View style={{ width: 36 }} />
-      </View>
-
-      {loading ? (
-        <View style={styles.center}>
-          <Ionicons name="notifications-outline" size={48} color="#1E1E1E" />
-          <Text style={styles.emptyText}>Loading...</Text>
-        </View>
-      ) : items.length === 0 ? (
-        <View style={styles.center}>
-          <Ionicons name="notifications-off-outline" size={48} color="#1E1E1E" />
-          <Text style={styles.emptyText}>No notifications yet</Text>
-          <Text style={styles.emptyHint}>You'll see when someone interacts with your posts</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   container: {
@@ -181,7 +63,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "#121212",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -201,7 +83,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   unreadRow: {
-    backgroundColor: "rgba(108, 71, 255, 0.06)",
+    backgroundColor: "#121212",
   },
   avatarContainer: {
     position: "relative",
@@ -234,7 +116,7 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: 14,
-    color: "#A0A0A0",
+    color: "#A1A1A6",
     lineHeight: 20,
   },
   actorName: {
@@ -243,7 +125,7 @@ const styles = StyleSheet.create({
   },
   time: {
     fontSize: 12,
-    color: "#555",
+    color: "#666666",
   },
   unreadDot: {
     width: 8,
@@ -259,11 +141,11 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 15,
-    color: "#555",
+    color: "#666666",
   },
   emptyHint: {
     fontSize: 13,
-    color: "#444",
+    color: "#71717A",
     textAlign: "center",
     paddingHorizontal: 48,
   },
@@ -271,3 +153,122 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
 });
+
+export default function NotificationsScreen() {
+  const colors = useTheme();
+  const insets = useSafeAreaInsets();
+  const [items, setItems] = useState<InAppNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const COLOR_MAP: Record<string, string> = {
+    like: colors.danger,
+    repost: colors.success,
+    follow: colors.primary,
+    comment: colors.warning,
+  };
+
+  const load = useCallback(async () => {
+    try {
+      const data = await fetchNotifications(30);
+      setItems(data);
+    } catch (e) {
+      console.warn("Failed to load notifications:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    markAllRead().catch(() => {});
+  }, [load]);
+
+  const handlePress = useCallback(
+    (item: InAppNotification) => {
+      if (item.content_type === "profile") {
+        router.push("/");
+      } else {
+        const screen = SCREEN_MAP[item.content_type] ?? "/post/";
+        router.push(`${screen}${item.content_id}` as any);
+      }
+    },
+    []
+  );
+
+  const renderItem = ({ item }: { item: InAppNotification }) => {
+    const icon = ICON_MAP[item.type] ?? "notifications";
+    const color = COLOR_MAP[item.type] ?? colors.muted;
+    const actorName =
+      (item.actor as any)?.name ?? "Someone";
+    const avatarUrl = (item.actor as any)?.avatar_url
+      ? resolveImageUrl((item.actor as any).avatar_url, "profile-photos")
+      : null;
+
+    return (
+      <Pressable
+        onPress={() => handlePress(item)}
+        style={({ pressed }) => [
+          styles.row,
+          !item.read && styles.unreadRow,
+          pressed && styles.pressed,
+        ]}
+      >
+        <View style={styles.avatarContainer}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <Ionicons name="person" size={16} color={colors.textTertiary} />
+            </View>
+          )}
+          <View style={[styles.iconBadge, { backgroundColor: color }]}>
+            <Ionicons name={icon as any} size={10} color={colors.textOnDark} />
+          </View>
+        </View>
+
+        <View style={styles.rowContent}>
+          <Text style={styles.message} numberOfLines={2}>
+            <Text style={styles.actorName}>{actorName}</Text>{" "}
+            {actorMessage(item.type)}
+          </Text>
+          <Text style={styles.time}>{formatRelative(item.created_at)}</Text>
+        </View>
+
+        {!item.read && <View style={styles.unreadDot} />}
+      </Pressable>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+          style={styles.backBtn}
+        >
+          <Ionicons name="chevron-back" size={22} color={colors.textOnDark} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Notifications</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
+      {loading ? (
+        <NotificationsListSkeleton />
+      ) : items.length === 0 ? (
+        <View style={styles.center}>
+          <Ionicons name="notifications-off-outline" size={48} color={colors.divider} />
+          <Text style={styles.emptyText}>No notifications yet</Text>
+          <Text style={styles.emptyHint}>You'll see when someone interacts with your posts</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+    </View>
+  );
+}

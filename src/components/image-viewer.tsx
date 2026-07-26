@@ -1,4 +1,5 @@
 import { ActivityIndicator, Image, StyleSheet, View, type ImageProps } from "react-native";
+import { useTheme } from "@/hooks/use-theme";
 
 interface Props extends ImageProps {
   uri: string;
@@ -6,6 +7,7 @@ interface Props extends ImageProps {
 }
 
 export function ImageViewer({ uri, children, ...rest }: Props) {
+  const theme = useTheme();
   return (
     <View style={styles.container}>
       <Image
@@ -15,7 +17,7 @@ export function ImageViewer({ uri, children, ...rest }: Props) {
         {...rest}
       />
       {!uri && (
-        <ActivityIndicator size="large" color="#FFFFFF" style={StyleSheet.absoluteFill} />
+        <ActivityIndicator size="large" color={theme.textOnDark} style={StyleSheet.absoluteFill} />
       )}
       {children}
     </View>

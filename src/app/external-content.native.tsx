@@ -11,8 +11,9 @@ import { useLocalSearchParams, router } from "expo-router";
 import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { useTheme } from "@/hooks/use-theme";
 
-function ContentSkeleton() {
+function ContentSkeleton({ colors }: { colors: ReturnType<typeof import("@/hooks/use-theme").useTheme> }) {
   const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -28,6 +29,22 @@ function ContentSkeleton() {
 
   const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.35] });
 
+  const styles = StyleSheet.create({
+    skeletonContainer: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.background,
+      zIndex: 2,
+    },
+    skeletonBlock: {
+      width: "80%",
+      height: 200,
+      borderRadius: 12,
+      backgroundColor: colors.skeleton,
+    },
+  });
+
   return (
     <View style={styles.skeletonContainer}>
       <Animated.View style={[styles.skeletonBlock, { opacity }]} />
@@ -36,6 +53,7 @@ function ContentSkeleton() {
 }
 
 export default function ExternalContentScreen() {
+  const colors = useTheme();
   const params = useLocalSearchParams<{
     url?: string;
     type?: string;
@@ -70,11 +88,80 @@ export default function ExternalContentScreen() {
     return `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&controls=1&rel=0`;
   })();
 
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingTop: Platform.OS === "ios" ? 56 : 40,
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+      backgroundColor: colors.background,
+    },
+    closeButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.overlay,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    headerTitle: {
+      flex: 1,
+      color: colors.textOnDark,
+      fontSize: 16,
+      fontWeight: "600",
+      textAlign: "center",
+      marginHorizontal: 8,
+    },
+    webview: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    imageContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    fullImage: {
+      width: "100%",
+      height: "100%",
+    },
+    errorContainer: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.background,
+      zIndex: 3,
+    },
+    errorText: {
+      color: colors.muted,
+      fontSize: 16,
+      marginTop: 12,
+    },
+    errorButton: {
+      marginTop: 20,
+      paddingHorizontal: 24,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: colors.skeleton,
+    },
+    errorButtonText: {
+      color: colors.textOnDark,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+  });
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Pressable onPress={close} style={styles.closeButton} accessibilityLabel="Close">
-          <Ionicons name="close" size={28} color="#FFF" />
+          <Ionicons name="close" size={28} color={colors.textOnDark} />
         </Pressable>
         {title ? (
           <Text style={styles.headerTitle} numberOfLines={1}>
@@ -84,7 +171,7 @@ export default function ExternalContentScreen() {
         <View style={{ width: 44 }} />
       </View>
 
-      {loading && <ContentSkeleton />}
+      {loading && <ContentSkeleton colors={colors} />}
 
       {isYouTube && youtubeEmbedUrl ? (
         <WebView
@@ -126,7 +213,7 @@ export default function ExternalContentScreen() {
 
       {loadError && (
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color="#666" />
+          <Ionicons name="alert-circle-outline" size={48} color={colors.muted} />
           <Text style={styles.errorText}>Failed to load content</Text>
           <Pressable onPress={close} style={styles.errorButton}>
             <Text style={styles.errorButtonText}>Go Back</Text>
@@ -136,85 +223,3 @@ export default function ExternalContentScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: Platform.OS === "ios" ? 56 : 40,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    backgroundColor: "#000",
-  },
-  closeButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    flex: 1,
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-    marginHorizontal: 8,
-  },
-  webview: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  imageContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fullImage: {
-    width: "100%",
-    height: "100%",
-  },
-  skeletonContainer: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#000",
-    zIndex: 2,
-  },
-  skeletonBlock: {
-    width: "80%",
-    height: 200,
-    borderRadius: 12,
-    backgroundColor: "#222",
-  },
-  errorContainer: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#000",
-    zIndex: 3,
-  },
-  errorText: {
-    color: "#666",
-    fontSize: 16,
-    marginTop: 12,
-  },
-  errorButton: {
-    marginTop: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: "#222",
-  },
-  errorButtonText: {
-    color: "#FFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-});

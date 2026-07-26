@@ -1,226 +1,41 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 import { ReportModal } from "@/components/report-modal";
-import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { MarketplaceListSkeleton } from "@/components/feed-skeleton";
 import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
-import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
+import { spacing, borderRadius, fontSize, fontWeight } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
+import { useTheme } from "@/hooks/use-theme";
 import { fetchListings } from "@/services/marketplace";
 import type { ListingWithSeller } from "@/services/database.types";
 
 const CATEGORIES = ["All", "Textbooks", "Electronics", "Clothing", "Other"] as const;
+const SORT_OPTIONS = ["Newest", "Price ↑", "Price ↓"] as const;
 
 function formatPrice(price: string): string {
   return price.startsWith("$") ? price : `$${price}`;
 }
 
-export default function MarketplaceScreen() {
-  const { profile } = useProfile();
-  const [listings, setListings] = useState<ListingWithSeller[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
-  const [reportVisible, setReportVisible] = useState(false);
-  const [reportTarget, setReportTarget] = useState<string | null>(null);
-  const { width } = useWindowDimensions();
-  const isWide = width > 600;
-  const numColumns = isWide ? 4 : 2;
-
-  const load = useCallback(async () => {
-    try {
-      setError(null);
-      const data = await fetchListings();
-      setListings(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load listings");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    load();
-  }, [load]);
-
-  const filtered =
-    selectedCategory === "All"
-      ? listings
-      : listings.filter((l) => l.category === selectedCategory);
-
-  if (loading) {
-    return (
-      <ThemedView style={styles.center}>
-        <ThemedText themeColor="textSecondary">Loading...</ThemedText>
-      </ThemedView>
-    );
-  }
-
-  return (
-    <ThemedView style={styles.container}>
-      <View style={styles.safeArea}>
-        <ThemedView style={styles.headerBar}>
-          <ThemedText type="title" style={styles.title}>
-            Marketplace
-          </ThemedText>
-          <Pressable
-            onPress={() => router.push("/create-listing")}
-            style={({ pressed }) => [
-              styles.headerButton,
-              pressed && styles.pressed,
-            ]}
-            accessibilityLabel="Create Listing"
-            accessibilityRole="button"
-          >
-            <Ionicons name="add" size={24} color="#FFFFFF" />
-          </Pressable>
-        </ThemedView>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterScroll}
-          contentContainerStyle={styles.filterContent}
-        >
-          {CATEGORIES.map((cat) => (
-            <Pressable
-              key={cat}
-              onPress={() => setSelectedCategory(cat)}
-              style={[
-                styles.filterChip,
-                selectedCategory === cat && styles.filterChipActive,
-              ]}
-            >
-              <ThemedText
-                style={[
-                  styles.filterChipText,
-                  selectedCategory === cat && styles.filterChipTextActive,
-                ]}
-              >
-                {cat}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        {error ? (
-          <EmptyState
-            icon="⚠"
-            title="Failed to load"
-            message={error}
-            action={{ title: "Try again", onPress: load }}
-          />
-        ) : filtered.length === 0 ? (
-          <ThemedView style={styles.center}>
-            <ThemedText themeColor="textSecondary">
-              {selectedCategory === "All"
-                ? "No listings yet. Be the first to sell!"
-                : `No listings in ${selectedCategory}`}
-            </ThemedText>
-          </ThemedView>
-        ) : (
-          <FlatList
-            data={filtered}
-            keyExtractor={(item) => item.id}
-            numColumns={numColumns}
-            key={`grid-${numColumns}-${selectedCategory}`}
-            renderItem={({ item }) => {
-              const firstPhoto =
-                item.photos && item.photos.length > 0 ? item.photos[0] : null;
-              const isSold = (item as any).sold === true;
-
-              return (
-                <Pressable
-                  onPress={() => router.push(`/listing/${item.id}`)}
-                  style={({ pressed }) => [
-                    styles.card,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <ThemedView style={styles.imageWrapper}>
-                    {firstPhoto ? (
-                      <>
-                        <Image
-                          source={{ uri: firstPhoto }}
-                          style={styles.image}
-                          contentFit="cover"
-                        />
-                        <ThemedView style={styles.priceBadge}>
-                          <ThemedText style={styles.priceBadgeText}>
-                            {formatPrice(item.price)}
-                          </ThemedText>
-                        </ThemedView>
-                        {isSold && (
-                          <ThemedView style={styles.soldOverlay}>
-                            <ThemedText style={styles.soldText}>
-                              SOLD
-                            </ThemedText>
-                          </ThemedView>
-                        )}
-                      </>
-                    ) : (
-                      <ThemedView style={styles.imagePlaceholder}>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          No photo
-                        </ThemedText>
-                      </ThemedView>
-                    )}
-                    <Pressable
-                      onPress={(e) => {
-                        e.stopPropagation?.();
-                        setReportTarget(item.id);
-                        setReportVisible(true);
-                      }}
-                      style={styles.reportOverlay}
-                    >
-                      <ThemedText style={styles.reportOverlayText}>
-                        ...
-                      </ThemedText>
-                    </Pressable>
-                  </ThemedView>
-                  <ThemedView style={styles.info}>
-                    <ThemedText numberOfLines={1} style={styles.cardTitle}>
-                      {item.title}
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                      {item.category}
-                    </ThemedText>
-                  </ThemedView>
-                </Pressable>
-              );
-            }}
-            contentContainerStyle={styles.list}
-            columnWrapperStyle={styles.row}
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
-
-        <ReportModal
-          visible={reportVisible}
-          contentId={reportTarget ?? ""}
-          contentType="listing"
-          onClose={() => {
-            setReportVisible(false);
-            setReportTarget(null);
-          }}
-        />
-      </View>
-    </ThemedView>
-  );
+function timeAgo(dateStr: string): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d`;
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 const styles = StyleSheet.create({
@@ -241,7 +56,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 10,
-    paddingBottom: 16,
+    paddingBottom: 12,
   },
   title: {
     fontSize: 24,
@@ -253,15 +68,47 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
   pressed: {
     opacity: 0.7,
   },
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  sortRow: {
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  sortChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: "#1C1C1E",
+    borderWidth: 1,
+    borderColor: "#2C2C2E",
+  },
+  sortChipActive: {
+    backgroundColor: "#6C47FF",
+    borderColor: "#6C47FF",
+  },
+  sortChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#A1A1AA",
+  },
+  sortChipTextActive: {
+    color: "#ffffff",
+  },
   filterScroll: {
-    maxHeight: 44,
+    maxHeight: 60,
     marginBottom: spacing.sm,
   },
   filterContent: {
@@ -270,18 +117,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   filterChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     borderRadius: 24,
-    backgroundColor: "#121214",
+    backgroundColor: "#1C1C1E",
+    borderWidth: 1,
+    borderColor: "#2C2C2E",
+    minHeight: 40,
+    justifyContent: "center",
   },
   filterChipActive: {
     backgroundColor: "#6C47FF",
+    borderColor: "#6C47FF",
   },
   filterChipText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#71717A",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#A1A1AA",
+    lineHeight: 20,
   },
   filterChipTextActive: {
     color: "#ffffff",
@@ -347,12 +200,25 @@ const styles = StyleSheet.create({
   },
   info: {
     padding: 10,
-    gap: 2,
+    gap: 3,
   },
   cardTitle: {
     fontSize: 14,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  cardMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  cardCategory: {
+    fontSize: 12,
+    color: "#71717A",
+  },
+  cardTime: {
+    fontSize: 11,
+    color: "#555555",
   },
   reportOverlay: {
     position: "absolute",
@@ -377,7 +243,258 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.lg,
   },
-  errorText: {
-    color: colors.error,
+  countText: {
+    fontSize: 13,
+    color: "#71717A",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
 });
+
+export default function MarketplaceScreen() {
+  const colors = useTheme();
+  const { profile } = useProfile();
+  const [listings, setListings] = useState<ListingWithSeller[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [sortBy, setSortBy] = useState<string>("Newest");
+  const [reportVisible, setReportVisible] = useState(false);
+  const [reportTarget, setReportTarget] = useState<string | null>(null);
+  const { width } = useWindowDimensions();
+  const isWide = width > 600;
+  const numColumns = isWide ? 4 : 2;
+
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const data = await fetchListings();
+      setListings(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load listings");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    load();
+  }, [load]);
+
+  let filtered =
+    selectedCategory === "All"
+      ? listings
+      : listings.filter((l) => l.category === selectedCategory);
+
+  if (sortBy === "Price ↑") {
+    filtered = [...filtered].sort((a, b) => {
+      const pa = parseFloat(a.price?.replace(/[^0-9.]/g, "") || "0");
+      const pb = parseFloat(b.price?.replace(/[^0-9.]/g, "") || "0");
+      return pa - pb;
+    });
+  } else if (sortBy === "Price ↓") {
+    filtered = [...filtered].sort((a, b) => {
+      const pa = parseFloat(a.price?.replace(/[^0-9.]/g, "") || "0");
+      const pb = parseFloat(b.price?.replace(/[^0-9.]/g, "") || "0");
+      return pb - pa;
+    });
+  }
+
+  if (loading) {
+    return (
+      <ThemedView style={styles.center}>
+        <MarketplaceListSkeleton />
+      </ThemedView>
+    );
+  }
+
+  return (
+    <ThemedView style={styles.container}>
+      <View style={styles.safeArea}>
+        <ThemedView style={styles.headerBar}>
+          <ThemedText type="title" style={styles.title}>
+            Marketplace
+          </ThemedText>
+          <Pressable
+            onPress={() => router.push("/create-listing")}
+            style={({ pressed }) => [
+              styles.headerButton,
+              { backgroundColor: colors.primary },
+              pressed && styles.pressed,
+            ]}
+            accessibilityLabel="Create Listing"
+            accessibilityRole="button"
+          >
+            <Ionicons name="add" size={24} color={colors.textOnDark} />
+          </Pressable>
+        </ThemedView>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
+          contentContainerStyle={styles.filterContent}
+        >
+          {CATEGORIES.map((cat) => (
+            <Pressable
+              key={cat}
+              onPress={() => setSelectedCategory(cat)}
+              style={[
+                styles.filterChip,
+                selectedCategory === cat && styles.filterChipActive,
+              ]}
+            >
+              <ThemedText
+                style={[
+                  styles.filterChipText,
+                  selectedCategory === cat && styles.filterChipTextActive,
+                ]}
+              >
+                {cat}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <View style={styles.sortRow}>
+          {SORT_OPTIONS.map((opt) => (
+            <Pressable
+              key={opt}
+              onPress={() => setSortBy(opt)}
+              style={[
+                styles.sortChip,
+                sortBy === opt && styles.sortChipActive,
+              ]}
+            >
+              <ThemedText
+                style={[
+                  styles.sortChipText,
+                  sortBy === opt && styles.sortChipTextActive,
+                ]}
+              >
+                {opt}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </View>
+
+        <ThemedText style={styles.countText}>
+          {filtered.length} listing{filtered.length !== 1 ? "s" : ""}
+        </ThemedText>
+
+        {error ? (
+          <EmptyState
+            icon="⚠"
+            title="Failed to load"
+            message={error}
+            action={{ title: "Try again", onPress: load }}
+          />
+        ) : filtered.length === 0 ? (
+          <ThemedView style={styles.center}>
+            <Ionicons name="storefront-outline" size={48} color="#2A2A2A" />
+            <ThemedText themeColor="textSecondary" style={{ marginTop: 12 }}>
+              {selectedCategory === "All"
+                ? "No listings yet. Be the first to sell!"
+                : `No listings in ${selectedCategory}`}
+            </ThemedText>
+          </ThemedView>
+        ) : (
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.id}
+            numColumns={numColumns}
+            key={`grid-${numColumns}-${selectedCategory}-${sortBy}`}
+            renderItem={({ item }) => {
+              const firstPhoto =
+                item.photos && item.photos.length > 0 ? item.photos[0] : null;
+              const isSold = (item as any).sold === true;
+
+              return (
+                <Pressable
+                  onPress={() => router.push(`/listing/${item.id}`)}
+                  style={({ pressed }) => [
+                    styles.card,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <ThemedView style={styles.imageWrapper}>
+                    {firstPhoto ? (
+                      <>
+                        <Image
+                          source={{ uri: firstPhoto }}
+                          style={styles.image}
+                          contentFit="cover"
+                        />
+                        <ThemedView style={styles.priceBadge}>
+                          <ThemedText style={styles.priceBadgeText}>
+                            {formatPrice(item.price)}
+                          </ThemedText>
+                        </ThemedView>
+                        {isSold && (
+                          <ThemedView style={styles.soldOverlay}>
+                            <ThemedText style={styles.soldText}>SOLD</ThemedText>
+                          </ThemedView>
+                        )}
+                      </>
+                    ) : (
+                      <ThemedView style={styles.imagePlaceholder}>
+                        <Ionicons name="image-outline" size={32} color="#3A3A3A" />
+                      </ThemedView>
+                    )}
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        setReportTarget(item.id);
+                        setReportVisible(true);
+                      }}
+                      style={styles.reportOverlay}
+                    >
+                      <ThemedText style={styles.reportOverlayText}>...</ThemedText>
+                    </Pressable>
+                  </ThemedView>
+                  <ThemedView style={styles.info}>
+                    <ThemedText numberOfLines={1} style={styles.cardTitle}>
+                      {item.title}
+                    </ThemedText>
+                    <View style={styles.cardMeta}>
+                      <ThemedText type="small" style={styles.cardCategory} numberOfLines={1}>
+                        {item.category}
+                      </ThemedText>
+                      {item.created_at && (
+                        <ThemedText style={styles.cardTime}>
+                          {timeAgo(item.created_at)}
+                        </ThemedText>
+                      )}
+                    </View>
+                  </ThemedView>
+                </Pressable>
+              );
+            }}
+            contentContainerStyle={styles.list}
+            columnWrapperStyle={styles.row}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+
+        <ReportModal
+          visible={reportVisible}
+          contentId={reportTarget ?? ""}
+          contentType="listing"
+          onClose={() => {
+            setReportVisible(false);
+            setReportTarget(null);
+          }}
+        />
+      </View>
+    </ThemedView>
+  );
+}

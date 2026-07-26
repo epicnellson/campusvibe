@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
+import { spacing, borderRadius, fontSize, fontWeight } from "@/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { REPORT_REASONS, submitReport } from "@/services/reports";
 
@@ -20,7 +20,7 @@ export function ReportModal({
   contentType,
   onClose,
 }: ReportModalProps) {
-  const theme = useTheme();
+  const colors = useTheme();
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -46,7 +46,7 @@ export function ReportModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <ThemedView style={styles.overlay}>
+      <ThemedView style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
         <ThemedView type="backgroundElement" style={styles.sheet}>
           {done ? (
             <>
@@ -55,7 +55,7 @@ export function ReportModal({
                 Thanks for helping keep CampusVibe safe. Our team will review this content.
               </ThemedText>
               <Pressable onPress={handleClose} style={[styles.submitButton, { backgroundColor: colors.primary }]} accessibilityRole="button">
-                <ThemedText style={styles.submitButtonText}>Close</ThemedText>
+                <ThemedText style={[styles.submitButtonText, { color: colors.text }]}>Close</ThemedText>
               </Pressable>
             </>
           ) : (
@@ -77,8 +77,8 @@ export function ReportModal({
                       style={({ pressed }) => [
                         styles.reasonButton,
                         {
-                          backgroundColor: isSelected ? "rgba(108, 71, 255, 0.08)" : theme.backgroundSecondary,
-                          borderColor: isSelected ? colors.primary : "transparent",
+                          backgroundColor: isSelected ? colors.primaryLight : colors.backgroundSecondary,
+                          borderColor: isSelected ? colors.primary : colors.transparent,
                           borderWidth: isSelected ? 1.5 : 0,
                         },
                         pressed && styles.pressed,
@@ -102,14 +102,14 @@ export function ReportModal({
                 style={({ pressed }) => [
                   styles.submitButton,
                   {
-                    backgroundColor: selectedReason ? colors.primary : theme.backgroundSelected,
+                    backgroundColor: selectedReason ? colors.primary : colors.backgroundSelected,
                     opacity: pressed ? 0.8 : 1,
                   },
                 ]}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: !selectedReason || submitting }}
               >
-                <ThemedText style={[styles.submitButtonText, !selectedReason && { opacity: 0.5 }]}>
+                <ThemedText style={[styles.submitButtonText, { color: colors.text }, !selectedReason && { opacity: 0.5 }]}>
                   {submitting ? "Submitting..." : "Submit Report"}
                 </ThemedText>
               </Pressable>
@@ -128,7 +128,6 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
   sheet: {
     borderTopLeftRadius: borderRadius.xl,
@@ -190,7 +189,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   submitButtonText: {
-    color: "#ffffff",
     fontWeight: fontWeight.semibold,
     fontSize: fontSize.md,
   },

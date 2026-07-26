@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { SettingsSkeleton } from "@/components/feed-skeleton";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import {
   getNotificationPreferences,
@@ -11,6 +12,7 @@ import {
 } from "@/services/notifications";
 import type { NotificationPreferences } from "@/services/database.types";
 import { router } from "expo-router";
+import { useTheme } from "@/hooks/use-theme";
 
 const TOGGLES: {
   key: keyof NotificationPreferences;
@@ -39,71 +41,6 @@ const TOGGLES: {
   },
 ];
 
-export default function NotificationSettingsScreen() {
-  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getNotificationPreferences()
-      .then((p) => {
-        setPrefs(p);
-        setLoading(false);
-      })
-      .catch((e) => {
-        console.warn("Failed to load notification prefs:", e);
-        setLoading(false);
-      });
-  }, []);
-
-  const toggle = async (key: keyof NotificationPreferences) => {
-    if (!prefs) return;
-    const updated = { ...prefs, [key]: !prefs[key] };
-    setPrefs(updated);
-    await updateNotificationPreferences({ [key]: !prefs[key] });
-  };
-
-  if (loading) {
-    return (
-      <ThemedView style={styles.center}>
-        <ThemedText themeColor="textSecondary">Loading...</ThemedText>
-      </ThemedView>
-    );
-  }
-
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <ThemedView style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <ThemedText style={styles.backText}>{"<"}</ThemedText>
-          </Pressable>
-          <ThemedText type="smallBold" style={styles.headerTitle}>
-            Notification Settings
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedView style={styles.list}>
-          {TOGGLES.map(({ key, label, description }) => (
-            <ThemedView key={key} style={styles.row}>
-              <ThemedView style={styles.rowInfo}>
-                <ThemedText type="smallBold">{label}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {description}
-                </ThemedText>
-              </ThemedView>
-              <Switch
-                value={prefs?.[key] ?? true}
-                onValueChange={() => toggle(key)}
-                trackColor={{ false: "#ccc", true: "#208AEF" }}
-                thumbColor="#ffffff"
-              />
-            </ThemedView>
-          ))}
-        </ThemedView>
-      </SafeAreaView>
-    </ThemedView>
-  );
-}
 
 const styles = StyleSheet.create({
   container: {
@@ -127,7 +64,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F0F0F3",
+    backgroundColor: "#121212",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -159,3 +96,70 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
+
+export default function NotificationSettingsScreen() {
+  const colors = useTheme();
+  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getNotificationPreferences()
+      .then((p) => {
+        setPrefs(p);
+        setLoading(false);
+      })
+      .catch((e) => {
+        console.warn("Failed to load notification prefs:", e);
+        setLoading(false);
+      });
+  }, []);
+
+  const toggle = async (key: keyof NotificationPreferences) => {
+    if (!prefs) return;
+    const updated = { ...prefs, [key]: !prefs[key] };
+    setPrefs(updated);
+    await updateNotificationPreferences({ [key]: !prefs[key] });
+  };
+
+  if (loading) {
+    return (
+      <ThemedView style={styles.center}>
+        <SettingsSkeleton />
+      </ThemedView>
+    );
+  }
+
+  return (
+    <ThemedView style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <ThemedView style={styles.header}>
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={styles.backButton}>
+            <ThemedText style={styles.backText}>{"<"}</ThemedText>
+          </Pressable>
+          <ThemedText type="smallBold" style={styles.headerTitle}>
+            Notification Settings
+          </ThemedText>
+        </ThemedView>
+
+        <ThemedView style={styles.list}>
+          {TOGGLES.map(({ key, label, description }) => (
+            <ThemedView key={key} style={styles.row}>
+              <ThemedView style={styles.rowInfo}>
+                <ThemedText type="smallBold">{label}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {description}
+                </ThemedText>
+              </ThemedView>
+              <Switch
+                value={prefs?.[key] ?? true}
+                onValueChange={() => toggle(key)}
+                trackColor={{ false: colors.mutedLight, true: colors.info }}
+                thumbColor={colors.textOnDark}
+              />
+            </ThemedView>
+          ))}
+        </ThemedView>
+      </SafeAreaView>
+    </ThemedView>
+  );
+}

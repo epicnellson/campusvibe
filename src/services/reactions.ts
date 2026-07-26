@@ -1,5 +1,8 @@
-import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
+import { getCurrentUser } from "@/services/firebase";
 import { withRetry } from "@/services/retry";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/services/firebase";
 
 export const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "😡", "👍"] as const;
 export type ReactionEmoji = (typeof REACTION_EMOJIS)[number];
@@ -14,55 +17,44 @@ export type Reaction = {
 
 export async function setReaction(postId: string, emoji: ReactionEmoji) {
   return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    const { error } = await supabase
-      .from("reactions")
-      .upsert(
-        { user_id: user.id, post_id: postId, emoji },
-        { onConflict: "user_id,post_id" }
-      );
-    if (error) throw error;
+    const user = getCurrentUser();
+    const reactionId = `${user.uid}_${postId}`;
+    await db_ops.set("reactions", reactionId, {
+      user_id: user.uid,
+      post_id: postId,
+      emoji,
+    });
   });
 }
 
 export async function removeReaction(postId: string) {
   return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    const { error } = await supabase
-      .from("reactions")
-      .delete()
-      .eq("post_id", postId)
-      .eq("user_id", user.id);
-    if (error) throw error;
+    const user = getCurrentUser();
+    const reactionId = `${user.uid}_${postId}`;
+    await db_ops.delete("reactions", reactionId);
   });
 }
 
 export async function fetchReactions(postId: string): Promise<Reaction[]> {
-  const { data } = await supabase
-    .from("reactions")
-    .select("id, user_id, post_id, emoji, created_at")
-    .eq("post_id", postId);
-  return (data ?? []) as Reaction[];
+  const data = await db_ops.query("reactions", {
+    conditions: [{ field: "post_id", op: "==", value: postId }],
+  });
+  return data as Reaction[];
 }
 
 export async function fetchReactionsForPosts(postIds: string[]): Promise<Map<string, Reaction[]>> {
   if (postIds.length === 0) return new Map();
-  const { data } = await supabase
-    .from("reactions")
-    .select("id, user_id, post_id, emoji, created_at")
-    .in("post_id", postIds);
+  const allReactions: Reaction[] = [];
+
+  for (const postId of postIds) {
+    const reactions = await fetchReactions(postId);
+    allReactions.push(...reactions);
+  }
+
   const map = new Map<string, Reaction[]>();
-  for (const r of data ?? []) {
+  for (const r of allReactions) {
     const existing = map.get(r.post_id) ?? [];
-    existing.push(r as Reaction);
+    existing.push(r);
     map.set(r.post_id, existing);
   }
   return map;

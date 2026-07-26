@@ -21,7 +21,8 @@ import { Avatar } from "@/components/ui/Avatar";
 import { ImageViewer } from "@/components/image-viewer";
 import { ResponsiveImage } from "@/components/responsive-image";
 import { DetailSkeleton } from "@/components/feed-skeleton";
-import { spacing, colors } from "@/theme";
+import { spacing } from "@/theme";
+import { useTheme } from "@/hooks/use-theme";
 import { useSession } from "@/hooks/use-session";
 import { useProfile } from "@/hooks/use-profile";
 import { useRefresh } from "@/hooks/use-refresh";
@@ -32,6 +33,7 @@ import { submitReport } from "@/services/reports";
 import { resolveImageUrl } from "@/services/storage";
 import { repostPost, unrepostPost, getRepostCount } from "@/services/reposts";
 import { fetchReactions, setReaction, removeReaction, REACTION_EMOJIS, type ReactionEmoji, type Reaction } from "@/services/reactions";
+import { db_ops } from "@/services/db";
 import type { PostWithProfile, CommentWithProfile } from "@/services/database.types";
 
 function formatFullTimestamp(dateStr: string): string {
@@ -67,6 +69,7 @@ export default function PostDetailScreen() {
   const { profile } = useProfile();
   const { triggerFeedRefresh } = useRefresh();
   const insets = useSafeAreaInsets();
+  const colors = useTheme();
   const currentUserId = session?.user?.id;
   const [post, setPost] = useState<PostWithProfile | null>(null);
   const [comments, setComments] = useState<CommentWithProfile[]>([]);
@@ -99,18 +102,27 @@ export default function PostDetailScreen() {
     try {
       setLoading(true);
       setError(null);
-      const [data, commentData, reactionsData, repostCountData] = await Promise.all([
+      const [postData, commentResult, reactionsResult, repostResult] = await Promise.allSettled([
         fetchPostById(id),
         fetchComments(id),
         fetchReactions(id),
         getRepostCount(id),
       ]);
-      setPost(data);
-      setComments(commentData);
-      setReactions(reactionsData);
-      setRepostCountState(repostCountData);
+      if (postData.status === "fulfilled") setPost(postData.value);
+      else throw postData.reason;
+      setComments(commentResult.status === "fulfilled" ? commentResult.value : []);
+      setReactions(reactionsResult.status === "fulfilled" ? reactionsResult.value : []);
+      setRepostCountState(repostResult.status === "fulfilled" ? repostResult.value : 0);
+      const reactionsData = reactionsResult.status === "fulfilled" ? reactionsResult.value : [];
       const myReaction = reactionsData.find((r) => r.user_id === currentUserId);
       setUserReaction(myReaction?.emoji ?? null);
+
+      const postDataVal = postData.status === "fulfilled" ? postData.value : null;
+      if (currentUserId && postDataVal?.user_id && postDataVal.user_id !== currentUserId) {
+        const followId = `${currentUserId}_${postDataVal.user_id}`;
+        const existing = await db_ops.get("follows", followId);
+        setIsFollowing(!!existing);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load post");
     } finally {
@@ -311,13 +323,369 @@ export default function PostDetailScreen() {
         setShowMenu(false);
         setShowDeleteConfirm(true);
       },
-      color: "#EF4444",
+      color: colors.danger,
     },
   ];
 
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    center: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: spacing.lg,
+    },
+    errorText: {
+      marginBottom: spacing.md,
+      fontSize: 15,
+      lineHeight: 21,
+    },
+    goBack: {
+      fontWeight: "600",
+      fontSize: 15,
+      lineHeight: 21,
+    },
+    backBtn: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+    },
+    customHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 8,
+      paddingBottom: 8,
+      borderBottomWidth: 0.5,
+    },
+    headerBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    headerTitle: {
+      fontSize: 17,
+      fontWeight: "600",
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.6)",
+      justifyContent: "flex-end",
+    },
+    actionSheet: {
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      paddingBottom: 34,
+    },
+    actionSheetHandle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      alignSelf: "center",
+      marginTop: 10,
+      marginBottom: 8,
+    },
+    actionSheetItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingVertical: 14,
+      paddingHorizontal: spacing.lg,
+    },
+    actionSheetItemBorder: {
+      borderBottomWidth: 0.5,
+    },
+    actionSheetLabel: {
+      fontSize: 16,
+      fontWeight: "500",
+    },
+    actionSheetCancel: {
+      paddingVertical: 14,
+      alignItems: "center",
+      marginTop: 4,
+      borderTopWidth: 0.5,
+    },
+    actionSheetCancelText: {
+      fontSize: 16,
+      fontWeight: "500",
+    },
+    pressed: {
+      opacity: 0.6,
+    },
+    imageViewerOverlay: {
+      ...StyleSheet.absoluteFillObject as object,
+      backgroundColor: "rgba(0,0,0,0.95)",
+    },
+    imageViewerClose: {
+      position: "absolute",
+      right: 16,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(255,255,255,0.1)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    bodyContainer: {
+      flex: 1,
+      position: "relative",
+    },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingBottom: 100,
+    },
+    authorRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 14,
+    },
+    authorCol: {
+      flex: 1,
+      gap: 1,
+    },
+    authorName: {
+      fontSize: 15,
+      fontWeight: "700",
+      lineHeight: 20,
+    },
+    authorHandle: {
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    followBtn: {
+      height: 32,
+      paddingHorizontal: spacing.md,
+      borderRadius: 16,
+      borderWidth: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    followBtnText: {
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    postBody: {
+      fontSize: 17,
+      lineHeight: 24,
+      fontWeight: "400",
+      paddingHorizontal: spacing.md,
+      paddingVertical: 14,
+    },
+    imageSection: {
+      marginBottom: spacing.md,
+      marginHorizontal: 16,
+      borderRadius: 14,
+      overflow: "hidden",
+    },
+    postImage: {
+      width: "100%" as const,
+      minHeight: 200,
+      borderRadius: 12,
+    },
+    timestampRow: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: 12,
+      borderBottomWidth: 0.5,
+    },
+    timestampText: {
+      fontSize: 14,
+      fontWeight: "400",
+    },
+    metricsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 12,
+      borderTopWidth: 0.5,
+      borderBottomWidth: 0.5,
+    },
+    metricsText: {
+      fontSize: 14,
+      fontWeight: "400",
+    },
+    metricsBold: {
+      fontWeight: "700",
+    },
+    actionBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      height: 44,
+      borderBottomWidth: 0.5,
+      paddingHorizontal: 8,
+    },
+    actionBarBtn: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+      height: 44,
+      minWidth: 44,
+    },
+    actionBarCount: {
+      fontSize: 11,
+      fontWeight: "500",
+    },
+    sectionSeparator: {
+      height: 12,
+      borderTopWidth: 0.5,
+      borderBottomWidth: 0.5,
+    },
+    repliesHeading: {
+      fontSize: 15,
+      fontWeight: "700",
+      lineHeight: 21,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.xs,
+    },
+    commentCard: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 0.5,
+    },
+    commentHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    commentMeta: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+    commentAuthor: {
+      fontSize: 14,
+      fontWeight: "700",
+      lineHeight: 20,
+    },
+    commentTime: {
+      fontSize: 12,
+      lineHeight: 18,
+      fontWeight: "400",
+    },
+    commentContent: {
+      fontSize: 15,
+      lineHeight: 21,
+      marginTop: spacing.xs + 2,
+      paddingLeft: 44,
+    },
+    emptyReplies: {
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.xs,
+      paddingVertical: spacing.xl * 2,
+    },
+    emptyText: {
+      fontSize: 14,
+      fontWeight: "500",
+      lineHeight: 20,
+    },
+    replyErrorBar: {
+      position: "absolute",
+      bottom: 72,
+      left: 0,
+      right: 0,
+      backgroundColor: "rgba(239, 68, 68, 0.15)",
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    replyErrorText: {
+      fontSize: 13,
+      lineHeight: 18,
+      textAlign: "center",
+    },
+    replyDock: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      borderTopWidth: 0.5,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+    },
+    replyInput: {
+      flex: 1,
+      borderWidth: 1,
+      borderRadius: 24,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      fontSize: 15,
+      maxHeight: 80,
+      minHeight: 38,
+    },
+    sendBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    reactionSummary: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 8,
+    },
+    reactionPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 20,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      borderWidth: 1,
+      borderColor: "transparent",
+    },
+    reactionPillActive: {
+    },
+    reactionPillEmoji: {
+      fontSize: 14,
+    },
+    reactionPillCount: {
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    reactionPicker: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginHorizontal: spacing.md,
+      marginBottom: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      borderRadius: 28,
+      alignSelf: "flex-start",
+      borderWidth: 0.5,
+    },
+    reactionOption: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    reactionOptionActive: {
+      backgroundColor: "rgba(108, 71, 255, 0.2)",
+    },
+    reactionOptionEmoji: {
+      fontSize: 22,
+    },
+  });
+
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000000" }}>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
         <DetailSkeleton />
       </View>
     );
@@ -325,64 +693,64 @@ export default function PostDetailScreen() {
 
   if (error || !post) {
     return (
-      <ThemedView style={styles.center}>
-        <ThemedText style={styles.errorText}>
+      <ThemedView style={[styles.center, { backgroundColor: colors.background }]}>
+        <ThemedText style={[styles.errorText, { color: colors.subtleText }]}>
           {error ?? "Post not found"}
         </ThemedText>
         <Pressable onPress={goBack} style={styles.backBtn}>
-          <ThemedText style={styles.goBack}>Go back</ThemedText>
+          <ThemedText style={[styles.goBack, { color: colors.primary }]}>Go back</ThemedText>
         </Pressable>
       </ThemedView>
     );
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={[styles.customHeader, { paddingTop: insets.top + 6 }]}>
+      <View style={[styles.customHeader, { paddingTop: insets.top + 6, backgroundColor: colors.background, borderBottomColor: colors.divider }]}>
         <Pressable
           onPress={goBack}
           style={({ pressed }) => [styles.headerBtn, pressed && styles.pressed]}
           accessibilityLabel="Go back"
         >
-          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          <Ionicons name="arrow-back" size={22} color={colors.textOnDark} />
         </Pressable>
-        <ThemedText style={styles.headerTitle}></ThemedText>
+        <ThemedText style={[styles.headerTitle, { color: colors.textOnDark }]}></ThemedText>
         <Pressable
           onPress={() => setShowMenu(true)}
           style={({ pressed }) => [styles.headerBtn, pressed && styles.pressed]}
           accessibilityLabel="More options"
         >
-          <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" />
+          <Ionicons name="ellipsis-horizontal" size={22} color={colors.textOnDark} />
         </Pressable>
       </View>
 
       <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowMenu(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={styles.actionSheet}>
-            <View style={styles.actionSheetHandle} />
+          <Pressable onPress={(e) => e.stopPropagation()} style={[styles.actionSheet, { backgroundColor: colors.inputBg }]}>
+            <View style={[styles.actionSheetHandle, { backgroundColor: colors.inputBgAlt }]} />
             {menuItems.map((item, i) => (
               <Pressable
                 key={item.label}
                 onPress={item.onPress}
                 style={({ pressed }) => [
                   styles.actionSheetItem,
-                  i < menuItems.length - 1 && styles.actionSheetItemBorder,
+                  i < menuItems.length - 1 && [styles.actionSheetItemBorder, { borderBottomColor: colors.inputBgAlt }],
                   pressed && styles.pressed,
                 ]}
               >
-                <Ionicons name={item.icon} size={20} color={item.color ?? "#E1E1E1"} />
-                <ThemedText style={[styles.actionSheetLabel, item.color ? { color: item.color } : undefined]}>
+                <Ionicons name={item.icon} size={20} color={item.color ?? colors.textBody} />
+                <ThemedText style={[styles.actionSheetLabel, { color: colors.textBody }, item.color ? { color: item.color } : undefined]}>
                   {item.label}
                 </ThemedText>
               </Pressable>
             ))}
             <Pressable
               onPress={() => setShowMenu(false)}
-              style={({ pressed }) => [styles.actionSheetCancel, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.actionSheetCancel, { borderTopColor: colors.inputBgAlt }, pressed && styles.pressed]}
             >
-              <ThemedText style={styles.actionSheetCancelText}>Cancel</ThemedText>
+              <ThemedText style={[styles.actionSheetCancelText, { color: colors.muted }]}>Cancel</ThemedText>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -390,18 +758,18 @@ export default function PostDetailScreen() {
 
       <Modal visible={showRepostSheet} transparent animationType="fade" onRequestClose={() => setShowRepostSheet(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowRepostSheet(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={styles.actionSheet}>
-            <View style={styles.actionSheetHandle} />
+          <Pressable onPress={(e) => e.stopPropagation()} style={[styles.actionSheet, { backgroundColor: colors.inputBg }]}>
+            <View style={[styles.actionSheetHandle, { backgroundColor: colors.inputBgAlt }]} />
             <Pressable onPress={() => setShowRepostSheet(false)} style={({ pressed }) => [styles.actionSheetItem, pressed && styles.pressed]}>
-              <Ionicons name="repeat" size={20} color="#E1E1E1" />
-              <ThemedText style={styles.actionSheetLabel}>Repost</ThemedText>
+              <Ionicons name="repeat" size={20} color={colors.textBody} />
+              <ThemedText style={[styles.actionSheetLabel, { color: colors.textBody }]}>Repost</ThemedText>
             </Pressable>
             <Pressable onPress={() => setShowRepostSheet(false)} style={({ pressed }) => [styles.actionSheetItem, pressed && styles.pressed]}>
-              <Ionicons name="chatbox-outline" size={20} color="#E1E1E1" />
-              <ThemedText style={styles.actionSheetLabel}>Quote Post</ThemedText>
+              <Ionicons name="chatbox-outline" size={20} color={colors.textBody} />
+              <ThemedText style={[styles.actionSheetLabel, { color: colors.textBody }]}>Quote Post</ThemedText>
             </Pressable>
-            <Pressable onPress={() => setShowRepostSheet(false)} style={({ pressed }) => [styles.actionSheetCancel, pressed && styles.pressed]}>
-              <ThemedText style={styles.actionSheetCancelText}>Cancel</ThemedText>
+            <Pressable onPress={() => setShowRepostSheet(false)} style={({ pressed }) => [styles.actionSheetCancel, { borderTopColor: colors.inputBgAlt }, pressed && styles.pressed]}>
+              <ThemedText style={[styles.actionSheetCancelText, { color: colors.muted }]}>Cancel</ThemedText>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -415,7 +783,7 @@ export default function PostDetailScreen() {
             style={[styles.imageViewerClose, { top: insets.top + 16 }]}
             accessibilityLabel="Close image"
           >
-            <Ionicons name="close" size={24} color="#FFFFFF" />
+            <Ionicons name="close" size={24} color={colors.textOnDark} />
           </Pressable>
         </View>
       </Modal>
@@ -429,8 +797,8 @@ export default function PostDetailScreen() {
           <View style={styles.authorRow}>
             <Avatar name={authorName} size={48} />
             <View style={styles.authorCol}>
-              <ThemedText style={styles.authorName} numberOfLines={1}>{authorName}</ThemedText>
-              <ThemedText style={styles.authorHandle} numberOfLines={1}>
+              <ThemedText style={[styles.authorName, { color: colors.textOnDark }]} numberOfLines={1}>{authorName}</ThemedText>
+              <ThemedText style={[styles.authorHandle, { color: colors.muted }]} numberOfLines={1}>
                 {authorDept || ""}
               </ThemedText>
             </View>
@@ -439,21 +807,22 @@ export default function PostDetailScreen() {
                 onPress={handleFollow}
                 style={({ pressed }) => [
                   styles.followBtn,
-                  isFollowing && styles.followBtnActive,
+                  { borderColor: colors.primary },
+                  isFollowing && { backgroundColor: colors.primary, borderColor: colors.primary },
                   pressed && styles.pressed,
                 ]}
               >
-                <ThemedText style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
+                <ThemedText style={[styles.followBtnText, { color: colors.primary }, isFollowing && { color: colors.textOnDark }]}>
                   {isFollowing ? "Following" : "Follow"}
                 </ThemedText>
               </Pressable>
             )}
           </View>
 
-          <ThemedText style={styles.postBody}>{post.content}</ThemedText>
+          <ThemedText style={[styles.postBody, { color: colors.warmInverse }]}>{post.content}</ThemedText>
 
           {images.length > 0 && (
-            <View style={styles.imageSection}>
+            <View style={[styles.imageSection, { backgroundColor: "#0A0A0C" }]}>
               <Pressable onPress={() => setShowImageViewer(true)}>
                 <ResponsiveImage
                   source={images[0].uri}
@@ -463,7 +832,6 @@ export default function PostDetailScreen() {
             </View>
           )}
 
-          {/* Reaction summary */}
           {reactions.length > 0 && (
             <View style={styles.reactionSummary}>
               {Object.entries(
@@ -477,21 +845,20 @@ export default function PostDetailScreen() {
                   onPress={() => handleReaction(emoji as ReactionEmoji)}
                   style={[
                     styles.reactionPill,
-                    userReaction === emoji && styles.reactionPillActive,
+                    userReaction === emoji && [styles.reactionPillActive, { borderColor: colors.primary, backgroundColor: `${colors.primary}26` }],
                   ]}
                 >
                   <ThemedText style={styles.reactionPillEmoji}>{emoji}</ThemedText>
                   {count > 1 && (
-                    <ThemedText style={styles.reactionPillCount}>{count}</ThemedText>
+                    <ThemedText style={[styles.reactionPillCount, { color: colors.muted }]}>{count}</ThemedText>
                   )}
                 </Pressable>
               ))}
             </View>
           )}
 
-          {/* Reaction picker */}
           {showReactionPicker && (
-            <View style={styles.reactionPicker}>
+            <View style={[styles.reactionPicker, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
               {REACTION_EMOJIS.map((emoji) => (
                 <Pressable
                   key={emoji}
@@ -509,38 +876,38 @@ export default function PostDetailScreen() {
                 onPress={() => setShowReactionPicker(false)}
                 style={({ pressed }) => [styles.reactionOption, pressed && styles.pressed]}
               >
-                <Ionicons name="close" size={18} color="#71717A" />
+                <Ionicons name="close" size={18} color={colors.muted} />
               </Pressable>
             </View>
           )}
 
-          <View style={styles.timestampRow}>
-            <ThemedText style={styles.timestampText}>
+          <View style={[styles.timestampRow, { borderBottomColor: colors.divider }]}>
+            <ThemedText style={[styles.timestampText, { color: colors.muted }]}>
               {formatFullTimestamp(post.created_at)}
             </ThemedText>
           </View>
 
-          <View style={styles.metricsRow}>
-            <ThemedText style={styles.metricsText}>
-              <ThemedText style={styles.metricsBold}>{formatMetrics(likeCount)}</ThemedText>
+          <View style={[styles.metricsRow, { borderTopColor: colors.divider, borderBottomColor: colors.divider }]}>
+            <ThemedText style={[styles.metricsText, { color: colors.muted }]}>
+              <ThemedText style={[styles.metricsBold, { color: colors.textOnDark }]}>{formatMetrics(likeCount)}</ThemedText>
               {" Likes"}
             </ThemedText>
-            <ThemedText style={styles.metricsText}> · </ThemedText>
-            <ThemedText style={styles.metricsText}>
-              <ThemedText style={styles.metricsBold}>{formatMetrics(commentCount)}</ThemedText>
+            <ThemedText style={[styles.metricsText, { color: colors.muted }]}> · </ThemedText>
+            <ThemedText style={[styles.metricsText, { color: colors.muted }]}>
+              <ThemedText style={[styles.metricsBold, { color: colors.textOnDark }]}>{formatMetrics(commentCount)}</ThemedText>
               {" Comments"}
             </ThemedText>
           </View>
 
-          <View style={styles.actionBar}>
+          <View style={[styles.actionBar, { borderBottomColor: colors.divider }]}>
             <Pressable
               onPress={() => inputRef.current?.focus()}
               style={styles.actionBarBtn}
               accessibilityLabel="Reply"
             >
-              <Ionicons name="chatbubble-outline" size={22} color="#71717A" />
+              <Ionicons name="chatbubble-outline" size={22} color={colors.muted} />
               {commentCount > 0 && (
-                <ThemedText style={styles.actionBarCount}>{formatMetrics(commentCount)}</ThemedText>
+                <ThemedText style={[styles.actionBarCount, { color: colors.muted }]}>{formatMetrics(commentCount)}</ThemedText>
               )}
             </Pressable>
 
@@ -553,10 +920,10 @@ export default function PostDetailScreen() {
                 <Ionicons
                   name="repeat-outline"
                   size={22}
-                  color={isReposted ? "#22C55E" : "#71717A"}
+                  color={isReposted ? colors.success : colors.muted}
                 />
                 {repostCount > 0 && (
-                  <ThemedText style={[styles.actionBarCount, { color: isReposted ? "#22C55E" : "#71717A" }]}>
+                  <ThemedText style={[styles.actionBarCount, { color: isReposted ? colors.success : colors.muted }]}>
                     {formatMetrics(repostCount)}
                   </ThemedText>
                 )}
@@ -573,10 +940,10 @@ export default function PostDetailScreen() {
                 <Ionicons
                   name={userLiked ? "heart" : "heart-outline"}
                   size={22}
-                  color={userLiked ? "#E0245E" : "#71717A"}
+                  color={userLiked ? colors.likeActive : colors.muted}
                 />
                 {likeCount > 0 && (
-                  <ThemedText style={[styles.actionBarCount, { color: userLiked ? "#E0245E" : "#71717A" }]}>
+                  <ThemedText style={[styles.actionBarCount, { color: userLiked ? colors.likeActive : colors.muted }]}>
                     {formatMetrics(likeCount)}
                   </ThemedText>
                 )}
@@ -584,37 +951,37 @@ export default function PostDetailScreen() {
             </Animated.View>
 
             <Pressable onPress={handleShare} style={styles.actionBarBtn} accessibilityLabel="Share">
-              <Ionicons name="arrow-up-outline" size={22} color="#71717A" />
+              <Ionicons name="arrow-up-outline" size={22} color={colors.muted} />
             </Pressable>
           </View>
 
-          <View style={styles.sectionSeparator} />
+          <View style={[styles.sectionSeparator, { backgroundColor: colors.backgroundSecondary, borderTopColor: colors.divider, borderBottomColor: colors.divider }]} />
 
           {comments.length > 0 && (
-            <ThemedText style={styles.repliesHeading}>Replies</ThemedText>
+            <ThemedText style={[styles.repliesHeading, { color: colors.textOnDark }]}>Replies</ThemedText>
           )}
 
           {comments.map((item) => (
-            <View key={item.id} style={styles.commentCard}>
+            <View key={item.id} style={[styles.commentCard, { borderBottomColor: colors.divider }]}>
               <View style={styles.commentHeader}>
                 <Avatar name={item.profiles?.name ?? "?"} size={36} />
                 <View style={styles.commentMeta}>
-                  <ThemedText style={styles.commentAuthor}>
+                  <ThemedText style={[styles.commentAuthor, { color: colors.textOnDark }]}>
                     {item.profiles?.name ?? "Unknown"}
                   </ThemedText>
-                  <ThemedText style={styles.commentTime}>
+                  <ThemedText style={[styles.commentTime, { color: colors.muted }]}>
                     {relativeTime(item.created_at)}
                   </ThemedText>
                 </View>
               </View>
-              <ThemedText style={styles.commentContent}>{item.content}</ThemedText>
+              <ThemedText style={[styles.commentContent, { color: colors.textBody }]}>{item.content}</ThemedText>
             </View>
           ))}
 
           {comments.length === 0 && (
             <View style={styles.emptyReplies}>
-              <Ionicons name="chatbubbles-outline" size={28} color="#3A3A3A" />
-              <ThemedText style={styles.emptyText}>No replies yet</ThemedText>
+              <Ionicons name="chatbubbles-outline" size={28} color={colors.borderLight} />
+              <ThemedText style={[styles.emptyText, { color: colors.subtleText }]}>No replies yet</ThemedText>
             </View>
           )}
 
@@ -623,17 +990,17 @@ export default function PostDetailScreen() {
 
         {replyError && (
           <View style={styles.replyErrorBar}>
-            <ThemedText style={styles.replyErrorText}>{replyError}</ThemedText>
+            <ThemedText style={[styles.replyErrorText, { color: colors.danger }]}>{replyError}</ThemedText>
           </View>
         )}
 
-        <View style={[styles.replyDock, { paddingBottom: insets.bottom + 8 }]}>
+        <View style={[styles.replyDock, { paddingBottom: insets.bottom + 8, borderTopColor: colors.divider }]}>
           <Avatar name={session?.user?.id ?? "?"} size={36} />
           <TextInput
             ref={inputRef}
-            style={styles.replyInput}
+            style={[styles.replyInput, { backgroundColor: colors.backgroundElement, borderColor: colors.divider, color: colors.textOnDark }]}
             placeholder="Post your reply"
-            placeholderTextColor="#71717A"
+            placeholderTextColor={colors.muted}
             value={replyText}
             onChangeText={setReplyText}
             multiline
@@ -644,7 +1011,8 @@ export default function PostDetailScreen() {
             disabled={!replyText.trim() || sendingReply}
             style={({ pressed }) => [
               styles.sendBtn,
-              (!replyText.trim() || sendingReply) && styles.sendBtnDisabled,
+              { backgroundColor: colors.primary },
+              (!replyText.trim() || sendingReply) && { backgroundColor: colors.inputBg },
               pressed && styles.pressed,
             ]}
             accessibilityLabel="Send reply"
@@ -652,30 +1020,29 @@ export default function PostDetailScreen() {
             <Ionicons
               name="arrow-forward"
               size={18}
-              color={!replyText.trim() || sendingReply ? "#525252" : "#FFFFFF"}
+              color={!replyText.trim() || sendingReply ? colors.textTertiary : colors.textOnDark}
             />
           </Pressable>
         </View>
       </View>
 
-      {/* Delete confirmation modal */}
       <Modal visible={showDeleteConfirm} transparent animationType="fade" onRequestClose={() => setShowDeleteConfirm(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteConfirm(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={styles.actionSheet}>
-            <View style={styles.actionSheetHandle} />
-            <ThemedText style={{ fontSize: 17, fontWeight: "700", color: "#FFFFFF", textAlign: "center", marginBottom: 8 }}>Delete post?</ThemedText>
-            <ThemedText style={{ fontSize: 14, color: "#71717A", textAlign: "center", marginBottom: 20, paddingHorizontal: 16 }}>This action cannot be undone.</ThemedText>
+          <Pressable onPress={(e) => e.stopPropagation()} style={[styles.actionSheet, { backgroundColor: colors.inputBg }]}>
+            <View style={[styles.actionSheetHandle, { backgroundColor: colors.inputBgAlt }]} />
+            <ThemedText style={{ fontSize: 17, fontWeight: "700", color: colors.textOnDark, textAlign: "center", marginBottom: 8 }}>Delete post?</ThemedText>
+            <ThemedText style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginBottom: 20, paddingHorizontal: 16 }}>This action cannot be undone.</ThemedText>
             <Pressable
               onPress={handleDeletePost}
               style={({ pressed }) => [styles.actionSheetItem, { justifyContent: "center" }, pressed && styles.pressed]}
             >
-              <ThemedText style={{ fontSize: 16, fontWeight: "600", color: "#EF4444" }}>Delete</ThemedText>
+              <ThemedText style={{ fontSize: 16, fontWeight: "600", color: colors.danger }}>Delete</ThemedText>
             </Pressable>
             <Pressable
               onPress={() => setShowDeleteConfirm(false)}
-              style={({ pressed }) => [styles.actionSheetCancel, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.actionSheetCancel, { borderTopColor: colors.inputBgAlt }, pressed && styles.pressed]}
             >
-              <ThemedText style={styles.actionSheetCancelText}>Cancel</ThemedText>
+              <ThemedText style={[styles.actionSheetCancelText, { color: colors.muted }]}>Cancel</ThemedText>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -683,417 +1050,3 @@ export default function PostDetailScreen() {
     </ThemedView>
   );
 }
-
-const styles: Record<string, any> = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000000",
-  },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.lg,
-  },
-  errorText: {
-    color: "#9CA3AF",
-    marginBottom: spacing.md,
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  goBack: {
-    color: colors.primary,
-    fontWeight: "600",
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  backBtn: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  customHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
-    paddingBottom: 8,
-    backgroundColor: "#000000",
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-  },
-  headerBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
-  },
-  actionSheet: {
-    backgroundColor: "#1A1A1A",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingBottom: 34,
-  },
-  actionSheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#262626",
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 8,
-  },
-  actionSheetItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.lg,
-  },
-  actionSheetItemBorder: {
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#262626",
-  },
-  actionSheetLabel: {
-    fontSize: 16,
-    color: "#E1E1E1",
-    fontWeight: "500",
-  },
-  actionSheetCancel: {
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 4,
-    borderTopWidth: 0.5,
-    borderTopColor: "#262626",
-  },
-  actionSheetCancelText: {
-    fontSize: 16,
-    color: "#71717A",
-    fontWeight: "500",
-  },
-  pressed: {
-    opacity: 0.6,
-  },
-  imageViewerOverlay: {
-    ...StyleSheet.absoluteFillObject as object,
-    backgroundColor: "rgba(0,0,0,0.95)",
-  },
-  imageViewerClose: {
-    position: "absolute",
-    right: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bodyContainer: {
-    flex: 1,
-    position: "relative",
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  authorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-  },
-  authorCol: {
-    flex: 1,
-    gap: 1,
-  },
-  authorName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    lineHeight: 20,
-  },
-  authorHandle: {
-    fontSize: 13,
-    color: "#71717A",
-    lineHeight: 18,
-  },
-  followBtn: {
-    height: 32,
-    paddingHorizontal: spacing.md,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#6C47FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  followBtnActive: {
-    backgroundColor: "#6C47FF",
-    borderColor: "#6C47FF",
-  },
-  followBtnText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6C47FF",
-  },
-  followBtnTextActive: {
-    color: "#FFFFFF",
-  },
-  postBody: {
-    fontSize: 17,
-    lineHeight: 24,
-    color: "#F0F0F0",
-    fontWeight: "400",
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-  },
-  imageSection: {
-    marginBottom: spacing.md,
-    backgroundColor: "#0A0A0C",
-    marginHorizontal: 16,
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  postImage: {
-    width: "100%" as const,
-    minHeight: 200,
-    borderRadius: 12,
-    backgroundColor: "#0A0A0C",
-  },
-  timestampRow: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-  },
-  timestampText: {
-    fontSize: 14,
-    color: "#71717A",
-    fontWeight: "400",
-  },
-  metricsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    borderTopWidth: 0.5,
-    borderTopColor: "#1E1E1E",
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-  },
-  metricsText: {
-    fontSize: 14,
-    color: "#71717A",
-    fontWeight: "400",
-  },
-  metricsBold: {
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  actionBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 44,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-    paddingHorizontal: 8,
-  },
-  actionBarBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    height: 44,
-    minWidth: 44,
-  },
-  actionBarCount: {
-    fontSize: 11,
-    color: "#71717A",
-    fontWeight: "500",
-  },
-  sectionSeparator: {
-    height: 12,
-    backgroundColor: "#0A0A0A",
-    borderTopWidth: 0.5,
-    borderTopColor: "#1E1E1E",
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-  },
-  repliesHeading: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    lineHeight: 21,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xs,
-  },
-  commentCard: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-  },
-  commentHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  commentMeta: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  commentAuthor: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    lineHeight: 20,
-  },
-  commentTime: {
-    fontSize: 12,
-    color: "#71717A",
-    lineHeight: 18,
-    fontWeight: "400",
-  },
-  commentContent: {
-    fontSize: 15,
-    lineHeight: 21,
-    color: "#E1E1E1",
-    marginTop: spacing.xs + 2,
-    paddingLeft: 44,
-  },
-  emptyReplies: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.xl * 2,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#52525B",
-    fontWeight: "500",
-    lineHeight: 20,
-  },
-  replyErrorBar: {
-    position: "absolute",
-    bottom: 72,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  replyErrorText: {
-    fontSize: 13,
-    color: "#EF4444",
-    lineHeight: 18,
-    textAlign: "center",
-  },
-  replyDock: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: "#000000",
-    borderTopWidth: 0.5,
-    borderTopColor: "#1E1E1E",
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-  },
-  replyInput: {
-    flex: 1,
-    backgroundColor: "#121212",
-    borderWidth: 1,
-    borderColor: "#1E1E1E",
-    borderRadius: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    color: "#FFFFFF",
-    fontSize: 15,
-    maxHeight: 80,
-    minHeight: 38,
-  },
-  sendBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendBtnDisabled: {
-    backgroundColor: "#1A1A1A",
-  },
-  reactionSummary: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-  },
-  reactionPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  reactionPillActive: {
-    borderColor: "#6C47FF",
-    backgroundColor: "rgba(108, 71, 255, 0.15)",
-  },
-  reactionPillEmoji: {
-    fontSize: 14,
-  },
-  reactionPillCount: {
-    fontSize: 12,
-    color: "#71717A",
-    fontWeight: "600",
-  },
-  reactionPicker: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginHorizontal: spacing.md,
-    marginBottom: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    backgroundColor: "#1A1A1A",
-    borderRadius: 28,
-    alignSelf: "flex-start",
-    borderWidth: 0.5,
-    borderColor: "#2A2A2A",
-  },
-  reactionOption: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  reactionOptionActive: {
-    backgroundColor: "rgba(108, 71, 255, 0.2)",
-  },
-  reactionOptionEmoji: {
-    fontSize: 22,
-  },
-});

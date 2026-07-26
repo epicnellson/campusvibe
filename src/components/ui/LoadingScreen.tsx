@@ -2,8 +2,10 @@ import { View, StyleSheet, Animated, Platform } from "react-native";
 import { useEffect, useRef } from "react";
 import { ThemedView } from "@/components/themed-view";
 import { spacing, borderRadius } from "@/theme";
+import { useTheme } from "@/hooks/use-theme";
 
 function SkeletonBlock({ width = "100%", height = 16 }: { width?: number | string; height?: number }) {
+  const theme = useTheme();
   const opacity = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
@@ -29,7 +31,7 @@ function SkeletonBlock({ width = "100%", height = 16 }: { width?: number | strin
     <Animated.View
       style={[
         styles.skeleton,
-        { width: width as any, height, opacity },
+        { width: width as any, height, opacity, backgroundColor: theme.skeleton },
       ]}
     />
   );
@@ -104,7 +106,6 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   skeleton: {
-    backgroundColor: "#2A2A2A",
     borderRadius: borderRadius.sm,
   },
 });

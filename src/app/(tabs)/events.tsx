@@ -7,10 +7,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { EventsListSkeleton } from "@/components/feed-skeleton";
 import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
-import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
+import { spacing, borderRadius, fontSize, fontWeight } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
 import { useSession } from "@/hooks/use-session";
+import { useTheme } from "@/hooks/use-theme";
 import { fetchUpcomingEvents, rsvpEvent, unrsvpEvent } from "@/services/events";
 import type { EventWithRSVPs } from "@/services/database.types";
 
@@ -27,7 +29,144 @@ function formatDate(dateStr: string) {
   };
 }
 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  safeArea: {
+    flex: 1,
+    maxWidth: MaxContentWidth,
+    width: "100%",
+    paddingBottom: BottomTabInset,
+  },
+  headerBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 2,
+    paddingBottom: spacing.md,
+  },
+  title: {
+    fontSize: 28,
+    lineHeight: 34,
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  list: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.lg,
+  },
+  separator: {
+    height: spacing.sm,
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+  },
+  errorText: {},
+  featuredScroll: {
+    marginBottom: spacing.md,
+  },
+  featuredContent: {
+    paddingRight: spacing.md,
+    gap: spacing.sm,
+  },
+  featuredCard: {
+    width: 260,
+    height: 160,
+    borderRadius: borderRadius.lg,
+    overflow: "hidden",
+  },
+  featuredImage: {
+    width: "100%",
+    height: "100%",
+  },
+  featuredPlaceholder: {},
+  featuredOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: spacing.md,
+  },
+  featuredDate: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    marginBottom: spacing.xs,
+  },
+  featuredTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+  },
+  card: {
+    flexDirection: "row",
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    gap: spacing.md,
+  },
+  dateBadge: {
+    width: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: borderRadius.sm,
+    paddingVertical: spacing.sm,
+  },
+  dateBadgeMonth: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    textTransform: "uppercase",
+  },
+  dateBadgeDay: {
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.bold,
+  },
+  cardContent: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  cardTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.semibold,
+  },
+  cardMeta: {
+    fontSize: fontSize.sm,
+  },
+  rsvpRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginTop: spacing.xs,
+  },
+  rsvpButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1.5,
+    backgroundColor: "transparent",
+  },
+  rsvpButtonActive: {},
+  rsvpText: {
+    fontWeight: fontWeight.semibold,
+    fontSize: fontSize.sm,
+  },
+  rsvpTextActive: {},
+});
+
 export default function EventsScreen() {
+  const colors = useTheme();
   const { session } = useSession();
   const { profile } = useProfile();
   const currentUserId = session?.user?.id;
@@ -89,7 +228,7 @@ export default function EventsScreen() {
   if (loading) {
     return (
       <ThemedView style={styles.center}>
-        <ThemedText themeColor="textSecondary">Loading...</ThemedText>
+        <EventsListSkeleton />
       </ThemedView>
     );
   }
@@ -103,9 +242,9 @@ export default function EventsScreen() {
 
     return (
       <ThemedView type="backgroundElement" style={styles.card}>
-        <ThemedView style={styles.dateBadge}>
-          <ThemedText style={styles.dateBadgeMonth}>{fd.month}</ThemedText>
-          <ThemedText style={styles.dateBadgeDay}>{fd.day}</ThemedText>
+        <ThemedView style={[styles.dateBadge, { backgroundColor: colors.backgroundSelected }]}>
+          <ThemedText style={[styles.dateBadgeMonth, { color: colors.primary }]}>{fd.month}</ThemedText>
+          <ThemedText style={[styles.dateBadgeDay, { color: colors.text }]}>{fd.day}</ThemedText>
         </ThemedView>
         <ThemedView style={styles.cardContent}>
           <ThemedText style={styles.cardTitle}>{item.title}</ThemedText>
@@ -119,10 +258,12 @@ export default function EventsScreen() {
                 styles.rsvpButton,
                 rsvped && styles.rsvpButtonActive,
                 pressed && styles.pressed,
+                { borderColor: colors.secondary },
+                rsvped && { backgroundColor: colors.secondary },
               ]}
             >
               <ThemedText
-                style={[styles.rsvpText, rsvped && styles.rsvpTextActive]}
+                style={[styles.rsvpText, rsvped && styles.rsvpTextActive, { color: colors.secondary }, rsvped && { color: colors.textOnDark }]}
               >
                 {rsvped ? "Going ✓" : "RSVP"}
               </ThemedText>
@@ -148,11 +289,12 @@ export default function EventsScreen() {
             style={({ pressed }) => [
               styles.headerButton,
               pressed && styles.pressed,
+              { backgroundColor: colors.primary },
             ]}
             accessibilityLabel="Create Event"
             accessibilityRole="button"
           >
-            <Ionicons name="add" size={24} color="#FFFFFF" />
+            <Ionicons name="add" size={24} color={colors.textOnDark} />
           </Pressable>
         </ThemedView>
 
@@ -207,15 +349,16 @@ export default function EventsScreen() {
                             style={[
                               styles.featuredImage,
                               styles.featuredPlaceholder,
+                              { backgroundColor: colors.backgroundElement },
                             ]}
                           />
                         )}
-                        <ThemedView style={styles.featuredOverlay}>
-                          <ThemedText style={styles.featuredDate}>
+                        <ThemedView style={[styles.featuredOverlay, { backgroundColor: colors.overlay }]}>
+                          <ThemedText style={[styles.featuredDate, { color: "#ffffff" }]}>
                             {fd.month} {fd.day}
                           </ThemedText>
                           <ThemedText
-                            style={styles.featuredTitle}
+                            style={[styles.featuredTitle, { color: "#ffffff" }]}
                             numberOfLines={2}
                           >
                             {event.title}
@@ -233,157 +376,3 @@ export default function EventsScreen() {
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  safeArea: {
-    flex: 1,
-    maxWidth: MaxContentWidth,
-    width: "100%",
-    paddingBottom: BottomTabInset,
-  },
-  headerBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 2,
-    paddingBottom: spacing.md,
-  },
-  title: {
-    fontSize: 28,
-    lineHeight: 34,
-  },
-  headerButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  list: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.lg,
-  },
-  separator: {
-    height: spacing.sm,
-  },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.lg,
-  },
-  errorText: {
-    color: colors.error,
-  },
-  featuredScroll: {
-    marginBottom: spacing.md,
-  },
-  featuredContent: {
-    paddingRight: spacing.md,
-    gap: spacing.sm,
-  },
-  featuredCard: {
-    width: 260,
-    height: 160,
-    borderRadius: borderRadius.lg,
-    overflow: "hidden",
-  },
-  featuredImage: {
-    width: "100%",
-    height: "100%",
-  },
-  featuredPlaceholder: {
-    backgroundColor: colors.backgroundElement,
-  },
-  featuredOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: spacing.md,
-    backgroundColor: colors.overlay,
-  },
-  featuredDate: {
-    color: "#ffffff",
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-    marginBottom: spacing.xs,
-  },
-  featuredTitle: {
-    color: "#ffffff",
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-  },
-  card: {
-    flexDirection: "row",
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    gap: spacing.md,
-  },
-  dateBadge: {
-    width: 52,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.backgroundSelected,
-    borderRadius: borderRadius.sm,
-    paddingVertical: spacing.sm,
-  },
-  dateBadgeMonth: {
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    color: colors.primary,
-    textTransform: "uppercase",
-  },
-  dateBadgeDay: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
-  },
-  cardContent: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  cardTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-  },
-  cardMeta: {
-    fontSize: fontSize.sm,
-  },
-  rsvpRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    marginTop: spacing.xs,
-  },
-  rsvpButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1.5,
-    borderColor: colors.secondary,
-    backgroundColor: "transparent",
-  },
-  rsvpButtonActive: {
-    backgroundColor: colors.secondary,
-    borderColor: colors.secondary,
-  },
-  rsvpText: {
-    color: colors.secondary,
-    fontWeight: fontWeight.semibold,
-    fontSize: fontSize.sm,
-  },
-  rsvpTextActive: {
-    color: "#ffffff",
-  },
-});

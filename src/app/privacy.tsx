@@ -6,8 +6,48 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Button } from "@/components/ui/button";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  safeArea: {
+    flex: 1,
+    maxWidth: MaxContentWidth,
+  },
+  scrollContent: {
+    padding: Spacing.four,
+    gap: Spacing.three,
+  },
+  effective: {
+    fontSize: 14,
+    color: "#71717A",
+  },
+  section: {
+    gap: Spacing.one,
+  },
+  heading: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  body: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  footer: {
+    padding: Spacing.four,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#1E1E1E",
+  },
+});
 
 export default function PrivacyScreen() {
+  const colors = useTheme();
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -91,45 +131,9 @@ export default function PrivacyScreen() {
         </ScrollView>
 
         <ThemedView style={styles.footer}>
-          <Button title="Back" variant="secondary" onPress={() => router.back()} />
+          <Button title="Back" variant="secondary" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />
         </ThemedView>
       </SafeAreaView>
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  safeArea: {
-    flex: 1,
-    maxWidth: MaxContentWidth,
-  },
-  scrollContent: {
-    padding: Spacing.four,
-    gap: Spacing.three,
-  },
-  effective: {
-    fontSize: 14,
-    color: "#888",
-  },
-  section: {
-    gap: Spacing.one,
-  },
-  heading: {
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  body: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  footer: {
-    padding: Spacing.four,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(128,128,128,0.3)",
-  },
-});

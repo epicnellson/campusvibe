@@ -1,7 +1,8 @@
 import { View, StyleSheet, type ViewStyle } from "react-native";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/themed-text";
-import { colors, fontSize, fontWeight, borderRadius } from "@/theme";
+import { fontSize, fontWeight, borderRadius } from "@/theme";
+import { useTheme } from "@/hooks/use-theme";
 
 export type AvatarProps = {
   uri?: string | null;
@@ -11,6 +12,7 @@ export type AvatarProps = {
 };
 
 export function Avatar({ uri, name, size = 40, style }: AvatarProps) {
+  const theme = useTheme();
   const initials = name
     .split(" ")
     .map((n) => n[0])
@@ -26,7 +28,7 @@ export function Avatar({ uri, name, size = 40, style }: AvatarProps) {
         source={{ uri }}
         style={[
           styles.image,
-          { width: size, height: size, borderRadius: size / 2 },
+          { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.backgroundElement },
           style as any,
         ]}
         accessibilityLabel={`${name}'s avatar`}
@@ -52,7 +54,7 @@ export function Avatar({ uri, name, size = 40, style }: AvatarProps) {
       <ThemedText
         style={[
           styles.initials,
-          { fontSize: size * 0.4 },
+          { fontSize: size * 0.4, color: theme.textOnDark },
         ]}
       >
         {initials}
@@ -71,15 +73,12 @@ function stringToColor(str: string): string {
 }
 
 const styles = StyleSheet.create({
-  image: {
-    backgroundColor: colors.backgroundElement,
-  },
+  image: {},
   fallback: {
     alignItems: "center",
     justifyContent: "center",
   },
   initials: {
-    color: "#FFFFFF",
     fontWeight: fontWeight.semibold,
   },
 });

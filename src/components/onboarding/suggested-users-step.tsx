@@ -87,7 +87,7 @@ export function SuggestedUsersStep({ department, onComplete }: Props) {
                 <ThemedText
                   style={[
                     styles.followText,
-                    { color: following.has(user.id) ? theme.text : "#ffffff" },
+                    { color: following.has(user.id) ? theme.text : theme.textOnDark },
                   ]}
                 >
                   {following.has(user.id) ? "Following" : "Follow"}

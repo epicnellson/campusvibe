@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useTheme } from "@/hooks/use-theme";
 import { spacing, borderRadius, fontSize, fontWeight } from "@/theme";
 import { router } from "expo-router";
 
@@ -9,6 +10,8 @@ type Props = {
 };
 
 export function VerificationBanner({ status }: Props) {
+  const colors = useTheme();
+
   if (status === "approved") return null;
 
   const handlePress = () => {
@@ -20,8 +23,8 @@ export function VerificationBanner({ status }: Props) {
       <Pressable onPress={handlePress} style={({ pressed }) => [styles.banner, styles.rejected, pressed && styles.pressed]}>
         <ThemedText style={styles.icon}>⚠️</ThemedText>
         <ThemedView style={styles.textContainer}>
-          <ThemedText style={styles.title}>Document rejected</ThemedText>
-          <ThemedText style={styles.message}>
+          <ThemedText style={[styles.title, { color: colors.textOnDark }]}>Document rejected</ThemedText>
+          <ThemedText style={[styles.message, { color: colors.mutedLight }]}>
             Your verification document was rejected. Tap to upload a new one.
           </ThemedText>
         </ThemedView>
@@ -31,11 +34,11 @@ export function VerificationBanner({ status }: Props) {
 
   if (status === "pending") {
     return (
-      <ThemedView style={[styles.banner, styles.pending]}>
+      <ThemedView style={[styles.banner, { backgroundColor: colors.inputBg }]}>
         <ThemedText style={styles.icon}>⏳</ThemedText>
         <ThemedView style={styles.textContainer}>
-          <ThemedText style={styles.title}>Document pending review</ThemedText>
-          <ThemedText style={styles.message}>
+          <ThemedText style={[styles.title, { color: colors.textOnDark }]}>Document pending review</ThemedText>
+          <ThemedText style={[styles.message, { color: colors.mutedLight }]}>
             Your verification document is being reviewed. You can post once approved.
           </ThemedText>
         </ThemedView>
@@ -47,8 +50,8 @@ export function VerificationBanner({ status }: Props) {
     <Pressable onPress={handlePress} style={({ pressed }) => [styles.banner, styles.required, pressed && styles.pressed]}>
       <ThemedText style={styles.icon}>🪪</ThemedText>
       <ThemedView style={styles.textContainer}>
-        <ThemedText style={styles.title}>Verify your student status</ThemedText>
-        <ThemedText style={styles.message}>
+        <ThemedText style={[styles.title, { color: colors.textOnDark }]}>Verify your student status</ThemedText>
+        <ThemedText style={[styles.message, { color: colors.mutedLight }]}>
           Upload a student document to start posting. Tap here.
         </ThemedText>
       </ThemedView>

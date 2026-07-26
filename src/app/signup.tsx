@@ -6,13 +6,88 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { spacing, fontSize, fontWeight, colors } from "@/theme";
+import { spacing, fontSize, fontWeight } from "@/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSession } from "@/hooks/use-session";
 import { sendOTP, signInWithGoogle } from "@/services/auth";
 
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  overlay: {
+    ...(StyleSheet.absoluteFill as object),
+    opacity: 0.03,
+    backgroundColor: "#6C47FF",
+  },
+  safeArea: {
+    flex: 1,
+    maxWidth: 800,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    justifyContent: "center",
+    gap: spacing.xl,
+  },
+  header: {
+    gap: spacing.xs,
+  },
+  title: {
+    fontSize: fontSize.xxl,
+    fontWeight: fontWeight.bold,
+    lineHeight: 34,
+  },
+  form: {
+    gap: spacing.md,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#3A3A3A",
+  },
+  dividerText: {
+    fontSize: fontSize.sm,
+  },
+  error: {
+    color: "#FF3B30",
+    fontSize: fontSize.sm,
+  },
+  ageRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxChecked: {},
+  checkmark: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  ageText: {
+    fontSize: fontSize.sm,
+    flexShrink: 1,
+  },
+});
+
 export default function SignupScreen() {
-  const theme = useTheme();
+  const colors = useTheme();
   const { session, isLoading } = useSession();
   const [email, setEmail] = useState("");
   const [agreeAge, setAgreeAge] = useState(false);
@@ -51,9 +126,9 @@ export default function SignupScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <View style={{ width: 140, height: 24, borderRadius: 8, backgroundColor: "#222" }} />
-        <View style={{ width: 200, height: 14, borderRadius: 7, backgroundColor: "#222", marginTop: 12 }} />
-        <View style={{ width: "80%", height: 48, borderRadius: 12, backgroundColor: "#222", marginTop: 24 }} />
+        <View style={{ width: 140, height: 24, borderRadius: 8, backgroundColor: colors.skeleton }} />
+        <View style={{ width: 200, height: 14, borderRadius: 7, backgroundColor: colors.skeleton, marginTop: 12 }} />
+        <View style={{ width: "80%", height: 48, borderRadius: 12, backgroundColor: colors.skeleton, marginTop: 24 }} />
       </View>
     );
   }
@@ -112,7 +187,7 @@ export default function SignupScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.checkbox,
-                  { borderColor: theme.border },
+                  { borderColor: colors.border },
                   agreeAge && [styles.checkboxChecked, { backgroundColor: colors.primary, borderColor: colors.primary }],
                   pressed && { opacity: 0.7 },
                 ]}
@@ -163,77 +238,3 @@ export default function SignupScreen() {
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  overlay: {
-    ...(StyleSheet.absoluteFill as object),
-    opacity: 0.03,
-    backgroundColor: colors.primary,
-  },
-  safeArea: {
-    flex: 1,
-    maxWidth: 800,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: spacing.lg,
-    justifyContent: "center",
-    gap: spacing.xl,
-  },
-  header: {
-    gap: spacing.xs,
-  },
-  title: {
-    fontSize: fontSize.xxl,
-    fontWeight: fontWeight.bold,
-    lineHeight: 34,
-  },
-  form: {
-    gap: spacing.md,
-  },
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.borderLight,
-  },
-  dividerText: {
-    fontSize: fontSize.sm,
-  },
-  error: {
-    color: colors.error,
-    fontSize: fontSize.sm,
-  },
-  ageRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxChecked: {},
-  checkmark: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  ageText: {
-    fontSize: fontSize.sm,
-    flexShrink: 1,
-  },
-});

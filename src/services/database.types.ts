@@ -32,9 +32,10 @@ export type Profile = {
 export type Report = {
   id: string;
   content_id: string;
-  content_type: "post" | "confession" | "listing";
+  content_type: "post" | "confession" | "listing" | "message" | "user";
   reason: string;
   reporter_id: string;
+  target_user_id?: string;
   created_at: string;
 };
 
@@ -118,16 +119,31 @@ export type ChannelMember = {
   joined_at: string;
 };
 
+export type MessageType = "text" | "image" | "file" | "view_once" | "voice";
+
 export type Message = {
   id: string;
   channel_id: string;
   user_id: string;
   content: string;
+  type?: MessageType;
+  media_url?: string;
+  file_name?: string;
+  file_size?: number;
+  viewed?: boolean;
+  reactions?: Record<string, string>;
+  reply_to?: string;
+  edited?: boolean;
+  edited_at?: string;
+  seen_by?: string[];
+  voice_url?: string;
+  voice_duration?: number;
   created_at: string;
 };
 
 export type MessageWithSender = Message & {
-  sender: Pick<Profile, "name"> | null;
+  sender: Pick<Profile, "name" | "avatar_url"> | null;
+  replyToMessage?: MessageWithSender;
 };
 
 export type Listing = {
@@ -178,4 +194,24 @@ export type Reaction = {
   post_id: string;
   emoji: string;
   created_at: string;
+};
+
+export type BlockedUser = {
+  id: string;
+  blocker_id: string;
+  blocked_id: string;
+  created_at: string;
+};
+
+export type PinnedMessage = {
+  id: string;
+  channel_id: string;
+  message_id: string;
+  pinned_by: string;
+  created_at: string;
+};
+
+export type OnlineStatus = {
+  last_seen: string;
+  userId?: string;
 };

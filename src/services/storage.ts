@@ -1,6 +1,6 @@
 import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
 import { withRetry } from "@/services/retry";
-import { File } from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
 import { Platform } from "react-native";
 
@@ -30,33 +30,33 @@ async function compressImage(uri: string): Promise<string> {
   return result.uri;
 }
 
+async function uploadToSupabase(
+  bucket: string,
+  path: string,
+  uri: string,
+  contentType: string = "image/jpeg"
+): Promise<string> {
+  const response = await fetch(uri);
+  const blob = await response.blob();
+
+  const { error: uploadError } = await supabase.storage
+    .from(bucket)
+    .upload(path, blob, { contentType, upsert: true });
+
+  if (uploadError) throw new Error(uploadError.message);
+
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  if (!data?.publicUrl) throw new Error("Failed to get public URL");
+  return data.publicUrl;
+}
+
 export async function uploadProfilePhoto(
   userId: string,
   uri: string
 ): Promise<string> {
   return withRetry(async () => {
     const compressed = await compressImage(uri);
-    const formData = new FormData();
-    const filename = `avatar.jpg`;
-    formData.append("file", {
-      uri: compressed,
-      type: "image/jpeg",
-      name: filename,
-    } as unknown as Blob);
-
-    const { error: uploadError } = await supabase.storage
-      .from("profile-photos")
-      .upload(`${userId}/${filename}`, formData, {
-        upsert: true,
-      });
-
-    if (uploadError) throw new Error(formatStorageError(uploadError));
-
-    const { data: urlData } = supabase.storage
-      .from("profile-photos")
-      .getPublicUrl(`${userId}/${filename}`);
-
-    return urlData.publicUrl;
+    return await uploadToSupabase("profile-photos", `${userId}/avatar.jpg`, compressed);
   });
 }
 
@@ -66,32 +66,12 @@ export async function uploadEventImage(
 ): Promise<string> {
   return withRetry(async () => {
     const compressed = await compressImage(uri);
-    const formData = new FormData();
-    const filename = `event.jpg`;
-    formData.append("file", {
-      uri: compressed,
-      type: "image/jpeg",
-      name: filename,
-    } as unknown as Blob);
-
-    const { error: uploadError } = await supabase.storage
-      .from("event-images")
-      .upload(`${eventId}/${filename}`, formData, {
-        upsert: true,
-      });
-
-    if (uploadError) throw new Error(formatStorageError(uploadError));
-
-    const { data: urlData } = supabase.storage
-      .from("event-images")
-      .getPublicUrl(`${eventId}/${filename}`);
-
-    return urlData.publicUrl;
+    return await uploadToSupabase("profile-photos", `event-images/${eventId}/event.jpg`, compressed);
   });
 }
 
 const ALLOWED_EXTENSIONS = ["jpg", "jpeg", "png", "pdf"];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 function getExtension(filename: string): string {
   return filename.split(".").pop()?.toLowerCase() ?? "";
@@ -130,34 +110,20 @@ export async function uploadStudentId(
     const filePath = `${userId}/student_id.${isPdf ? "pdf" : "jpg"}`;
     const uploadMime = isPdf ? "application/pdf" : "image/jpeg";
 
-    const file = new File(uploadUri);
+    const response = await fetch(uploadUri);
+    const blob = await response.blob();
 
     const { error: uploadError } = await supabase.storage
       .from("student-id-verification")
-      .upload(filePath, file, {
-        contentType: uploadMime,
-        upsert: true,
-      });
+      .upload(filePath, blob, { contentType: uploadMime, upsert: true });
 
-    if (uploadError) {
-      console.error("[uploadStudentId] upload error details:", JSON.stringify(uploadError));
-      return { success: false, error: formatStorageError(uploadError) };
-    }
+    if (uploadError) throw new Error(uploadError.message);
 
-    // Save the document type on the profile
     if (documentType) {
       try {
-        await supabase
-          .from("profiles")
-          .update({ student_document_type: documentType })
-          .eq("id", userId);
-      } catch {} // non-critical
+        await db_ops.update("profiles", userId, { student_document_type: documentType });
+      } catch {}
     }
-
-    // Notify the server that this user has uploaded their ID
-    try {
-      await supabase.rpc("set_my_verification_pending");
-    } catch {} // non-critical
 
     return { success: true };
   } catch (err) {
@@ -172,43 +138,13 @@ export async function uploadPostImage(
 ): Promise<string> {
   return withRetry(async () => {
     const compressed = await compressImage(uri);
-
-    let fileBody: Blob | FormData;
-    const filename = `photo.jpg`;
-
-    if (Platform.OS === "web") {
-      const response = await fetch(compressed);
-      fileBody = await response.blob();
-    } else {
-      const formData = new FormData();
-      formData.append("file", {
-        uri: compressed,
-        type: "image/jpeg",
-        name: filename,
-      } as unknown as Blob);
-      fileBody = formData;
+    try {
+      return await uploadToSupabase("post-images", `${postId}/photo.jpg`, compressed);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.toLowerCase() : String(err);
+      if (msg.includes("bucket") || msg.includes("not found")) return "";
+      throw new Error(formatStorageError(err));
     }
-
-    const fileName = `${postId}/${filename}`;
-    const { error: uploadError } = await supabase.storage
-      .from("post-images")
-      .upload(fileName, fileBody, {
-        upsert: true,
-        contentType: "image/jpeg",
-      });
-
-    if (uploadError) {
-      if (uploadError.message?.includes("bucket") || uploadError.message?.includes("No content") || uploadError.message?.includes("row-level security") || uploadError.message?.includes("security policy")) {
-        return "";
-      }
-      throw new Error(formatStorageError(uploadError));
-    }
-
-    const { data: urlData } = supabase.storage
-      .from("post-images")
-      .getPublicUrl(fileName);
-
-    return urlData.publicUrl;
   });
 }
 
@@ -219,27 +155,29 @@ export async function uploadListingPhoto(
 ): Promise<string> {
   return withRetry(async () => {
     const compressed = await compressImage(uri);
-    const formData = new FormData();
-    const filename = `photo_${index}.jpg`;
-    formData.append("file", {
-      uri: compressed,
-      type: "image/jpeg",
-      name: filename,
-    } as unknown as Blob);
+    return await uploadToSupabase("listing-photos", `${listingId}/photo_${index}.jpg`, compressed);
+  });
+}
 
-    const { error: uploadError } = await supabase.storage
-      .from("listing-photos")
-      .upload(`${listingId}/${filename}`, formData, {
-        upsert: true,
-      });
+export async function uploadChatImage(
+  channelId: string,
+  fileName: string,
+  uri: string
+): Promise<string> {
+  return withRetry(async () => {
+    const compressed = await compressImage(uri);
+    return await uploadToSupabase("post-images", `chat/${channelId}/${fileName}`, compressed);
+  });
+}
 
-    if (uploadError) throw new Error(formatStorageError(uploadError));
-
-    const { data: urlData } = supabase.storage
-      .from("listing-photos")
-      .getPublicUrl(`${listingId}/${filename}`);
-
-    return urlData.publicUrl;
+export async function uploadChatFile(
+  channelId: string,
+  fileName: string,
+  uri: string,
+  contentType: string = "application/octet-stream"
+): Promise<string> {
+  return withRetry(async () => {
+    return await uploadToSupabase("post-images", `chat/${channelId}/${fileName}`, uri, contentType);
   });
 }
 
@@ -255,20 +193,15 @@ export function resolveImageUrl(
   ) {
     return path;
   }
-  const supabaseUrl =
-    process.env.EXPO_PUBLIC_SUPABASE_URL ||
-    "https://kvpqkcfevmmlsbxjbgyd.supabase.co";
-  const cleanPath = path.startsWith("/") ? path.slice(1) : path;
-  
-  if (
-    cleanPath.startsWith(bucket) ||
-    cleanPath.startsWith("event-images") ||
-    cleanPath.startsWith("post-images") ||
-    cleanPath.startsWith("profile-photos") ||
-    cleanPath.startsWith("student-id-verification") ||
-    cleanPath.startsWith("listing-photos")
-  ) {
-    return `${supabaseUrl}/storage/v1/object/public/${cleanPath}`;
-  }
-  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${cleanPath}`;
+  return null;
+}
+
+export async function uploadChatVoice(
+  channelId: string,
+  fileName: string,
+  uri: string
+): Promise<string> {
+  return withRetry(async () => {
+    return await uploadToSupabase("post-images", `chat/${channelId}/voice/${fileName}`, uri, "audio/m4a");
+  });
 }

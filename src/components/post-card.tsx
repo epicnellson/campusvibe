@@ -1,5 +1,5 @@
 import { memo, useCallback, useState, useRef } from "react";
-import { Alert, Animated, Platform, Pressable, Share, StyleSheet, View } from "react-native";
+import { Alert, Animated, Platform, Pressable, Share, StyleSheet, TextInput, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -8,6 +8,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ResponsiveImage } from "@/components/responsive-image";
 import { Avatar } from "@/components/ui/Avatar";
 import { useSession } from "@/hooks/use-session";
+import { useTheme } from "@/hooks/use-theme";
 import { likePost, unlikePost, deletePost } from "@/services/posts";
 import { repostPost, unrepostPost } from "@/services/reposts";
 import { setReaction, removeReaction, REACTION_EMOJIS, type ReactionEmoji } from "@/services/reactions";
@@ -28,6 +29,16 @@ function relativeTime(dateStr: string): string {
   if (diffDay < 7) return `${diffDay}d`;
   return new Date(dateStr).toLocaleDateString();
 }
+
+const actionBtnStyles = StyleSheet.create({
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingRight: 20,
+    minHeight: 40,
+  },
+});
 
 function AnimatedActionButton({
   onPress,
@@ -68,7 +79,7 @@ function AnimatedActionButton({
       onLongPress={onLongPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      style={styles.actionButton}
+      style={actionBtnStyles.actionButton}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
       accessibilityState={accessibilityState}
@@ -108,11 +119,15 @@ function PostCardInner({
   commentCount = 0,
 }: PostCardProps) {
   const { session } = useSession();
+  const colors = useTheme();
   const currentUserId = session?.user?.id;
   const userLiked = post.likes?.some((l) => l.user_id === currentUserId) ?? false;
   const likeCount = post.likes?.length ?? 0;
   const [reportVisible, setReportVisible] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showCommentBox, setShowCommentBox] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [localComments, setLocalComments] = useState<string[]>([]);
   const authorName = post.profiles?.name ?? "Unknown";
   const department = post.profiles?.department ?? "";
   const isOwnPost = post.user_id === currentUserId;
@@ -179,6 +194,13 @@ function PostCardInner({
     Clipboard.setStringAsync(post.content);
   }, [post.content]);
 
+  const handleSubmitComment = useCallback(() => {
+    if (commentText.trim()) {
+      setLocalComments((prev) => [...prev, commentText.trim()]);
+      setCommentText("");
+    }
+  }, [commentText]);
+
   const handleLongPress = useCallback(() => {
     const actions: { text: string; style?: "cancel" | "destructive"; onPress?: () => void }[] = [
       { text: "Like", onPress: handleLike },
@@ -208,6 +230,12 @@ function PostCardInner({
     router.push(`/post/${post.id}`);
   }, [post.id]);
 
+  const navigateToProfile = useCallback(() => {
+    if (post.user_id) {
+      router.push(`/user/${post.user_id}` as any);
+    }
+  }, [post.user_id]);
+
   const resolvedImage = resolveImageUrl(post.image_url, "post-images");
 
   const reactionSummary = reactions.reduce<Record<string, number>>((acc, r) => {
@@ -216,17 +244,19 @@ function PostCardInner({
   }, {});
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { borderBottomColor: colors.divider, backgroundColor: colors.background }]}>
       {repostedBy && (
         <View style={styles.repostBanner}>
-          <Ionicons name="repeat-outline" size={14} color="#71717A" />
-          <ThemedText style={styles.repostText}>Reposted by {repostedBy}</ThemedText>
+          <Ionicons name="repeat-outline" size={14} color={colors.muted} />
+          <ThemedText style={[styles.repostText, { color: colors.muted }]}>Reposted by {repostedBy}</ThemedText>
         </View>
       )}
 
       <View style={styles.contentRow}>
         <View style={styles.leftColumn}>
-          <Avatar name={authorName} uri={post.profiles?.avatar_url} size={40} />
+          <Pressable onPress={navigateToProfile} accessibilityLabel={`View ${authorName}'s profile`}>
+            <Avatar name={authorName} uri={post.profiles?.avatar_url} size={40} />
+          </Pressable>
         </View>
 
         <View style={styles.rightColumn}>
@@ -238,21 +268,23 @@ function PostCardInner({
             style={styles.pressableContent}
           >
             <View style={styles.headerRow}>
-              <ThemedText style={styles.authorName} numberOfLines={1}>
-                {authorName}
-              </ThemedText>
+              <Pressable onPress={navigateToProfile} accessibilityLabel={`View ${authorName}'s profile`}>
+                <ThemedText style={[styles.authorName, { color: colors.text }]} numberOfLines={1}>
+                  {authorName}
+                </ThemedText>
+              </Pressable>
               {department ? (
-                <ThemedText style={styles.department} numberOfLines={1}>
+                <ThemedText style={[styles.department, { color: colors.muted }]} numberOfLines={1}>
                   {department}
                 </ThemedText>
               ) : null}
-              <ThemedText style={styles.dot}>·</ThemedText>
-              <ThemedText style={styles.timestamp}>
+              <ThemedText style={[styles.dot, { color: colors.inputBorder }]}>·</ThemedText>
+              <ThemedText style={[styles.timestamp, { color: colors.muted }]}>
                 {relativeTime(post.created_at)}
               </ThemedText>
             </View>
 
-            <ThemedText style={styles.body}>{post.content}</ThemedText>
+            <ThemedText style={[styles.body, { color: colors.warmInverse }]}>{post.content}</ThemedText>
 
             {resolvedImage ? (
               <ResponsiveImage
@@ -271,12 +303,13 @@ function PostCardInner({
                   onPress={() => handleReaction(emoji as ReactionEmoji)}
                   style={[
                     styles.reactionPill,
-                    userReaction === emoji && styles.reactionPillActive,
+                    { backgroundColor: "rgba(255,255,255,0.06)", borderColor: "transparent" },
+                    userReaction === emoji && { borderColor: colors.primary, backgroundColor: colors.primaryLight },
                   ]}
                 >
                   <ThemedText style={styles.reactionPillEmoji}>{emoji}</ThemedText>
                   {count > 1 && (
-                    <ThemedText style={styles.reactionPillCount}>{count}</ThemedText>
+                    <ThemedText style={[styles.reactionPillCount, { color: colors.muted }]}>{count}</ThemedText>
                   )}
                 </Pressable>
               ))}
@@ -285,14 +318,14 @@ function PostCardInner({
 
           {/* Reaction picker */}
           {showReactionPicker && (
-            <View style={styles.reactionPicker}>
+            <View style={[styles.reactionPicker, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
               {REACTION_EMOJIS.map((emoji) => (
                 <Pressable
                   key={emoji}
                   onPress={() => handleReaction(emoji)}
                   style={({ pressed }) => [
                     styles.reactionOption,
-                    userReaction === emoji && styles.reactionOptionActive,
+                    userReaction === emoji && { backgroundColor: colors.primaryLight },
                     pressed && styles.pressed,
                   ]}
                 >
@@ -303,20 +336,20 @@ function PostCardInner({
                 onPress={() => setShowReactionPicker(false)}
                 style={({ pressed }) => [styles.reactionOption, pressed && styles.pressed]}
               >
-                <Ionicons name="close" size={18} color="#71717A" />
+                <Ionicons name="close" size={18} color={colors.muted} />
               </Pressable>
             </View>
           )}
 
           <View style={styles.actionRow}>
             <AnimatedActionButton
-              onPress={navigateToPost}
+              onPress={() => setShowCommentBox((p) => !p)}
               accessibilityLabel="Comment"
             >
-              <Ionicons name="chatbubble-outline" size={16} color="#71717A" />
-              {commentCount > 0 && (
-                <ThemedText style={styles.actionCount}>
-                  {commentCount}
+              <Ionicons name="chatbubble-outline" size={16} color={showCommentBox ? colors.primary : colors.muted} />
+              {(commentCount + localComments.length) > 0 && (
+                <ThemedText style={[styles.actionCount, { color: showCommentBox ? colors.primary : colors.muted }]}>
+                  {commentCount + localComments.length}
                 </ThemedText>
               )}
             </AnimatedActionButton>
@@ -330,11 +363,11 @@ function PostCardInner({
                 <Ionicons
                   name="repeat-outline"
                   size={16}
-                  color={isReposted ? "#22C55E" : "#71717A"}
+                  color={isReposted ? "#22C55E" : colors.muted}
                 />
                 {repostCount > 0 && (
                   <ThemedText
-                    style={[styles.actionCount, { color: isReposted ? "#22C55E" : "#71717A" }]}
+                    style={[styles.actionCount, { color: isReposted ? "#22C55E" : colors.muted }]}
                   >
                     {repostCount}
                   </ThemedText>
@@ -351,13 +384,13 @@ function PostCardInner({
               <Ionicons
                 name={userLiked ? "heart" : "heart-outline"}
                 size={16}
-                color={userLiked ? "#E0245E" : "#71717A"}
+                color={userLiked ? colors.likeActive : colors.muted}
               />
               {likeCount > 0 && (
                 <ThemedText
                   style={[
                     styles.actionCount,
-                    { color: userLiked ? "#E0245E" : "#71717A" },
+                    { color: userLiked ? colors.likeActive : colors.muted },
                   ]}
                 >
                   {likeCount}
@@ -369,7 +402,7 @@ function PostCardInner({
               onPress={handleShare}
               accessibilityLabel="Share"
             >
-              <Ionicons name="share-outline" size={16} color="#71717A" />
+              <Ionicons name="share-outline" size={16} color={colors.muted} />
             </AnimatedActionButton>
 
             <View style={{ flex: 1 }} />
@@ -378,9 +411,41 @@ function PostCardInner({
               onPress={() => setReportVisible(true)}
               accessibilityLabel="Report"
             >
-              <Ionicons name="flag-outline" size={15} color="#71717A" />
+              <Ionicons name="flag-outline" size={15} color={colors.muted} />
             </AnimatedActionButton>
           </View>
+
+          {showCommentBox && (
+            <View style={styles.commentSection}>
+              {localComments.map((c, i) => (
+                <View key={i} style={[styles.commentBubble, { backgroundColor: colors.inputBg }]}>
+                  <ThemedText style={[styles.commentText, { color: colors.text }]}>{c}</ThemedText>
+                </View>
+              ))}
+              <View style={styles.commentInputRow}>
+                <View style={[styles.commentInputWrapper, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
+                  <TextInput
+                    style={[styles.commentInput, { color: colors.text }]}
+                    placeholder="Write a comment..."
+                    placeholderTextColor={colors.muted}
+                    value={commentText}
+                    onChangeText={setCommentText}
+                    onSubmitEditing={handleSubmitComment}
+                    returnKeyType="send"
+                  />
+                </View>
+                {commentText.trim() ? (
+                  <Pressable
+                    onPress={handleSubmitComment}
+                    style={({ pressed }) => [styles.sendBtn, pressed && { opacity: 0.6 }]}
+                    accessibilityLabel="Send comment"
+                  >
+                    <Ionicons name="send" size={16} color={colors.primary} />
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          )}
         </View>
       </View>
 
@@ -402,8 +467,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 6,
     borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-    backgroundColor: "#000000",
   },
   repostBanner: {
     flexDirection: "row",
@@ -414,7 +477,6 @@ const styles = StyleSheet.create({
   },
   repostText: {
     fontSize: 12,
-    color: "#71717A",
     fontWeight: "500",
   },
   contentRow: {
@@ -443,33 +505,21 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#FFFFFF",
   },
   department: {
     fontSize: 13,
-    color: "#71717A",
   },
   dot: {
     fontSize: 14,
-    color: "#3A3A3C",
   },
   timestamp: {
     fontSize: 13,
-    color: "#71717A",
   },
   body: {
     fontSize: 16,
     lineHeight: 22,
-    color: "#F0F0F0",
     marginTop: 4,
     width: "100%",
-  },
-  postImage: {
-    width: "100%",
-    minHeight: 200,
-    borderRadius: 14,
-    marginTop: 12,
-    backgroundColor: "#0A0A0C",
   },
   reactionSummary: {
     flexDirection: "row",
@@ -484,20 +534,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
-    borderColor: "transparent",
-  },
-  reactionPillActive: {
-    borderColor: "#6C47FF",
-    backgroundColor: "rgba(108, 71, 255, 0.15)",
   },
   reactionPillEmoji: {
     fontSize: 14,
   },
   reactionPillCount: {
     fontSize: 12,
-    color: "#71717A",
     fontWeight: "600",
   },
   reactionPicker: {
@@ -507,11 +550,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 8,
     paddingVertical: 6,
-    backgroundColor: "#1A1A1A",
     borderRadius: 28,
     alignSelf: "flex-start",
     borderWidth: 0.5,
-    borderColor: "#2A2A2A",
   },
   reactionOption: {
     width: 40,
@@ -519,9 +560,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-  },
-  reactionOptionActive: {
-    backgroundColor: "rgba(108, 71, 255, 0.2)",
   },
   reactionOptionEmoji: {
     fontSize: 22,
@@ -532,16 +570,50 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 8,
   },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 6,
-    paddingRight: 20,
-    minHeight: 40,
-  },
   actionCount: {
     fontSize: 12,
     fontWeight: "500",
+  },
+  commentSection: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: "rgba(255,255,255,0.08)",
+    gap: 8,
+  },
+  commentBubble: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    maxWidth: "88%",
+  },
+  commentText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  commentInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  commentInputWrapper: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    height: 38,
+    justifyContent: "center",
+  },
+  commentInput: {
+    fontSize: 14,
+    paddingVertical: 0,
+  },
+  sendBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   pressed: {
     opacity: 0.65,

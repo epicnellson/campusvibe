@@ -18,7 +18,8 @@ import { ThemedText } from "@/components/themed-text";
 import { ImageViewer } from "@/components/image-viewer";
 import { ResponsiveImage } from "@/components/responsive-image";
 import { DetailSkeleton } from "@/components/feed-skeleton";
-import { spacing, colors } from "@/theme";
+import { spacing } from "@/theme";
+import { useTheme } from "@/hooks/use-theme";
 import { useSession } from "@/hooks/use-session";
 import { useRefresh } from "@/hooks/use-refresh";
 import { fetchConfessionById, likeConfession, unlikeConfession, deleteConfession } from "@/services/confessions";
@@ -70,7 +71,231 @@ function formatFullTimestamp(dateStr: string): string {
   return `${time} \u00B7 ${date}`;
 }
 
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000000",
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+    backgroundColor: "#000000",
+  },
+  errorText: {
+    color: "#9CA3AF",
+    marginBottom: spacing.md,
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  goBack: {
+    color: "#6C47FF",
+    fontWeight: "600",
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  customHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    backgroundColor: "#000000",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#1E1E1E",
+  },
+  headerBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "flex-end",
+  },
+  actionSheet: {
+    backgroundColor: "#1A1A1A",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 34,
+  },
+  actionSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#262626",
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  actionSheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+  },
+  actionSheetItemBorder: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#262626",
+  },
+  actionSheetLabel: {
+    fontSize: 16,
+    color: "#E1E1E1",
+    fontWeight: "500",
+  },
+  actionSheetCancel: {
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 4,
+    borderTopWidth: 0.5,
+    borderTopColor: "#262626",
+  },
+  actionSheetCancelText: {
+    fontSize: 16,
+    color: "#71717A",
+    fontWeight: "500",
+  },
+  imageViewerOverlay: {
+    ...StyleSheet.absoluteFillObject as object,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+  },
+  imageViewerClose: {
+    position: "absolute",
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
+  },
+  anonAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  anonAvatarText: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  authorCol: {
+    flex: 1,
+    gap: 1,
+  },
+  authorName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    lineHeight: 20,
+  },
+  postBody: {
+    fontSize: 17,
+    lineHeight: 24,
+    color: "#F0F0F0",
+    fontWeight: "400",
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
+  },
+  imageSection: {
+    marginBottom: spacing.md,
+    backgroundColor: "#FFFFFF",
+    marginHorizontal: 16,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  postImage: {
+    width: "100%" as const,
+    minHeight: 200,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+  },
+  timestampRow: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#1E1E1E",
+  },
+  timestampText: {
+    fontSize: 14,
+    color: "#71717A",
+    fontWeight: "400",
+  },
+  metricsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    borderTopWidth: 0.5,
+    borderTopColor: "#1E1E1E",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#1E1E1E",
+  },
+  metricsText: {
+    fontSize: 14,
+    color: "#71717A",
+    fontWeight: "400",
+  },
+  metricsBold: {
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  actionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#1E1E1E",
+    paddingHorizontal: 8,
+  },
+  actionBarBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    height: 44,
+    minWidth: 44,
+  },
+  actionBarCount: {
+    fontSize: 11,
+    color: "#71717A",
+    fontWeight: "500",
+  },
+  pressed: {
+    opacity: 0.6,
+  },
+});
+
 export default function ConfessionDetailScreen() {
+  const colors = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useSession();
   const { triggerFeedRefresh } = useRefresh();
@@ -186,7 +411,7 @@ export default function ConfessionDetailScreen() {
           { text: "Delete", style: "destructive", onPress: handleDeleteConfession },
         ]);
       },
-      color: "#EF4444",
+      color: colors.danger,
     },
   ];
 
@@ -219,7 +444,7 @@ export default function ConfessionDetailScreen() {
           style={({ pressed }) => [styles.headerBtn, pressed && styles.pressed]}
           accessibilityLabel="Go back"
         >
-          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          <Ionicons name="arrow-back" size={22} color={colors.textOnDark} />
         </Pressable>
         <ThemedText style={styles.headerTitle}>Confession</ThemedText>
         <Pressable
@@ -227,7 +452,7 @@ export default function ConfessionDetailScreen() {
           style={({ pressed }) => [styles.headerBtn, pressed && styles.pressed]}
           accessibilityLabel="More options"
         >
-          <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" />
+          <Ionicons name="ellipsis-horizontal" size={22} color={colors.textOnDark} />
         </Pressable>
       </View>
 
@@ -245,7 +470,7 @@ export default function ConfessionDetailScreen() {
                   pressed && styles.pressed,
                 ]}
               >
-                <Ionicons name={item.icon} size={20} color={item.color ?? "#E1E1E1"} />
+                <Ionicons name={item.icon} size={20} color={item.color ?? colors.textBody} />
                 <ThemedText style={[styles.actionSheetLabel, item.color ? { color: item.color } : undefined]}>
                   {item.label}
                 </ThemedText>
@@ -269,7 +494,7 @@ export default function ConfessionDetailScreen() {
             style={[styles.imageViewerClose, { top: insets.top + 16 }]}
             accessibilityLabel="Close image"
           >
-            <Ionicons name="close" size={24} color="#FFFFFF" />
+            <Ionicons name="close" size={24} color={colors.textOnDark} />
           </Pressable>
         </View>
       </Modal>
@@ -279,7 +504,6 @@ export default function ConfessionDetailScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Author row - anonymous */}
         <View style={styles.authorRow}>
           <View style={[styles.anonAvatar, { backgroundColor: avatarColor }]}>
             <ThemedText style={styles.anonAvatarText}>?</ThemedText>
@@ -323,10 +547,10 @@ export default function ConfessionDetailScreen() {
               <Ionicons
                 name={userLiked ? "heart" : "heart-outline"}
                 size={22}
-                color={userLiked ? "#E0245E" : "#71717A"}
+                color={userLiked ? colors.likeActive : colors.muted}
               />
               {likeCount > 0 && (
-                <ThemedText style={[styles.actionBarCount, { color: userLiked ? "#E0245E" : "#71717A" }]}>
+                <ThemedText style={[styles.actionBarCount, { color: userLiked ? colors.likeActive : colors.muted }]}>
                   {likeCount}
                 </ThemedText>
               )}
@@ -334,232 +558,10 @@ export default function ConfessionDetailScreen() {
           </Animated.View>
 
           <Pressable onPress={handleShare} style={styles.actionBarBtn} accessibilityLabel="Share">
-            <Ionicons name="arrow-up-outline" size={22} color="#71717A" />
+            <Ionicons name="arrow-up-outline" size={22} color={colors.muted} />
           </Pressable>
         </View>
       </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000000",
-  },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.lg,
-    backgroundColor: "#000000",
-  },
-  errorText: {
-    color: "#9CA3AF",
-    marginBottom: spacing.md,
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  goBack: {
-    color: colors.primary,
-    fontWeight: "600",
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  customHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
-    paddingBottom: 8,
-    backgroundColor: "#000000",
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-  },
-  headerBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
-  },
-  actionSheet: {
-    backgroundColor: "#1A1A1A",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingBottom: 34,
-  },
-  actionSheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#262626",
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 8,
-  },
-  actionSheetItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.lg,
-  },
-  actionSheetItemBorder: {
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#262626",
-  },
-  actionSheetLabel: {
-    fontSize: 16,
-    color: "#E1E1E1",
-    fontWeight: "500",
-  },
-  actionSheetCancel: {
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 4,
-    borderTopWidth: 0.5,
-    borderTopColor: "#262626",
-  },
-  actionSheetCancelText: {
-    fontSize: 16,
-    color: "#71717A",
-    fontWeight: "500",
-  },
-  imageViewerOverlay: {
-    ...StyleSheet.absoluteFillObject as object,
-    backgroundColor: "rgba(0,0,0,0.95)",
-  },
-  imageViewerClose: {
-    position: "absolute",
-    right: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  authorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-  },
-  anonAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  anonAvatarText: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  authorCol: {
-    flex: 1,
-    gap: 1,
-  },
-  authorName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    lineHeight: 20,
-  },
-  postBody: {
-    fontSize: 17,
-    lineHeight: 24,
-    color: "#F0F0F0",
-    fontWeight: "400",
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-  },
-  imageSection: {
-    marginBottom: spacing.md,
-    backgroundColor: "#0A0A0C",
-    marginHorizontal: 16,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  postImage: {
-    width: "100%" as const,
-    minHeight: 200,
-    borderRadius: 14,
-    backgroundColor: "#0A0A0C",
-  },
-  timestampRow: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-  },
-  timestampText: {
-    fontSize: 14,
-    color: "#71717A",
-    fontWeight: "400",
-  },
-  metricsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    borderTopWidth: 0.5,
-    borderTopColor: "#1E1E1E",
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-  },
-  metricsText: {
-    fontSize: 14,
-    color: "#71717A",
-    fontWeight: "400",
-  },
-  metricsBold: {
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  actionBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 44,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-    paddingHorizontal: 8,
-  },
-  actionBarBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    height: 44,
-    minWidth: 44,
-  },
-  actionBarCount: {
-    fontSize: 11,
-    color: "#71717A",
-    fontWeight: "500",
-  },
-  pressed: {
-    opacity: 0.6,
-  },
-});

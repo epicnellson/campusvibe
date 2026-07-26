@@ -18,6 +18,7 @@ import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
 import { ResponsiveImage } from "@/components/responsive-image";
 import { useSession } from "@/hooks/use-session";
+import { useTheme } from "@/hooks/use-theme";
 import { resolveImageUrl } from "@/services/storage";
 import { deleteConfession } from "@/services/confessions";
 import { submitReport } from "@/services/reports";
@@ -64,6 +65,16 @@ function relativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
+const actionBtnStyles = StyleSheet.create({
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingRight: 20,
+    minHeight: 40,
+  },
+});
+
 function AnimatedActionButton({
   onPress,
   children,
@@ -100,7 +111,7 @@ function AnimatedActionButton({
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      style={styles.actionButton}
+      style={actionBtnStyles.actionButton}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
       accessibilityState={accessibilityState}
@@ -121,6 +132,7 @@ export type ConfessionCardProps = {
 function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }: ConfessionCardProps) {
   const { session } = useSession();
   const insets = useSafeAreaInsets();
+  const colors = useTheme();
   const currentUserId = session?.user?.id;
   const userLiked =
     confession.confession_likes?.some((l) => l.user_id === currentUserId) ?? false;
@@ -181,12 +193,12 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
       label: "Delete confession",
       icon: "trash-outline",
       onPress: handleDeleteConfession,
-      color: "#EF4444",
+      color: colors.danger,
     });
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { borderBottomColor: colors.divider, backgroundColor: colors.background }]}>
       <View style={styles.contentRow}>
         <View style={styles.leftColumn}>
           <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
@@ -196,11 +208,11 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
 
         <View style={styles.rightColumn}>
           <View style={styles.headerRow}>
-            <ThemedText style={styles.authorName}>
+            <ThemedText style={[styles.authorName, { color: colors.text }]}>
               Anonymous {animalName}
             </ThemedText>
-            <ThemedText style={styles.dot}>·</ThemedText>
-            <ThemedText style={styles.timestamp}>
+            <ThemedText style={[styles.dot, { color: colors.inputBorder }]}>·</ThemedText>
+            <ThemedText style={[styles.timestamp, { color: colors.muted }]}>
               {relativeTime(confession.created_at)}
             </ThemedText>
             <View style={{ flex: 1 }} />
@@ -209,16 +221,16 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
               style={{ padding: 4 }}
               accessibilityLabel="More options"
             >
-              <Ionicons name="ellipsis-horizontal" size={16} color="#71717A" />
+              <Ionicons name="ellipsis-horizontal" size={16} color={colors.muted} />
             </Pressable>
           </View>
 
-          <ThemedText style={styles.body}>{confession.content}</ThemedText>
+          <ThemedText style={[styles.body, { color: colors.warmInverse }]}>{confession.content}</ThemedText>
 
           {resolvedImage ? (
             <Pressable
               onPress={() => setShowImageViewer(true)}
-              style={styles.imagePressable}
+              style={[styles.imagePressable, { backgroundColor: colors.background }]}
             >
               <ResponsiveImage
                 source={resolvedImage}
@@ -236,13 +248,13 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
               <Ionicons
                 name={userLiked ? "heart" : "heart-outline"}
                 size={16}
-                color={userLiked ? "#E0245E" : "#71717A"}
+                color={userLiked ? colors.likeActive : colors.muted}
               />
               {likeCount > 0 && (
                 <ThemedText
                   style={[
                     styles.actionCount,
-                    { color: userLiked ? "#FF3B30" : "#71717A" },
+                    { color: userLiked ? colors.likeActive : colors.muted },
                   ]}
                 >
                   {likeCount}
@@ -256,7 +268,7 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
               onPress={() => setReportVisible(true)}
               accessibilityLabel="Report"
             >
-              <Ionicons name="flag-outline" size={16} color="#71717A" />
+              <Ionicons name="flag-outline" size={16} color={colors.muted} />
             </AnimatedActionButton>
           </View>
         </View>
@@ -276,21 +288,21 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
         animationType="fade"
         onRequestClose={() => setShowImageViewer(false)}
       >
-        <View style={styles.viewerOverlay}>
+        <View style={[styles.viewerOverlay, { backgroundColor: colors.background }]}>
           <Pressable
             onPress={() => setShowImageViewer(false)}
-            style={[styles.viewerClose, { top: insets.top + 12 }]}
+            style={[styles.viewerClose, { top: insets.top + 12, backgroundColor: colors.backgroundElement }]}
             accessibilityLabel="Close image"
           >
-            <Ionicons name="close" size={24} color="#FFFFFF" />
+            <Ionicons name="close" size={24} color={colors.text} />
           </Pressable>
 
           <Pressable
             onPress={() => setShowMenu(true)}
-            style={[styles.viewerMenuBtn, { top: insets.top + 12 }]}
+            style={[styles.viewerMenuBtn, { top: insets.top + 12, backgroundColor: colors.backgroundElement }]}
             accessibilityLabel="More options"
           >
-            <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" />
+            <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
           </Pressable>
 
           <View style={styles.viewerImageContainer}>
@@ -305,30 +317,30 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
 
       {/* 3-dot action sheet */}
       <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowMenu(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={styles.actionSheet}>
-            <View style={styles.actionSheetHandle} />
+        <Pressable style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} onPress={() => setShowMenu(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={[styles.actionSheet, { backgroundColor: colors.inputBg }]}>
+            <View style={[styles.actionSheetHandle, { backgroundColor: colors.inputBgAlt }]} />
             {menuItems.map((item, i) => (
               <Pressable
                 key={item.label}
                 onPress={item.onPress}
                 style={({ pressed }) => [
                   styles.actionSheetItem,
-                  i < menuItems.length - 1 && styles.actionSheetItemBorder,
+                  i < menuItems.length - 1 && [styles.actionSheetItemBorder, { borderBottomColor: colors.inputBgAlt }],
                   pressed && styles.pressed,
                 ]}
               >
-                <Ionicons name={item.icon} size={20} color={item.color ?? "#E1E1E1"} />
-                <ThemedText style={[styles.actionSheetLabel, item.color ? { color: item.color } : undefined]}>
+                <Ionicons name={item.icon} size={20} color={item.color ?? colors.textBody} />
+                <ThemedText style={[styles.actionSheetLabel, { color: colors.textBody }, item.color ? { color: item.color } : undefined]}>
                   {item.label}
                 </ThemedText>
               </Pressable>
             ))}
             <Pressable
               onPress={() => setShowMenu(false)}
-              style={({ pressed }) => [styles.actionSheetCancel, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.actionSheetCancel, { borderTopColor: colors.inputBgAlt }, pressed && styles.pressed]}
             >
-              <ThemedText style={styles.actionSheetCancelText}>Cancel</ThemedText>
+              <ThemedText style={[styles.actionSheetCancelText, { color: colors.muted }]}>Cancel</ThemedText>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -345,8 +357,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 6,
     borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-    backgroundColor: "#000000",
   },
   contentRow: {
     flexDirection: "row",
@@ -368,7 +378,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: {
-    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
   },
@@ -381,46 +390,33 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#FFFFFF",
   },
   dot: {
     fontSize: 14,
-    color: "#3A3A3C",
   },
   timestamp: {
     fontSize: 13,
-    color: "#71717A",
   },
   body: {
     fontSize: 16,
     lineHeight: 22,
-    color: "#F0F0F0",
     marginTop: 4,
   },
   imagePressable: {
     marginTop: 10,
     borderRadius: 12,
     overflow: "hidden",
-    backgroundColor: "#0A0A0C",
   },
   postImage: {
     width: "100%",
     minHeight: 200,
     borderRadius: 14,
-    backgroundColor: "#0A0A0C",
   },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginTop: 8,
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 6,
-    paddingRight: 20,
-    minHeight: 40,
   },
   actionCount: {
     fontSize: 12,
@@ -431,7 +427,6 @@ const styles = StyleSheet.create({
   },
   viewerOverlay: {
     ...(StyleSheet.absoluteFill as object),
-    backgroundColor: "#000000",
   },
   viewerClose: {
     position: "absolute",
@@ -439,7 +434,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,
@@ -450,7 +444,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,
@@ -466,11 +459,9 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end",
   },
   actionSheet: {
-    backgroundColor: "#1A1A1A",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingBottom: 34,
@@ -479,7 +470,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#262626",
     alignSelf: "center",
     marginTop: 10,
     marginBottom: 8,
@@ -493,11 +483,9 @@ const styles = StyleSheet.create({
   },
   actionSheetItemBorder: {
     borderBottomWidth: 0.5,
-    borderBottomColor: "#262626",
   },
   actionSheetLabel: {
     fontSize: 16,
-    color: "#E1E1E1",
     fontWeight: "500",
   },
   actionSheetCancel: {
@@ -505,11 +493,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
     borderTopWidth: 0.5,
-    borderTopColor: "#262626",
   },
   actionSheetCancelText: {
     fontSize: 16,
-    color: "#71717A",
     fontWeight: "500",
   },
 });

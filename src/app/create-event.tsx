@@ -14,15 +14,69 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
+import { spacing, borderRadius, fontSize, fontWeight } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
 import { useRefresh } from "@/hooks/use-refresh";
 import { useSession } from "@/hooks/use-session";
+import { useTheme } from "@/hooks/use-theme";
 import { createEvent } from "@/services/events";
 import { uploadEventImage } from "@/services/storage";
 import { requireVerified } from "@/services/verification";
 
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  safeArea: {
+    flex: 1,
+    maxWidth: 800,
+    width: "100%",
+  },
+  flex: {
+    flex: 1,
+  },
+  scroll: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+    gap: spacing.lg,
+  },
+  header: {
+    gap: spacing.xs,
+  },
+  title: {
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.bold,
+  },
+  form: {
+    gap: spacing.md,
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+  imagePicker: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: "#3A3A3A",
+    borderStyle: "dashed",
+    alignItems: "center",
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  error: {
+    color: "#FF3B30",
+    fontSize: fontSize.sm,
+  },
+});
+
 export default function CreateEventScreen() {
+  const colors = useTheme();
   const { session, isLoading } = useSession();
   const { profile } = useProfile();
   const { triggerFeedRefresh } = useRefresh();
@@ -70,10 +124,10 @@ export default function CreateEventScreen() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000000", gap: 12 }}>
-        <View style={{ width: "70%", height: 14, borderRadius: 7, backgroundColor: "#222" }} />
-        <View style={{ width: "90%", height: 40, borderRadius: 8, backgroundColor: "#222" }} />
-        <View style={{ width: "60%", height: 14, borderRadius: 7, backgroundColor: "#222" }} />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, gap: 12 }}>
+        <View style={{ width: "70%", height: 14, borderRadius: 7, backgroundColor: colors.skeleton }} />
+        <View style={{ width: "90%", height: 40, borderRadius: 8, backgroundColor: colors.skeleton }} />
+        <View style={{ width: "60%", height: 14, borderRadius: 7, backgroundColor: colors.skeleton }} />
       </View>
     );
   }
@@ -133,16 +187,12 @@ export default function CreateEventScreen() {
 
       if (imageUri) {
         const imageUrl = await uploadEventImage(eventId, imageUri);
-        const { updateProfile } = await import("@/services/profile");
-        const { supabase } = await import("@/services/supabase");
-        await supabase
-          .from("events")
-          .update({ image_url: imageUrl })
-          .eq("id", eventId);
+        const { db_ops } = await import("@/services/db");
+        await db_ops.update("events", eventId, { image_url: imageUrl });
       }
 
       triggerFeedRefresh();
-      router.back();
+      router.canGoBack() ? router.back() : router.replace("/");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create event");
     } finally {
@@ -238,7 +288,7 @@ export default function CreateEventScreen() {
               <Button
                 title="Cancel"
                 variant="secondary"
-                onPress={() => router.back()}
+                onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
               />
             </ThemedView>
           </ScrollView>
@@ -247,54 +297,3 @@ export default function CreateEventScreen() {
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  safeArea: {
-    flex: 1,
-    maxWidth: 800,
-    width: "100%",
-  },
-  flex: {
-    flex: 1,
-  },
-  scroll: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
-    gap: spacing.lg,
-  },
-  header: {
-    gap: spacing.xs,
-  },
-  title: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-  },
-  form: {
-    gap: spacing.md,
-  },
-  textArea: {
-    minHeight: 100,
-    textAlignVertical: "top",
-  },
-  imagePicker: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderStyle: "dashed",
-    alignItems: "center",
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  error: {
-    color: colors.error,
-    fontSize: fontSize.sm,
-  },
-});

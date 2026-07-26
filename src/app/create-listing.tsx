@@ -15,16 +15,138 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
+import { spacing, borderRadius, fontSize, fontWeight } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
 import { useSession } from "@/hooks/use-session";
+import { useTheme } from "@/hooks/use-theme";
 import { createListing, updateListingPhotos } from "@/services/marketplace";
 import { uploadListingPhoto } from "@/services/storage";
 import { requireVerified } from "@/services/verification";
 
 const CATEGORIES = ["Textbooks", "Electronics", "Clothing", "Other"];
 
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  safeArea: {
+    flex: 1,
+    maxWidth: 800,
+    width: "100%",
+  },
+  flex: {
+    flex: 1,
+  },
+  scroll: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+    gap: spacing.lg,
+  },
+  header: {
+    gap: spacing.xs,
+  },
+  title: {
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.bold,
+  },
+  form: {
+    gap: spacing.md,
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+  categoryLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    marginLeft: spacing.xs,
+  },
+  categories: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  categoryButton: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: "#3A3A3A",
+  },
+  categorySelected: {
+    backgroundColor: "#6C47FF",
+    borderColor: "#6C47FF",
+  },
+  categoryText: {
+    fontSize: fontSize.sm,
+    color: "#9E9E9E",
+  },
+  categoryTextSelected: {
+    color: "#FFFFFF",
+    fontWeight: fontWeight.semibold,
+  },
+  imagePicker: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: "#3A3A3A",
+    borderStyle: "dashed",
+    alignItems: "center",
+  },
+  previewStrip: {
+    flexDirection: "row",
+  },
+  preview: {
+    width: 80,
+    height: 80,
+    borderRadius: borderRadius.sm,
+    overflow: "hidden",
+    position: "relative",
+    marginRight: spacing.sm,
+  },
+  removeButton: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  removeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: fontWeight.semibold,
+  },
+  previewImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 4,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  error: {
+    color: "#FF3B30",
+    fontSize: fontSize.sm,
+  },
+  fieldError: {
+    color: "#FF3B30",
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.medium,
+    marginLeft: spacing.xs,
+  },
+});
+
 export default function CreateListingScreen() {
+  const colors = useTheme();
   const { session, isLoading } = useSession();
   const { profile } = useProfile();
 
@@ -57,10 +179,10 @@ export default function CreateListingScreen() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000000", gap: 12 }}>
-        <View style={{ width: "70%", height: 14, borderRadius: 7, backgroundColor: "#222" }} />
-        <View style={{ width: "90%", height: 40, borderRadius: 8, backgroundColor: "#222" }} />
-        <View style={{ width: "60%", height: 14, borderRadius: 7, backgroundColor: "#222" }} />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, gap: 12 }}>
+        <View style={{ width: "70%", height: 14, borderRadius: 7, backgroundColor: colors.skeleton }} />
+        <View style={{ width: "90%", height: 40, borderRadius: 8, backgroundColor: colors.skeleton }} />
+        <View style={{ width: "60%", height: 14, borderRadius: 7, backgroundColor: colors.skeleton }} />
       </View>
     );
   }
@@ -134,7 +256,7 @@ export default function CreateListingScreen() {
         await updateListingPhotos(listingId, uploadedUrls);
       }
 
-      router.back();
+      router.canGoBack() ? router.back() : router.replace("/");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create listing");
     } finally {
@@ -264,7 +386,7 @@ export default function CreateListingScreen() {
               <Button
                 title="Cancel"
                 variant="secondary"
-                onPress={() => router.back()}
+                onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
               />
             </ThemedView>
           </ScrollView>
@@ -273,122 +395,3 @@ export default function CreateListingScreen() {
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  safeArea: {
-    flex: 1,
-    maxWidth: 800,
-    width: "100%",
-  },
-  flex: {
-    flex: 1,
-  },
-  scroll: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
-    gap: spacing.lg,
-  },
-  header: {
-    gap: spacing.xs,
-  },
-  title: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-  },
-  form: {
-    gap: spacing.md,
-  },
-  textArea: {
-    minHeight: 100,
-    textAlignVertical: "top",
-  },
-  categoryLabel: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-    marginLeft: spacing.xs,
-  },
-  categories: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  categoryButton: {
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  categorySelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  categoryText: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-  },
-  categoryTextSelected: {
-    color: "#ffffff",
-    fontWeight: fontWeight.semibold,
-  },
-  imagePicker: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderStyle: "dashed",
-    alignItems: "center",
-  },
-  previewStrip: {
-    flexDirection: "row",
-  },
-  preview: {
-    width: 80,
-    height: 80,
-    borderRadius: borderRadius.sm,
-    overflow: "hidden",
-    position: "relative",
-    marginRight: spacing.sm,
-  },
-  removeButton: {
-    position: "absolute",
-    top: 2,
-    right: 2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  removeText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: fontWeight.semibold,
-  },
-  previewImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 4,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  error: {
-    color: colors.error,
-    fontSize: fontSize.sm,
-  },
-  fieldError: {
-    color: colors.error,
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.medium,
-    marginLeft: spacing.xs,
-  },
-});

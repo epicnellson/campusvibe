@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { supabase } from "@/services/supabase";
-import type { Session } from "@supabase/supabase-js";
+import { auth } from "@/services/firebase";
+import { onAuthStateChanged, type User } from "firebase/auth";
 
 type SessionContextType = {
-  session: Session | null;
+  session: { user: { id: string; email: string | null } } | null;
   isLoading: boolean;
 };
 
@@ -12,36 +12,22 @@ const SessionContext = createContext<SessionContextType>({
   isLoading: true,
 });
 
+function userToSession(user: User | null) {
+  if (!user) return null;
+  return { user: { id: user.uid, email: user.email } };
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<SessionContextType["session"]>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      console.warn("Session check timed out — forcing load complete");
-      setIsLoading(false);
-    }, 5000);
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      clearTimeout(timeout);
-      setSession(session);
-      setIsLoading(false);
-    }).catch((e) => {
-      clearTimeout(timeout);
-      console.warn("Failed to get session:", e);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setSession(userToSession(user));
       setIsLoading(false);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => {
-      clearTimeout(timeout);
-      subscription.unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   return (

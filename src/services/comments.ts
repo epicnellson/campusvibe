@@ -1,4 +1,5 @@
-import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
+import { getCurrentUser } from "@/services/firebase";
 import { withRetry } from "@/services/retry";
 import { sanitizeText } from "@/services/sanitize";
 import { createNotification } from "@/services/in-app-notifications";
@@ -6,26 +7,33 @@ import type { CommentWithProfile } from "@/services/database.types";
 
 export async function fetchComments(postId: string): Promise<CommentWithProfile[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase
-      .from("comments")
-      .select("id, post_id, user_id, content, created_at, profiles(name, department)")
-      .eq("post_id", postId)
-      .order("created_at", { ascending: true });
+    const raw = await db_ops.query("comments", {
+      conditions: [{ field: "post_id", op: "==", value: postId }],
+      orderBy: [{ field: "created_at", direction: "asc" }],
+    });
 
-    if (error) throw error;
-    return (data ?? []) as unknown as CommentWithProfile[];
+    const profileIds = [...new Set(raw.map((c) => c.user_id))];
+    const profiles = await Promise.all(
+      profileIds.map((id) => db_ops.get("profiles", id))
+    );
+    const profileMap = new Map(profiles.filter(Boolean).map((p) => [p!.id, p]));
+
+    return raw.map((c) => ({
+      ...c,
+      profiles: profileMap.get(c.user_id) ?? null,
+    })) as CommentWithProfile[];
   });
 }
 
 export async function fetchCommentCounts(postIds: string[]): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   if (postIds.length === 0) return map;
-  const { data } = await supabase
-    .from("comments")
-    .select("post_id")
-    .in("post_id", postIds);
-  for (const c of data ?? []) {
-    map.set(c.post_id, (map.get(c.post_id) ?? 0) + 1);
+
+  for (const postId of postIds) {
+    const data = await db_ops.query("comments", {
+      conditions: [{ field: "post_id", op: "==", value: postId }],
+    });
+    if (data.length > 0) map.set(postId, data.length);
   }
   return map;
 }
@@ -35,43 +43,18 @@ export async function createComment(
   content: string
 ): Promise<{ id: string } | null> {
   return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    const user = getCurrentUser();
+    const commentId = await db_ops.add("comments", {
+      post_id: postId,
+      user_id: user.uid,
+      content: sanitizeText(content),
+    });
 
-    const { data, error } = await supabase
-      .from("comments")
-      .insert({
-        post_id: postId,
-        user_id: user.id,
-        content: sanitizeText(content),
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      if (
-        error.code === "42501" ||
-        error.message?.includes("permission denied")
-      ) {
-        throw new Error(
-          "You need a verified student ID to comment. Upload your ID in settings."
-        );
-      }
-      throw error;
+    const post = await db_ops.get("posts", postId);
+    if (post && post.user_id !== user.uid) {
+      createNotification(post.user_id, user.uid, "comment", "post", postId);
     }
 
-    const { data: post } = await supabase
-      .from("posts")
-      .select("user_id")
-      .eq("id", postId)
-      .single();
-
-    if (post && post.user_id !== user.id) {
-      createNotification(post.user_id, user.id, "comment", "post", postId);
-    }
-
-    return data;
+    return { id: commentId };
   });
 }

@@ -11,14 +11,17 @@ import { SwipeablePager, PagerViewRef } from "@/components/PagerViewWrapper";
 import { FeedSkeleton } from "@/components/feed-skeleton";
 import { useProfile } from "@/hooks/use-profile";
 import { useSession } from "@/hooks/use-session";
+import { useTheme } from "@/hooks/use-theme";
 import { spacing } from "@/theme";
 
 import FeedScreen from "./index";
 import ChatsScreen from "./chats";
 import MarketplaceScreen from "./marketplace";
+import SearchScreen from "./search";
 import ProfileScreen from "./profile";
 
 export default function TabLayout() {
+  const colors = useTheme();
   const { session, isLoading } = useSession();
   const { profile, isLoading: profileLoading } = useProfile();
   const insets = useSafeAreaInsets();
@@ -35,7 +38,7 @@ export default function TabLayout() {
 
   if (isLoading || profileLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <FeedSkeleton />
       </View>
     );
@@ -71,6 +74,7 @@ export default function TabLayout() {
           <View style={styles.page} key="feed"><FeedScreen /></View>
           <View style={styles.page} key="chats"><ChatsScreen /></View>
           <View style={styles.page} key="marketplace"><MarketplaceScreen /></View>
+          <View style={styles.page} key="search"><SearchScreen /></View>
           <View style={styles.page} key="profile"><ProfileScreen /></View>
         </SwipeablePager>
 

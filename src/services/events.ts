@@ -1,4 +1,5 @@
-import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
+import { getCurrentUser } from "@/services/firebase";
 import { withRetry } from "@/services/retry";
 import { sanitizeText } from "@/services/sanitize";
 import { notifyNewEvent } from "@/services/notifications";
@@ -8,19 +9,18 @@ export async function fetchUpcomingEvents(): Promise<EventWithRSVPs[]> {
   return withRetry(async () => {
     const today = new Date().toISOString().split("T")[0];
 
-    const { data, error } = await supabase
-      .from("events")
-      .select("id, title, description, date, time, location, image_url, created_at, user_id, event_rsvps(id, user_id)")
-      .gte("date", today)
-      .order("date", { ascending: true })
-      .order("time", { ascending: true });
+    const allEvents = await db_ops.query("events", {
+      orderBy: [{ field: "date", direction: "asc" }],
+    });
 
-    if (error) throw error;
-    const events = (data ?? []) as any[];
-    const userIds = [...new Set(events.map((e: any) => e.user_id).filter(Boolean))];
+    const upcomingEvents = allEvents.filter((e) => e.date >= today);
+
+    const userIds = [...new Set(upcomingEvents.map((e) => e.user_id).filter(Boolean))];
     const profileMap = await fetchCreatorNames(userIds);
-    return events.map((e: any) => ({
+
+    return upcomingEvents.map((e) => ({
       ...e,
+      event_rsvps: (e.rsvps ?? []).map((uid: string) => ({ user_id: uid })),
       creator: profileMap.get(e.user_id) ?? null,
     })) as unknown as EventWithRSVPs[];
   });
@@ -37,92 +37,52 @@ export type CreateEventData = {
 
 export async function createEvent(data: CreateEventData): Promise<string> {
   return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    const user = getCurrentUser();
 
-    const { data: event, error } = await supabase
-      .from("events")
-      .insert({
-        user_id: user.id,
-        title: sanitizeText(data.title),
-        description: sanitizeText(data.description),
-        date: data.date,
-        time: data.time,
-        location: sanitizeText(data.location),
-        image_url: data.image_url ?? null,
-      })
-      .select("id")
-      .single();
+    const eventId = await db_ops.add("events", {
+      user_id: user.uid,
+      title: sanitizeText(data.title),
+      description: sanitizeText(data.description),
+      date: data.date,
+      time: data.time,
+      location: sanitizeText(data.location),
+      image_url: data.image_url ?? null,
+      rsvps: [],
+    });
 
-    if (error) {
-      if (error.code === "42501" || error.message?.includes("permission denied")) {
-        throw new Error("You need a verified student ID to create events. Please upload your student ID first.");
-      }
-      throw error;
-    }
-
-    notifyNewEvent(data.title, event.id);
-    return event.id;
+    notifyNewEvent(data.title, eventId);
+    return eventId;
   });
 }
 
 export async function rsvpEvent(eventId: string) {
   return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    const { error } = await supabase.from("event_rsvps").insert({
-      event_id: eventId,
-      user_id: user.id,
-    });
-    if (error) throw error;
+    const user = getCurrentUser();
+    await db_ops.addToArray("events", eventId, "rsvps", user.uid);
   });
 }
 
 export async function unrsvpEvent(eventId: string) {
   return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    const { error } = await supabase
-      .from("event_rsvps")
-      .delete()
-      .eq("event_id", eventId)
-      .eq("user_id", user.id);
-    if (error) throw error;
+    const user = getCurrentUser();
+    await db_ops.removeFromArray("events", eventId, "rsvps", user.uid);
   });
 }
 
 export async function deleteEvent(eventId: string) {
   return withRetry(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    const { error } = await supabase
-      .from("events")
-      .delete()
-      .eq("id", eventId);
-    if (error) throw error;
+    getCurrentUser();
+    await db_ops.delete("events", eventId);
   });
 }
 
 async function fetchCreatorNames(userIds: string[]): Promise<Map<string, { name: string }>> {
   const map = new Map<string, { name: string }>();
   if (userIds.length === 0) return map;
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, name")
-    .in("id", userIds);
-  for (const p of profiles ?? []) {
-    map.set(p.id, { name: p.name });
+
+  const profiles = await Promise.all(userIds.map((id) => db_ops.get("profiles", id)));
+  for (const p of profiles.filter(Boolean)) {
+    map.set(p!.id, { name: p!.name });
   }
   return map;
 }

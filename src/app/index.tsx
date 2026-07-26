@@ -3,19 +3,21 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "@/hooks/use-session";
 import { useProfile } from "@/hooks/use-profile";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function WelcomeScreen() {
   const { session, isLoading: sessionLoading } = useSession();
-  const { profile, isLoading: profileLoading } = useProfile();
+  const { profile, isLoading: profileLoading, error: profileError, refreshProfile } = useProfile();
+  const colors = useTheme();
 
   const isLoading = sessionLoading || profileLoading;
 
   if (isLoading) {
     return (
-      <View style={styles.root}>
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
         <SafeAreaView style={styles.safe}>
-          <Text style={styles.title}>CampusVibe</Text>
-          <ActivityIndicator size="small" color="rgba(255,255,255,0.5)" style={styles.loader} />
+          <Text style={[styles.title, { color: colors.textOnDark }]}>CampusVibe</Text>
+          <ActivityIndicator size="small" color={colors.muted} style={styles.loader} />
         </SafeAreaView>
       </View>
     );
@@ -30,31 +32,31 @@ export default function WelcomeScreen() {
   }
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.content}>
           <View style={styles.brand}>
-            <Text style={styles.title}>CampusVibe</Text>
-            <Text style={styles.tagline}>Your campus. Your community.</Text>
+            <Text style={[styles.title, { color: colors.textOnDark }]}>CampusVibe</Text>
+            <Text style={[styles.tagline, { color: colors.muted }]}>Your campus. Your community.</Text>
           </View>
 
           <View style={styles.buttons}>
             <Pressable
-              style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.primaryBtn, { backgroundColor: colors.primary }, pressed && styles.pressed]}
               onPress={() => router.push("/signup")}
               accessibilityLabel="Sign up"
               accessibilityRole="button"
             >
-              <Text style={styles.primaryBtnText}>Get started</Text>
+              <Text style={[styles.primaryBtnText, { color: colors.textOnDark }]}>Get started</Text>
             </Pressable>
 
             <Pressable
-              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.secondaryBtn, { borderColor: colors.border }, pressed && styles.pressed]}
               onPress={() => router.push("/login")}
               accessibilityLabel="Log in"
               accessibilityRole="button"
             >
-              <Text style={styles.secondaryBtnText}>I already have an account</Text>
+              <Text style={[styles.secondaryBtnText, { color: colors.textSecondary }]}>I already have an account</Text>
             </Pressable>
           </View>
         </View>
@@ -66,7 +68,6 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   safe: {
     flex: 1,
@@ -85,13 +86,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   title: {
-    color: "#FFFFFF",
     fontSize: 34,
     fontWeight: "800",
     letterSpacing: -0.5,
   },
   tagline: {
-    color: "#71717A",
     fontSize: 15,
     fontWeight: "500",
   },
@@ -106,12 +105,10 @@ const styles = StyleSheet.create({
   primaryBtn: {
     height: 52,
     borderRadius: 14,
-    backgroundColor: "#6C47FF",
     alignItems: "center",
     justifyContent: "center",
   },
   primaryBtnText: {
-    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
   },
@@ -119,12 +116,10 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#2A2A2A",
     alignItems: "center",
     justifyContent: "center",
   },
   secondaryBtnText: {
-    color: "#9E9E9E",
     fontSize: 15,
     fontWeight: "600",
   },

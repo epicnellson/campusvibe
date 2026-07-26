@@ -1,13 +1,12 @@
-import { getThemeColors, lightColors, colors } from '@/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getThemeColors } from "@/theme";
+import { useThemePreference } from "@/hooks/use-theme-context";
 
 export function useTheme() {
-  const scheme = useColorScheme();
-  const theme = scheme ?? 'light';
-  return getThemeColors(theme);
+  const { isDark } = useThemePreference();
+  return getThemeColors(isDark ? "dark" : "light");
 }
 
 export function useIsDarkMode() {
-  const scheme = useColorScheme();
-  return scheme === 'dark';
+  const { isDark } = useThemePreference();
+  return isDark;
 }

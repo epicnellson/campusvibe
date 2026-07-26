@@ -8,168 +8,10 @@ import { ThemedText } from "@/components/themed-text";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { useProfile } from "@/hooks/use-profile";
 import { useRefresh } from "@/hooks/use-refresh";
-import { useIsDarkMode } from "@/hooks/use-theme";
-import { supabase } from "@/services/supabase";
+import { useTheme } from "@/hooks/use-theme";
+import { useThemePreference } from "@/hooks/use-theme-context";
+import { signOut } from "@/services/auth";
 
-export default function SettingsScreen() {
-  const { profile } = useProfile();
-  const { triggerFeedRefresh } = useRefresh();
-  const isDark = useIsDarkMode();
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  const handleLogout = () => {
-    const doLogout = async () => {
-      setLoggingOut(true);
-      await supabase.auth.signOut();
-      triggerFeedRefresh();
-      router.replace("/login");
-    };
-    if (Platform.OS === "web") {
-      Alert.alert(
-        "Log Out",
-        "Are you sure you want to log out?",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Log Out", style: "destructive", onPress: doLogout },
-        ]
-      );
-    } else {
-      Alert.alert("Log Out", undefined, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Log Out", style: "destructive", onPress: doLogout },
-      ]);
-    }
-  };
-
-  return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Pressable
-              onPress={() => router.back()}
-              style={styles.backBtn}
-              accessibilityLabel="Go back"
-            >
-              <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-            </Pressable>
-            <ThemedText style={styles.headerTitle}>Settings</ThemedText>
-            <View style={{ width: 40 }} />
-          </View>
-
-          {/* Profile summary */}
-          <View style={styles.profileSummary}>
-            <ThemedText style={styles.profileName}>
-              {profile?.name ?? "Your Profile"}
-            </ThemedText>
-            {profile?.email_domain && (
-              <ThemedText style={styles.profileEmail}>{profile.email_domain}</ThemedText>
-            )}
-          </View>
-
-          {/* Account section */}
-          <ThemedText style={styles.sectionTitle}>Account</ThemedText>
-          <View style={styles.card}>
-            <Pressable
-              onPress={() => { router.back(); router.push("/edit-profile"); }}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-            >
-              <View style={styles.rowLeft}>
-                <Ionicons name="person-outline" size={20} color="#A1A1AA" />
-                <ThemedText style={styles.rowLabel}>Edit Profile</ThemedText>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#52525B" />
-            </Pressable>
-            <View style={styles.divider} />
-            <Pressable
-              onPress={() => { router.back(); router.push("/verify-student-id"); }}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-            >
-              <View style={styles.rowLeft}>
-                <Ionicons name="school-outline" size={20} color="#A1A1AA" />
-                <ThemedText style={styles.rowLabel}>Verification</ThemedText>
-              </View>
-              <View style={styles.rowRight}>
-                <ThemedText style={[
-                  styles.badge,
-                  profile?.verification_status === "approved" && styles.badgeApproved,
-                  profile?.verification_status === "pending" && styles.badgePending,
-                ]}>
-                  {profile?.verification_status === "approved" ? "Verified" :
-                   profile?.verification_status === "pending" ? "Pending" : "Not Verified"}
-                </ThemedText>
-                <Ionicons name="chevron-forward" size={18} color="#52525B" />
-              </View>
-            </Pressable>
-          </View>
-
-          {/* Notifications section */}
-          <ThemedText style={styles.sectionTitle}>Notifications</ThemedText>
-          <View style={styles.card}>
-            <Pressable
-              onPress={() => { router.back(); router.push("/notification-settings"); }}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-            >
-              <View style={styles.rowLeft}>
-                <Ionicons name="notifications-outline" size={20} color="#A1A1AA" />
-                <ThemedText style={styles.rowLabel}>Notification Settings</ThemedText>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#52525B" />
-            </Pressable>
-          </View>
-
-          {/* Appearance section */}
-          <ThemedText style={styles.sectionTitle}>Appearance</ThemedText>
-          <View style={styles.card}>
-            <View style={styles.row}>
-              <View style={styles.rowLeft}>
-                <Ionicons name={isDark ? "moon-outline" : "sunny-outline"} size={20} color="#A1A1AA" />
-                <ThemedText style={styles.rowLabel}>{isDark ? "Dark Mode" : "Light Mode"}</ThemedText>
-              </View>
-              <ThemedText style={styles.hint}>Follows system</ThemedText>
-            </View>
-          </View>
-
-          {/* About section */}
-          <ThemedText style={styles.sectionTitle}>About</ThemedText>
-          <View style={styles.card}>
-            <Pressable
-              onPress={() => { router.back(); router.push("/privacy"); }}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-            >
-              <View style={styles.rowLeft}>
-                <Ionicons name="document-text-outline" size={20} color="#A1A1AA" />
-                <ThemedText style={styles.rowLabel}>Privacy Policy</ThemedText>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#52525B" />
-            </Pressable>
-            <View style={styles.divider} />
-            <View style={styles.row}>
-              <View style={styles.rowLeft}>
-                <Ionicons name="information-circle-outline" size={20} color="#A1A1AA" />
-                <ThemedText style={styles.rowLabel}>Version</ThemedText>
-              </View>
-              <ThemedText style={styles.hint}>1.0.0</ThemedText>
-            </View>
-          </View>
-
-          {/* Logout button */}
-          <Pressable
-            onPress={handleLogout}
-            disabled={loggingOut}
-            style={({ pressed }) => [styles.logoutBtn, pressed && styles.pressed]}
-          >
-            <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-            <ThemedText style={styles.logoutText}>
-              {loggingOut ? "Logging out..." : "Log Out"}
-            </ThemedText>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
 
 const styles = StyleSheet.create({
   safe: {
@@ -230,7 +72,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.two,
   },
   card: {
-    backgroundColor: "#111111",
+    backgroundColor: "#141414",
     borderRadius: 14,
     overflow: "hidden",
   },
@@ -275,11 +117,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   badgeApproved: {
-    color: "#22C55E",
+    color: "#34C759",
     backgroundColor: "rgba(34, 197, 94, 0.15)",
   },
   badgePending: {
-    color: "#F59E0B",
+    color: "#FF9500",
     backgroundColor: "rgba(245, 158, 11, 0.15)",
   },
   logoutBtn: {
@@ -304,3 +146,178 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 });
+
+export default function SettingsScreen() {
+  const colors = useTheme();
+  const { profile } = useProfile();
+  const { triggerFeedRefresh } = useRefresh();
+  const { preference, isDark, setPreference } = useThemePreference();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = () => {
+    const doLogout = async () => {
+      setLoggingOut(true);
+      await signOut();
+      triggerFeedRefresh();
+      router.replace("/login");
+    };
+    if (Platform.OS === "web") {
+      Alert.alert(
+        "Log Out",
+        "Are you sure you want to log out?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Log Out", style: "destructive", onPress: doLogout },
+        ]
+      );
+    } else {
+      Alert.alert("Log Out", undefined, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Log Out", style: "destructive", onPress: doLogout },
+      ]);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Pressable
+              onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
+              style={styles.backBtn}
+              accessibilityLabel="Go back"
+            >
+              <Ionicons name="chevron-back" size={24} color={colors.textOnDark} />
+            </Pressable>
+            <ThemedText style={styles.headerTitle}>Settings</ThemedText>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Profile summary */}
+          <View style={styles.profileSummary}>
+            <ThemedText style={styles.profileName}>
+              {profile?.name ?? "Your Profile"}
+            </ThemedText>
+            {profile?.email_domain && (
+              <ThemedText style={styles.profileEmail}>{profile.email_domain}</ThemedText>
+            )}
+          </View>
+
+          {/* Account section */}
+          <ThemedText style={styles.sectionTitle}>Account</ThemedText>
+          <View style={styles.card}>
+            <Pressable
+              onPress={() => { router.push("/edit-profile"); }}
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+            >
+              <View style={styles.rowLeft}>
+                <Ionicons name="person-outline" size={20} color={colors.mutedLight} />
+                <ThemedText style={styles.rowLabel}>Edit Profile</ThemedText>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+            </Pressable>
+            <View style={styles.divider} />
+            <Pressable
+              onPress={() => { router.push("/verify-student-id"); }}
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+            >
+              <View style={styles.rowLeft}>
+                <Ionicons name="school-outline" size={20} color={colors.mutedLight} />
+                <ThemedText style={styles.rowLabel}>Verification</ThemedText>
+              </View>
+              <View style={styles.rowRight}>
+                <ThemedText style={[
+                  styles.badge,
+                  profile?.verification_status === "approved" && styles.badgeApproved,
+                  profile?.verification_status === "pending" && styles.badgePending,
+                ]}>
+                  {profile?.verification_status === "approved" ? "Verified" :
+                   profile?.verification_status === "pending" ? "Pending" : "Not Verified"}
+                </ThemedText>
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+              </View>
+            </Pressable>
+          </View>
+
+          {/* Notifications section */}
+          <ThemedText style={styles.sectionTitle}>Notifications</ThemedText>
+          <View style={styles.card}>
+            <Pressable
+              onPress={() => { router.push("/notification-settings"); }}
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+            >
+              <View style={styles.rowLeft}>
+                <Ionicons name="notifications-outline" size={20} color={colors.mutedLight} />
+                <ThemedText style={styles.rowLabel}>Notification Settings</ThemedText>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+            </Pressable>
+          </View>
+
+          {/* Appearance section */}
+          <ThemedText style={styles.sectionTitle}>Appearance</ThemedText>
+          <View style={styles.card}>
+            {(["light", "dark", "system"] as const).map((opt, idx) => {
+              const labels = { light: "Light", dark: "Dark", system: "System" } as const;
+              const icons = { light: "sunny-outline" as const, dark: "moon-outline" as const, system: "phone-portrait-outline" as const };
+              return (
+                <View key={opt}>
+                  {idx > 0 && <View style={styles.divider} />}
+                  <Pressable
+                    onPress={() => setPreference(opt)}
+                    style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                  >
+                    <View style={styles.rowLeft}>
+                      <Ionicons name={icons[opt]} size={20} color={colors.mutedLight} />
+                      <ThemedText style={styles.rowLabel}>{labels[opt]}</ThemedText>
+                    </View>
+                    {preference === opt && (
+                      <Ionicons name="checkmark" size={20} color={colors.primary} />
+                    )}
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+
+          {/* About section */}
+          <ThemedText style={styles.sectionTitle}>About</ThemedText>
+          <View style={styles.card}>
+            <Pressable
+              onPress={() => { router.push("/privacy"); }}
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+            >
+              <View style={styles.rowLeft}>
+                <Ionicons name="document-text-outline" size={20} color={colors.mutedLight} />
+                <ThemedText style={styles.rowLabel}>Privacy Policy</ThemedText>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+            </Pressable>
+            <View style={styles.divider} />
+            <View style={styles.row}>
+              <View style={styles.rowLeft}>
+                <Ionicons name="information-circle-outline" size={20} color={colors.mutedLight} />
+                <ThemedText style={styles.rowLabel}>Version</ThemedText>
+              </View>
+              <ThemedText style={styles.hint}>1.0.0</ThemedText>
+            </View>
+          </View>
+
+          {/* Logout button */}
+          <Pressable
+            onPress={handleLogout}
+            disabled={loggingOut}
+            style={({ pressed }) => [styles.logoutBtn, pressed && styles.pressed]}
+          >
+            <Ionicons name="log-out-outline" size={20} color={colors.danger} />
+            <ThemedText style={styles.logoutText}>
+              {loggingOut ? "Logging out..." : "Log Out"}
+            </ThemedText>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}

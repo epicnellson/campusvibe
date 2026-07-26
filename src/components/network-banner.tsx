@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { Animated, Platform, StyleSheet } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useTheme } from "@/hooks/use-theme";
 import { spacing, fontSize, fontWeight } from "@/theme";
 
 export function NetworkBanner() {
   const [online, setOnline] = useState(true);
   const [slideAnim] = useState(() => new Animated.Value(0));
+  const colors = useTheme();
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -49,8 +51,8 @@ export function NetworkBanner() {
         },
       ]}
     >
-      <ThemedView style={styles.inner}>
-        <ThemedText style={styles.text}>No internet connection</ThemedText>
+      <ThemedView style={[styles.inner, { backgroundColor: colors.error }]}>
+        <ThemedText style={[styles.text, { color: colors.textOnDark }]}>No internet connection</ThemedText>
       </ThemedView>
     </Animated.View>
   );
@@ -69,17 +71,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
-    backgroundColor: "#FF3B30",
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xl + spacing.sm,
   },
-  icon: {
-    fontSize: 16,
-    color: "#FFFFFF",
-  },
   text: {
-    color: "#FFFFFF",
     fontSize: fontSize.sm,
     fontWeight: fontWeight.semibold,
   },

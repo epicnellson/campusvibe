@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { ThemedText } from "@/components/themed-text";
+import { useTheme } from "@/hooks/use-theme";
 import { resolveImageUrl } from "@/services/storage";
 import type { EventWithRSVPs } from "@/services/database.types";
 
@@ -21,6 +22,7 @@ function formatDateTag(dateStr: string): string {
 
 function EventCardInner({ event }: EventCardProps) {
   const [imageError, setImageError] = useState(false);
+  const colors = useTheme();
   const rsvpCount = event.event_rsvps?.length ?? 0;
 
   const resolvedImage = !imageError && event.image_url
@@ -30,7 +32,7 @@ function EventCardInner({ event }: EventCardProps) {
   return (
     <Pressable
       onPress={() => router.push(`/event/${event.id}` as any)}
-      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.container, { borderBottomColor: colors.divider, backgroundColor: colors.backgroundSecondary }, pressed && styles.pressed]}
       accessibilityLabel={`Event: ${event.title}`}
       accessibilityRole="button"
     >
@@ -48,21 +50,21 @@ function EventCardInner({ event }: EventCardProps) {
                 {formatDateTag(event.date)}
               </ThemedText>
             </View>
-            <ThemedText style={styles.title} numberOfLines={1}>
+            <ThemedText style={[styles.title, { color: colors.text }]} numberOfLines={1}>
               {event.title}
             </ThemedText>
           </View>
 
           <View style={styles.metaRow}>
-            <Ionicons name="location-outline" size={14} color="#71717A" />
-            <ThemedText style={styles.metaText} numberOfLines={1}>
+            <Ionicons name="location-outline" size={14} color={colors.muted} />
+            <ThemedText style={[styles.metaText, { color: colors.muted }]} numberOfLines={1}>
               {event.location}
             </ThemedText>
             {event.time && (
               <>
-                <ThemedText style={styles.dot}>·</ThemedText>
-                <Ionicons name="time-outline" size={14} color="#71717A" />
-                <ThemedText style={styles.metaText}>
+                <ThemedText style={[styles.dot, { color: colors.inputBorder }]}>·</ThemedText>
+                <Ionicons name="time-outline" size={14} color={colors.muted} />
+                <ThemedText style={[styles.metaText, { color: colors.muted }]}>
                   {event.time.slice(0, 5)}
                 </ThemedText>
               </>
@@ -70,7 +72,7 @@ function EventCardInner({ event }: EventCardProps) {
           </View>
 
           {event.description ? (
-            <ThemedText style={styles.description} numberOfLines={2}>
+            <ThemedText style={[styles.description, { color: colors.textBody }]} numberOfLines={2}>
               {event.description}
             </ThemedText>
           ) : null}
@@ -78,7 +80,7 @@ function EventCardInner({ event }: EventCardProps) {
           {resolvedImage ? (
             <Image
               source={resolvedImage}
-              style={styles.eventImage}
+              style={[styles.eventImage, { backgroundColor: colors.background }]}
               contentFit="cover"
               cachePolicy="memory-disk"
               transition={300}
@@ -88,8 +90,8 @@ function EventCardInner({ event }: EventCardProps) {
           ) : null}
 
           <View style={styles.actionRow}>
-            <Ionicons name="people-outline" size={16} color="#6C47FF" />
-            <ThemedText style={styles.rsvpCount}>
+            <Ionicons name="people-outline" size={16} color={colors.primary} />
+            <ThemedText style={[styles.rsvpCount, { color: colors.primary }]}>
               {rsvpCount} {rsvpCount === 1 ? "person going" : "people going"}
             </ThemedText>
           </View>
@@ -107,8 +109,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
     borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
-    backgroundColor: "#09090B",
   },
   contentRow: {
     flexDirection: "row",
@@ -152,7 +152,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#FFFFFF",
     flex: 1,
   },
   metaRow: {
@@ -163,17 +162,14 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 13,
-    color: "#71717A",
   },
   dot: {
     fontSize: 13,
-    color: "#3A3A3C",
     marginHorizontal: 2,
   },
   description: {
     fontSize: 14,
     lineHeight: 20,
-    color: "#E1E1E1",
     marginTop: 2,
   },
   eventImage: {
@@ -181,7 +177,6 @@ const styles = StyleSheet.create({
     aspectRatio: 4 / 3,
     borderRadius: 14,
     marginTop: 10,
-    backgroundColor: "#0A0A0C",
   },
   actionRow: {
     flexDirection: "row",
@@ -192,7 +187,6 @@ const styles = StyleSheet.create({
   rsvpCount: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6C47FF",
   },
   pressed: {
     opacity: 0.75,

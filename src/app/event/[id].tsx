@@ -18,10 +18,233 @@ import { useRefresh } from "@/hooks/use-refresh";
 import { rsvpEvent, unrsvpEvent, deleteEvent } from "@/services/events";
 import { resolveImageUrl } from "@/services/storage";
 import type { EventWithRSVPs } from "@/services/database.types";
-import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
 import { EventDetailSkeleton } from "@/components/feed-skeleton";
 
 type EventDetail = EventWithRSVPs;
+
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000000",
+  },
+  center: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  errorText: {
+    fontSize: 15,
+    color: "#71717A",
+    textAlign: "center",
+  },
+  scrollContent: {
+    paddingBottom: 120,
+  },
+  bannerContainer: {
+    position: "relative",
+  },
+  bannerImage: {
+    width: "100%",
+    height: 280,
+    backgroundColor: "#0A0A0A",
+  },
+  bannerPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0A0A0A",
+  },
+  bannerGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    backgroundColor: "transparent",
+    borderBottomWidth: 0,
+  },
+  bannerNav: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  noBannerNav: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    borderWidth: 0.5,
+    borderColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    gap: 0,
+  },
+  dateBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#6C47FF",
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: 10,
+  },
+  dateBadgeText: {
+    fontSize: 13,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    lineHeight: 32,
+    marginBottom: 18,
+  },
+  infoBlock: {
+    gap: 16,
+    marginBottom: 24,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  infoIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#6C47FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 15,
+    color: "#FFFFFF",
+    fontWeight: "500",
+  },
+  divider: {
+    height: 0.5,
+    backgroundColor: "#1E1E1E",
+    marginBottom: 20,
+  },
+  sectionHeading: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 10,
+  },
+  description: {
+    fontSize: 15,
+    lineHeight: 23,
+    color: "#9CA3AF",
+  },
+  bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    backgroundColor: "#000000",
+    borderTopWidth: 0.5,
+    borderTopColor: "#1E1E1E",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  rsvpCountRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  rsvpCountText: {
+    fontSize: 14,
+    color: "#71717A",
+    fontWeight: "500",
+  },
+  rsvpButton: {
+    height: 46,
+    paddingHorizontal: 24,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 140,
+  },
+  rsvpButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "flex-end",
+  },
+  actionSheet: {
+    backgroundColor: "#1A1A1A",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 34,
+  },
+  actionSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#262626",
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  actionSheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  actionSheetLabel: {
+    fontSize: 16,
+    color: "#E1E1E1",
+    fontWeight: "500",
+  },
+  actionSheetCancel: {
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 4,
+    borderTopWidth: 0.5,
+    borderTopColor: "#262626",
+  },
+  actionSheetCancelText: {
+    fontSize: 16,
+    color: "#71717A",
+    fontWeight: "500",
+  },
+});
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,15 +274,16 @@ export default function EventDetailScreen() {
       try {
         setLoading(true);
         setError(null);
-        const { data, error: fetchErr } = await supabase
-          .from("events")
-          .select(
-            "id, title, description, date, time, location, image_url, created_at, user_id, event_rsvps(id, user_id), creator:profiles(name)"
-          )
-          .eq("id", id)
-          .single();
-        if (fetchErr) throw fetchErr;
-        if (!cancelled) setEvent(data as unknown as EventDetail);
+        const eventData = await db_ops.get("events", id);
+        if (!eventData) throw new Error("Event not found");
+        if (!cancelled) {
+          const creator = eventData.user_id ? await db_ops.get("profiles", eventData.user_id) : null;
+          setEvent({
+            ...eventData,
+            event_rsvps: (eventData.rsvps ?? []).map((uid: string) => ({ user_id: uid })),
+            creator: creator ? { name: creator.name } : null,
+          } as unknown as EventDetail);
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load event");
       } finally {
@@ -131,7 +355,7 @@ export default function EventDetailScreen() {
   if (error || !event) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Ionicons name="alert-circle-outline" size={48} color="#2A2A2A" />
+            <Ionicons name="alert-circle-outline" size={48} color="#2A2A2A" />
         <Text style={styles.errorText}>{error ?? "Event not found"}</Text>
       </View>
     );
@@ -147,7 +371,6 @@ export default function EventDetailScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Banner */}
         {bannerUri ? (
           <View style={styles.bannerContainer}>
             <Image source={{ uri: bannerUri }} style={styles.bannerImage} resizeMode="cover" />
@@ -192,22 +415,19 @@ export default function EventDetailScreen() {
           </View>
         )}
 
-        {/* Content */}
         <View style={styles.content}>
-          {/* Date badge */}
           <View style={styles.dateBadge}>
-            <Ionicons name="calendar-outline" size={13} color="#A78BFA" />
+            <Ionicons name="calendar-outline" size={14} color="#FFFFFF" />
             <Text style={styles.dateBadgeText}>{formatDate(event.date)}</Text>
           </View>
 
           <Text style={styles.title}>{event.title}</Text>
 
-          {/* Info rows */}
           <View style={styles.infoBlock}>
             {event.time ? (
               <View style={styles.infoRow}>
                 <View style={styles.infoIcon}>
-                  <Ionicons name="time-outline" size={17} color="#A78BFA" />
+                  <Ionicons name="time-outline" size={18} color="#FFFFFF" />
                 </View>
                 <View>
                   <Text style={styles.infoLabel}>Time</Text>
@@ -217,7 +437,7 @@ export default function EventDetailScreen() {
             ) : null}
             <View style={styles.infoRow}>
               <View style={styles.infoIcon}>
-                <Ionicons name="location-outline" size={17} color="#A78BFA" />
+                <Ionicons name="location-outline" size={18} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.infoLabel}>Location</Text>
@@ -227,7 +447,7 @@ export default function EventDetailScreen() {
             {event.creator?.name ? (
               <View style={styles.infoRow}>
                 <View style={styles.infoIcon}>
-                  <Ionicons name="person-outline" size={17} color="#A78BFA" />
+                  <Ionicons name="person-outline" size={18} color="#FFFFFF" />
                 </View>
                 <View>
                   <Text style={styles.infoLabel}>Hosted by</Text>
@@ -237,7 +457,7 @@ export default function EventDetailScreen() {
             ) : null}
             <View style={styles.infoRow}>
               <View style={styles.infoIcon}>
-                <Ionicons name="people-outline" size={17} color="#A78BFA" />
+                <Ionicons name="people-outline" size={18} color="#FFFFFF" />
               </View>
               <View>
                 <Text style={styles.infoLabel}>Attendees</Text>
@@ -248,16 +468,13 @@ export default function EventDetailScreen() {
             </View>
           </View>
 
-          {/* Divider */}
           <View style={styles.divider} />
 
-          {/* About */}
           <Text style={styles.sectionHeading}>About this event</Text>
           <Text style={styles.description}>{event.description}</Text>
         </View>
       </ScrollView>
 
-      {/* RSVP dock */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.rsvpCountRow}>
           <Ionicons
@@ -330,7 +547,6 @@ export default function EventDetailScreen() {
         </Pressable>
       </Modal>
 
-      {/* Delete confirmation modal */}
       <Modal visible={showDeleteConfirm} transparent animationType="fade" onRequestClose={() => setShowDeleteConfirm(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteConfirm(false)}>
           <Pressable onPress={(e) => e.stopPropagation()} style={styles.actionSheet}>
@@ -355,225 +571,3 @@ export default function EventDetailScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000000",
-  },
-  center: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  errorText: {
-    fontSize: 15,
-    color: "#71717A",
-    textAlign: "center",
-  },
-  scrollContent: {
-    paddingBottom: 120,
-  },
-  bannerContainer: {
-    position: "relative",
-  },
-  bannerImage: {
-    width: "100%",
-    height: 280,
-    backgroundColor: "#0A0A0A",
-  },
-  bannerPlaceholder: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0A0A0A",
-  },
-  bannerGradient: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    backgroundColor: "transparent",
-    borderBottomWidth: 0,
-  },
-  bannerNav: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  noBannerNav: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingBottom: 12,
-  },
-  backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    borderWidth: 0.5,
-    borderColor: "rgba(255,255,255,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    gap: 0,
-  },
-  dateBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(124, 58, 237, 0.12)",
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    marginBottom: 10,
-  },
-  dateBadgeText: {
-    fontSize: 13,
-    color: "#A78BFA",
-    fontWeight: "600",
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    lineHeight: 32,
-    marginBottom: 18,
-  },
-  infoBlock: {
-    gap: 16,
-    marginBottom: 24,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  infoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(124, 58, 237, 0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: "#71717A",
-    fontWeight: "500",
-    marginBottom: 1,
-  },
-  infoValue: {
-    fontSize: 15,
-    color: "#E1E1E1",
-    fontWeight: "500",
-  },
-  divider: {
-    height: 0.5,
-    backgroundColor: "#1E1E1E",
-    marginBottom: 20,
-  },
-  sectionHeading: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 10,
-  },
-  description: {
-    fontSize: 15,
-    lineHeight: 23,
-    color: "#A0A0A0",
-  },
-  bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    backgroundColor: "#000000",
-    borderTopWidth: 0.5,
-    borderTopColor: "#1E1E1E",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  rsvpCountRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  rsvpCountText: {
-    fontSize: 14,
-    color: "#71717A",
-    fontWeight: "500",
-  },
-  rsvpButton: {
-    height: 46,
-    paddingHorizontal: 24,
-    borderRadius: 23,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 140,
-  },
-  rsvpButtonText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
-  },
-  actionSheet: {
-    backgroundColor: "#1A1A1A",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingBottom: 34,
-  },
-  actionSheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#262626",
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 8,
-  },
-  actionSheetItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-  },
-  actionSheetLabel: {
-    fontSize: 16,
-    color: "#E1E1E1",
-    fontWeight: "500",
-  },
-  actionSheetCancel: {
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 4,
-    borderTopWidth: 0.5,
-    borderTopColor: "#262626",
-  },
-  actionSheetCancelText: {
-    fontSize: 16,
-    color: "#71717A",
-    fontWeight: "500",
-  },
-});

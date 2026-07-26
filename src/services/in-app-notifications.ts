@@ -1,4 +1,6 @@
-import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
+import { auth, db } from "@/services/firebase";
+import { collection, query, where, orderBy, limit as fbLimit, getDocs, updateDoc, doc } from "firebase/firestore";
 
 export type InAppNotification = {
   id: string;
@@ -33,48 +35,54 @@ function contentIcon(type: InAppNotification["type"]): string {
 export { actorMessage, contentIcon };
 
 export async function fetchNotifications(limit = 30): Promise<InAppNotification[]> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = auth.currentUser;
   if (!user) return [];
 
-  const { data, error } = await supabase
-    .from("in_app_notifications")
-    .select("id, user_id, actor_id, type, content_type, content_id, read, created_at, actor:profiles!in_app_notifications_actor_id_fkey(name, avatar_url)")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const raw = await db_ops.query("in_app_notifications", {
+    conditions: [{ field: "user_id", op: "==", value: user.uid }],
+    orderBy: [{ field: "created_at", direction: "desc" }],
+    limitCount: limit,
+  });
 
-  if (error) throw error;
-  return (data ?? []) as unknown as InAppNotification[];
+  const actorIds = [...new Set(raw.map((n) => n.actor_id).filter(Boolean))];
+  const profiles = await Promise.all(actorIds.map((id) => db_ops.get("profiles", id)));
+  const profileMap = new Map(profiles.filter(Boolean).map((p) => [p!.id, p]));
+
+  return raw.map((n) => ({
+    ...n,
+    actor: profileMap.get(n.actor_id)
+      ? { name: profileMap.get(n.actor_id)!.name, avatar_url: profileMap.get(n.actor_id)!.avatar_url }
+      : undefined,
+  })) as InAppNotification[];
 }
 
 export async function getUnreadCount(): Promise<number> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = auth.currentUser;
   if (!user) return 0;
 
-  const { count } = await supabase
-    .from("in_app_notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .eq("read", false);
-
-  return count ?? 0;
+  const all = await db_ops.query("in_app_notifications", {
+    conditions: [
+      { field: "user_id", op: "==", value: user.uid },
+      { field: "read", op: "==", value: false },
+    ],
+  });
+  return all.length;
 }
 
 export async function markAllRead(): Promise<void> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = auth.currentUser;
   if (!user) return;
 
-  await supabase
-    .from("in_app_notifications")
-    .update({ read: true })
-    .eq("user_id", user.id)
-    .eq("read", false);
+  const unread = await db_ops.query("in_app_notifications", {
+    conditions: [
+      { field: "user_id", op: "==", value: user.uid },
+      { field: "read", op: "==", value: false },
+    ],
+  });
+
+  for (const n of unread) {
+    await db_ops.update("in_app_notifications", n.id, { read: true });
+  }
 }
 
 export async function createNotification(
@@ -86,15 +94,16 @@ export async function createNotification(
 ): Promise<void> {
   if (recipientId === actorId) return;
 
-  const { error } = await supabase.from("in_app_notifications").insert({
-    user_id: recipientId,
-    actor_id: actorId,
-    type,
-    content_type: contentType,
-    content_id: contentId,
-  });
-
-  if (error) {
-    console.warn("[createNotification] failed:", error);
+  try {
+    await db_ops.add("in_app_notifications", {
+      user_id: recipientId,
+      actor_id: actorId,
+      type,
+      content_type: contentType,
+      content_id: contentId,
+      read: false,
+    });
+  } catch (err) {
+    console.warn("[createNotification] failed:", err);
   }
 }

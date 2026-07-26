@@ -1,67 +1,47 @@
-import { supabase } from "@/services/supabase";
+import { db_ops } from "@/services/db";
+import { getCurrentUser } from "@/services/firebase";
 import { createNotification } from "@/services/in-app-notifications";
 
 export async function repostPost(postId: string) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+  const user = getCurrentUser();
 
-  const { data: existing } = await supabase
-    .from("reposts")
-    .select("id")
-    .eq("post_id", postId)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const existingReposts = await db_ops.query("reposts", {
+    conditions: [
+      { field: "post_id", op: "==", value: postId },
+      { field: "user_id", op: "==", value: user.uid },
+    ],
+  });
+  if (existingReposts.length > 0) return;
 
-  if (existing) return;
+  const post = await db_ops.get("posts", postId);
 
-  const { data: post } = await supabase
-    .from("posts")
-    .select("user_id")
-    .eq("id", postId)
-    .single();
-
-  const { error } = await supabase.from("reposts").insert({
-    user_id: user.id,
+  const repostId = `${user.uid}_${postId}`;
+  await db_ops.set("reposts", repostId, {
+    user_id: user.uid,
     post_id: postId,
   });
-  if (error) {
-    if (error.code === "23505") return;
-    throw error;
-  }
 
-  if (post && post.user_id !== user.id) {
-    createNotification(post.user_id, user.id, "repost", "post", postId);
+  if (post && post.user_id !== user.uid) {
+    createNotification(post.user_id, user.uid, "repost", "post", postId);
   }
 }
 
 export async function unrepostPost(postId: string) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-
-  const { error } = await supabase
-    .from("reposts")
-    .delete()
-    .eq("post_id", postId)
-    .eq("user_id", user.id);
-  if (error) throw error;
+  const user = getCurrentUser();
+  const repostId = `${user.uid}_${postId}`;
+  await db_ops.delete("reposts", repostId);
 }
 
 export async function getRepostCount(postId: string): Promise<number> {
-  const { count } = await supabase
-    .from("reposts")
-    .select("id", { count: "exact", head: true })
-    .eq("post_id", postId);
-  return count ?? 0;
+  const data = await db_ops.query("reposts", {
+    conditions: [{ field: "post_id", op: "==", value: postId }],
+  });
+  return data.length;
 }
 
 export async function getUserRepostedPostIds(userId: string): Promise<Set<string>> {
-  const { data } = await supabase
-    .from("reposts")
-    .select("post_id")
-    .eq("user_id", userId);
-  return new Set((data ?? []).map((r) => r.post_id));
+  const data = await db_ops.query("reposts", {
+    conditions: [{ field: "user_id", op: "==", value: userId }],
+  });
+  return new Set(data.map((r) => r.post_id));
 }

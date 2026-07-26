@@ -178,6 +178,182 @@ export function EventDetailSkeleton() {
   );
 }
 
+export function ProfileSkeleton() {
+  return (
+    <View style={styles.detailContainer}>
+      <ShimmerBlock width="100%" height={160} borderRadius={0} />
+      <View style={{ alignItems: "center", marginTop: -30 }}>
+        <ShimmerBlock width={80} height={80} borderRadius={40} />
+      </View>
+      <View style={{ padding: 16, alignItems: "center", gap: 8 }}>
+        <ShimmerBlock width="40%" height={18} />
+        <ShimmerBlock width="25%" height={12} />
+        <View style={{ flexDirection: "row", gap: 20, marginTop: 8 }}>
+          <ShimmerBlock width={60} height={12} />
+          <ShimmerBlock width={60} height={12} />
+          <ShimmerBlock width={60} height={12} />
+        </View>
+      </View>
+      <View style={{ padding: 16, gap: 12 }}>
+        <SkeletonPost hasImage />
+        <SkeletonPost />
+        <SkeletonPost />
+      </View>
+    </View>
+  );
+}
+
+export function ListingSkeleton() {
+  return (
+    <View style={styles.detailContainer}>
+      <ShimmerBlock width="100%" height={300} borderRadius={0} />
+      <View style={{ padding: 16, gap: 12 }}>
+        <ShimmerBlock width="70%" height={20} />
+        <ShimmerBlock width="30%" height={14} />
+        <View style={{ gap: 8, marginTop: 8 }}>
+          <ShimmerBlock width="90%" height={12} />
+          <ShimmerBlock width="75%" height={12} />
+        </View>
+        <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
+          <ShimmerBlock width={100} height={40} borderRadius={20} />
+          <ShimmerBlock width={100} height={40} borderRadius={20} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function ChatSkeleton() {
+  return (
+    <View style={styles.detailContainer}>
+      <View style={{ padding: 16, gap: 12 }}>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+            <ShimmerBlock width={40} height={40} borderRadius={20} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <ShimmerBlock width="40%" height={12} />
+              <ShimmerBlock width="65%" height={11} />
+            </View>
+            <ShimmerBlock width={40} height={11} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+export function ChatDetailSkeleton() {
+  return (
+    <View style={styles.detailContainer}>
+      <View style={{ padding: 12, gap: 8 }}>
+        <View style={{ flexDirection: "row", gap: 8, alignItems: "center", paddingVertical: 6 }}>
+          <ShimmerBlock width={28} height={28} borderRadius={14} />
+          <ShimmerBlock width={120} height={14} />
+        </View>
+      </View>
+      <View style={{ flex: 1, paddingHorizontal: 16, gap: 16, paddingTop: 20 }}>
+        {[1, 2, 3].map((i) => (
+          <View key={i} style={{ alignItems: i % 2 === 0 ? "flex-end" : "flex-start", width: "100%" }}>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end", maxWidth: "75%" }}>
+              {i % 2 === 0 ? null : <ShimmerBlock width={24} height={24} borderRadius={12} />}
+              <View style={{ gap: 6 }}>
+                <ShimmerBlock width={i * 60 + 40} height={36} borderRadius={18} />
+                <ShimmerBlock width={40} height={9} borderRadius={4} />
+              </View>
+              {i % 2 === 0 ? <ShimmerBlock width={24} height={24} borderRadius={12} /> : null}
+            </View>
+          </View>
+        ))}
+      </View>
+      <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#1E1E1E", padding: 10, flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <ShimmerBlock width={28} height={28} borderRadius={14} />
+        <ShimmerBlock width={28} height={28} borderRadius={14} />
+        <ShimmerBlock width={28} height={28} borderRadius={14} />
+        <ShimmerBlock width="60%" height={36} borderRadius={18} />
+        <ShimmerBlock width={32} height={32} borderRadius={16} />
+      </View>
+    </View>
+  );
+}
+
+export function EventsListSkeleton() {
+  return (
+    <View style={styles.detailContainer}>
+      <View style={{ padding: 16, gap: 10 }}>
+        <ShimmerBlock width="40%" height={20} />
+        {[1, 2, 3].map((i) => (
+          <View key={i} style={styles.eventCard}>
+            <ShimmerBlock width="100%" height={120} borderRadius={12} />
+            <View style={styles.eventCardBody}>
+              <ShimmerBlock width="40%" height={11} />
+              <ShimmerBlock width="80%" height={15} />
+              <ShimmerBlock width="60%" height={11} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+export function MarketplaceListSkeleton() {
+  return (
+    <View style={styles.detailContainer}>
+      <View style={{ padding: 16, gap: 12 }}>
+        <ShimmerBlock width="50%" height={20} />
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          {[1, 2].map((i) => (
+            <View key={i} style={{ flex: 1, gap: 8 }}>
+              <ShimmerBlock width="100%" height={140} borderRadius={10} />
+              <ShimmerBlock width="70%" height={12} />
+              <ShimmerBlock width="40%" height={14} />
+              <ShimmerBlock width="55%" height={10} />
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function NotificationsListSkeleton() {
+  return (
+    <View style={styles.detailContainer}>
+      <View style={{ padding: 16, gap: 14 }}>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+            <ShimmerBlock width={36} height={36} borderRadius={18} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <ShimmerBlock width="70%" height={12} />
+              <ShimmerBlock width="45%" height={10} />
+            </View>
+            <ShimmerBlock width={32} height={32} borderRadius={8} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+export function SettingsSkeleton() {
+  return (
+    <View style={styles.detailContainer}>
+      <View style={{ padding: 16, gap: 16 }}>
+        <ShimmerBlock width="50%" height={20} />
+        {[1, 2, 3, 4].map((i) => (
+          <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <View style={{ gap: 6, flex: 1 }}>
+              <ShimmerBlock width="60%" height={14} />
+              <ShimmerBlock width="80%" height={10} />
+            </View>
+            <ShimmerBlock width={44} height={26} borderRadius={13} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,

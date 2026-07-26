@@ -5,7 +5,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Button } from "@/components/ui/button";
-import { spacing, borderRadius, fontSize, fontWeight, colors } from "@/theme";
+import { spacing, borderRadius, fontSize, fontWeight } from "@/theme";
+import { useTheme } from "@/hooks/use-theme";
 import { useSession } from "@/hooks/use-session";
 import { verifyOTP } from "@/services/auth";
 import { getProfile } from "@/services/profile";
@@ -13,7 +14,87 @@ import { getProfile } from "@/services/profile";
 const DIGIT_COUNT = 6;
 const RESEND_DELAY = 60;
 
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000000",
+  },
+  container: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  safeArea: {
+    flex: 1,
+    maxWidth: 800,
+  },
+  contentKeyboard: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    justifyContent: "center",
+    gap: spacing.lg,
+  },
+  header: {
+    gap: spacing.xs,
+    alignItems: "center",
+  },
+  title: {
+    fontSize: fontSize.xxl,
+    fontWeight: fontWeight.bold,
+    lineHeight: 34,
+    textAlign: "center",
+  },
+  instruction: {
+    textAlign: "center",
+  },
+  email: {
+    fontWeight: fontWeight.semibold,
+  },
+  digitRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  digitBox: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
+    borderWidth: 1.5,
+    borderColor: "#3A3A3A",
+    textAlign: "center",
+    textAlignVertical: "center",
+    fontSize: 22,
+    fontWeight: fontWeight.semibold,
+    color: "#FFFFFF",
+    backgroundColor: "#121212",
+  },
+  digitBoxFocused: {
+    borderColor: "#6C47FF",
+  },
+  digitBoxFilled: {
+    borderColor: "#6C47FF",
+    backgroundColor: "#8B6EFF",
+  },
+  error: {
+    color: "#FF3B30",
+    fontSize: fontSize.sm,
+    textAlign: "center",
+  },
+  resendRow: {
+    alignItems: "center",
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  resendTimer: {
+    fontSize: fontSize.sm,
+  },
+});
+
 export default function VerifyScreen() {
+  const colors = useTheme();
   const { session, isLoading } = useSession();
   const { email } = useLocalSearchParams<{ email: string }>();
   const [digits, setDigits] = useState<string[]>(Array(DIGIT_COUNT).fill(""));
@@ -49,10 +130,10 @@ export default function VerifyScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <View style={{ width: 200, height: 14, borderRadius: 7, backgroundColor: "#222" }} />
+        <View style={{ width: 200, height: 14, borderRadius: 7, backgroundColor: colors.skeleton }} />
         <View style={{ flexDirection: "row", gap: 8, marginTop: 20 }}>
           {[...Array(6)].map((_, i) => (
-            <View key={i} style={{ width: 44, height: 52, borderRadius: 10, backgroundColor: "#222" }} />
+            <View key={i} style={{ width: 44, height: 52, borderRadius: 10, backgroundColor: colors.skeleton }} />
           ))}
         </View>
       </View>
@@ -192,81 +273,3 @@ export default function VerifyScreen() {
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#000000",
-  },
-  container: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  safeArea: {
-    flex: 1,
-    maxWidth: 800,
-  },
-  contentKeyboard: {
-    flex: 1,
-    paddingHorizontal: spacing.lg,
-    justifyContent: "center",
-    gap: spacing.lg,
-  },
-  header: {
-    gap: spacing.xs,
-    alignItems: "center",
-  },
-  title: {
-    fontSize: fontSize.xxl,
-    fontWeight: fontWeight.bold,
-    lineHeight: 34,
-    textAlign: "center",
-  },
-  instruction: {
-    textAlign: "center",
-  },
-  email: {
-    fontWeight: fontWeight.semibold,
-  },
-  digitRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  digitBox: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
-    borderWidth: 1.5,
-    borderColor: colors.borderLight,
-    textAlign: "center",
-    textAlignVertical: "center",
-    fontSize: 22,
-    fontWeight: fontWeight.semibold,
-    color: colors.text,
-    backgroundColor: colors.backgroundElement,
-  },
-  digitBoxFocused: {
-    borderColor: colors.primary,
-  },
-  digitBoxFilled: {
-    borderColor: colors.primary,
-    backgroundColor: colors.backgroundSelected,
-  },
-  error: {
-    color: colors.error,
-    fontSize: fontSize.sm,
-    textAlign: "center",
-  },
-  resendRow: {
-    alignItems: "center",
-    minHeight: 44,
-    justifyContent: "center",
-  },
-  resendTimer: {
-    fontSize: fontSize.sm,
-  },
-});

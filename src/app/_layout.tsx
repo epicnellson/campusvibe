@@ -1,7 +1,7 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
-import { useColorScheme, LogBox, Platform } from "react-native";
-import { useCallback, useEffect, useState } from "react";
+import { LogBox, Platform } from "react-native";
+import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable } from "react-native";
@@ -12,13 +12,44 @@ import { Poppins_700Bold, Poppins_800ExtraBold } from "@expo-google-fonts/poppin
 
 LogBox.ignoreAllLogs(true);
 
-// Hermes in RN 0.81 sets global.window = global but global lacks addEventListener.
 if (typeof window !== "undefined" && typeof window.addEventListener !== "function") {
   window.addEventListener = () => {};
   window.removeEventListener = () => {};
 }
 
-// Keep the native splash screen visible until we explicitly hide it.
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  window.addEventListener("error", (e: ErrorEvent) => {
+    const msg = e.message || "";
+    if (
+      msg.includes("Failed to fetch") ||
+      msg.includes("NetworkError") ||
+      msg.includes("cors") ||
+      msg.includes("CORS") ||
+      msg.includes("ERR_BLOCKED_BY_CLIENT") ||
+      msg.includes("ERR_FAILED")
+    ) {
+      e.preventDefault();
+      return true;
+    }
+  });
+  window.addEventListener("unhandledrejection", (e: PromiseRejectionEvent) => {
+    const reason = e.reason;
+    const msg = reason?.message || String(reason) || "";
+    if (
+      msg.includes("Failed to fetch") ||
+      msg.includes("NetworkError") ||
+      msg.includes("cors") ||
+      msg.includes("CORS") ||
+      msg.includes("ERR_BLOCKED_BY_CLIENT") ||
+      msg.includes("ERR_FAILED") ||
+      msg.includes("AbortError")
+    ) {
+      e.preventDefault();
+      return true;
+    }
+  });
+}
+
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
@@ -26,6 +57,8 @@ import { SessionProvider } from "@/hooks/use-session";
 import { ProfileProvider } from "@/hooks/use-profile";
 import { RefreshProvider } from "@/hooks/use-refresh";
 import { useNotifications } from "@/hooks/use-notifications";
+import { ThemeProvider as AppThemeProvider, useThemePreference } from "@/hooks/use-theme-context";
+import { MuteProvider } from "@/hooks/use-mute";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { NetworkBanner } from "@/components/network-banner";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -36,9 +69,9 @@ function NotificationsInitializer() {
   return null;
 }
 
-function RootLayout() {
-  const colorScheme = useColorScheme();
-  const scheme = colorScheme === "dark" ? "dark" : "light";
+function ThemeAwareLayout() {
+  const { isDark } = useThemePreference();
+  const scheme = isDark ? "dark" : "light";
   const colors = getThemeColors(scheme);
 
   const [fontsLoaded] = useFonts({
@@ -75,13 +108,14 @@ function RootLayout() {
   };
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+    <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
       <SafeAreaProvider>
         <SessionProvider>
           <ProfileProvider>
             <ErrorBoundary>
               <NotificationsInitializer />
               <ToastProvider>
+                <MuteProvider>
                   <RefreshProvider>
                   <AnimatedSplashOverlay />
                   <NetworkBanner />
@@ -103,7 +137,7 @@ function RootLayout() {
                     options={{
                       title: "Edit Profile",
                       headerLeft: () => (
-                        <Pressable onPress={() => router.back()} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
+                        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
                           <Ionicons name="chevron-back" size={24} color={colors.primary} />
                         </Pressable>
                       ),
@@ -114,7 +148,7 @@ function RootLayout() {
                     options={{
                       title: "Notification Settings",
                       headerLeft: () => (
-                        <Pressable onPress={() => router.back()} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
+                        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
                           <Ionicons name="chevron-back" size={24} color={colors.primary} />
                         </Pressable>
                       ),
@@ -129,7 +163,7 @@ function RootLayout() {
                     options={{
                       title: "Privacy Policy",
                       headerLeft: () => (
-                        <Pressable onPress={() => router.back()} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
+                        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
                           <Ionicons name="chevron-back" size={24} color={colors.primary} />
                         </Pressable>
                       ),
@@ -138,23 +172,13 @@ function RootLayout() {
                   <Stack.Screen
                     name="new-dm"
                     options={{
-                      title: "New Message",
-                      headerLeft: () => (
-                        <Pressable onPress={() => router.back()} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
-                          <Ionicons name="chevron-back" size={24} color={colors.primary} />
-                        </Pressable>
-                      ),
+                      headerShown: false,
                     }}
                   />
                   <Stack.Screen
                     name="chat/[id]"
                     options={{
-                      title: "Chat",
-                      headerLeft: () => (
-                        <Pressable onPress={() => router.back()} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
-                          <Ionicons name="chevron-back" size={24} color={colors.primary} />
-                        </Pressable>
-                      ),
+                      headerShown: false,
                     }}
                   />
                   <Stack.Screen
@@ -162,7 +186,7 @@ function RootLayout() {
                     options={{
                       title: "Listing",
                       headerLeft: () => (
-                        <Pressable onPress={() => router.back()} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
+                        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
                           <Ionicons name="chevron-back" size={24} color={colors.primary} />
                         </Pressable>
                       ),
@@ -204,20 +228,43 @@ function RootLayout() {
     }}
   />
   <Stack.Screen
+    name="search"
+    options={{
+      title: "Search",
+      headerShown: false,
+    }}
+  />
+  <Stack.Screen
     name="external-content"
     options={{
       ...modalOptions,
       animation: "fade_from_bottom",
     }}
   />
+  <Stack.Screen
+    name="user/[id]"
+    options={{
+      title: "Profile",
+      headerShown: false,
+    }}
+  />
                 </Stack>
-              </RefreshProvider>
-            </ToastProvider>
+                  </RefreshProvider>
+                </MuteProvider>
+              </ToastProvider>
             </ErrorBoundary>
           </ProfileProvider>
         </SessionProvider>
       </SafeAreaProvider>
-    </ThemeProvider>
+    </NavigationThemeProvider>
+  );
+}
+
+function RootLayout() {
+  return (
+    <AppThemeProvider>
+      <ThemeAwareLayout />
+    </AppThemeProvider>
   );
 }
 

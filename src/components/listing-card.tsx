@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useTheme } from "@/hooks/use-theme";
 import type { ListingWithSeller } from "@/services/database.types";
 
 function formatPrice(price: string): string {
@@ -20,11 +21,12 @@ function ListingCardInner({ listing, onPress }: ListingCardProps) {
     listing.photos && listing.photos.length > 0 ? listing.photos[0] : null;
   const [reportVisible, setReportVisible] = useState(false);
   const displayPrice = formatPrice(listing.price);
+  const colors = useTheme();
 
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.card, { backgroundColor: colors.backgroundElement }, pressed && styles.pressed]}
       accessibilityLabel={`View ${listing.title}, ${displayPrice}`}
       accessibilityRole="button"
     >
@@ -35,8 +37,8 @@ function ListingCardInner({ listing, onPress }: ListingCardProps) {
           contentFit="cover"
         />
       ) : (
-        <View style={styles.imagePlaceholder}>
-          <ThemedText style={{ color: "#52525B", fontSize: 13 }}>
+        <View style={[styles.imagePlaceholder, { backgroundColor: "#0A0A0C" }]}>
+          <ThemedText style={{ color: colors.muted, fontSize: 13 }}>
             No photo
           </ThemedText>
         </View>
@@ -46,22 +48,22 @@ function ListingCardInner({ listing, onPress }: ListingCardProps) {
           e.stopPropagation?.();
           setReportVisible(true);
         }}
-        style={styles.reportOverlay}
+        style={[styles.reportOverlay, { backgroundColor: colors.overlay }]}
         accessibilityLabel="Report this listing"
         accessibilityRole="button"
         hitSlop={10}
       >
-        <ThemedText style={styles.reportOverlayText}>...</ThemedText>
+        <ThemedText style={[styles.reportOverlayText, { color: colors.text }]}>...</ThemedText>
       </Pressable>
 
       <View style={styles.info}>
-        <ThemedText numberOfLines={1} style={styles.title}>
+        <ThemedText numberOfLines={1} style={[styles.title, { color: colors.text }]}>
           {listing.title}
         </ThemedText>
-        <ThemedText style={styles.price}>
+        <ThemedText style={[styles.price, { color: colors.primary }]}>
           {displayPrice}
         </ThemedText>
-        <ThemedText style={{ color: "#71717A", fontSize: 12 }} numberOfLines={1}>
+        <ThemedText style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
           {listing.category}
         </ThemedText>
       </View>
@@ -84,7 +86,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
     maxWidth: "48%",
-    backgroundColor: "#121214",
   },
   image: {
     width: "100%",
@@ -94,11 +95,9 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0A0A0C",
   },
   noPhotoText: {
     fontSize: 12,
-    color: "#52525B",
   },
   info: {
     padding: 12,
@@ -107,16 +106,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#FFFFFF",
   },
   price: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#6C47FF",
   },
   category: {
     fontSize: 12,
-    color: "#71717A",
   },
   pressed: {
     opacity: 0.8,
@@ -128,12 +124,10 @@ const styles = StyleSheet.create({
     minWidth: 44,
     minHeight: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.4)",
     alignItems: "center",
     justifyContent: "center",
   },
   reportOverlayText: {
-    color: "#ffffff",
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 16,
