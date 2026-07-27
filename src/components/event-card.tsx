@@ -7,18 +7,11 @@ import { ThemedText } from "@/components/themed-text";
 import { useTheme } from "@/hooks/use-theme";
 import { resolveImageUrl } from "@/services/storage";
 import type { EventWithRSVPs } from "@/services/database.types";
+import { eventDateTag } from "@/utils/date";
 
 export type EventCardProps = {
   event: EventWithRSVPs;
 };
-
-function formatDateTag(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00");
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
 
 function EventCardInner({ event }: EventCardProps) {
   const [imageError, setImageError] = useState(false);
@@ -47,7 +40,7 @@ function EventCardInner({ event }: EventCardProps) {
           <View style={styles.headerRow}>
             <View style={styles.dateTag}>
               <ThemedText style={styles.dateTagText}>
-                {formatDateTag(event.date)}
+                {eventDateTag(event.date)}
               </ThemedText>
             </View>
             <ThemedText style={[styles.title, { color: colors.text }]} numberOfLines={1}>

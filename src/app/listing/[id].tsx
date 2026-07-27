@@ -26,27 +26,13 @@ import { getOrCreateDMChannel } from "@/services/chats";
 import { db_ops } from "@/services/db";
 import { resolveImageUrl } from "@/services/storage";
 import type { ListingWithSeller } from "@/services/database.types";
+import { timeAgo } from "@/utils/date";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 const IMAGE_HEIGHT = SCREEN_HEIGHT * 0.4;
 
 function formatPrice(price: string): string {
   return price.startsWith("$") ? price : `$${price}`;
-}
-
-function formatRelativeDate(dateStr: string): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHrs = Math.floor(diffMins / 60);
-  if (diffHrs < 24) return `${diffHrs}h ago`;
-  const diffDays = Math.floor(diffHrs / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 export default function ListingDetailScreen() {
@@ -258,7 +244,7 @@ export default function ListingDetailScreen() {
               </ThemedView>
               {listing.created_at && (
                 <ThemedText style={styles.dateText}>
-                  {formatRelativeDate(listing.created_at)}
+                  {timeAgo(listing.created_at)}
                 </ThemedText>
               )}
             </View>

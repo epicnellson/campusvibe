@@ -15,19 +15,7 @@ import { useSession } from "@/hooks/use-session";
 import { useTheme } from "@/hooks/use-theme";
 import { fetchUpcomingEvents, rsvpEvent, unrsvpEvent } from "@/services/events";
 import type { EventWithRSVPs } from "@/services/database.types";
-
-function formatDate(dateStr: string) {
-  const date = new Date(dateStr + "T00:00:00");
-  return {
-    month: date.toLocaleDateString("en-US", { month: "short" }),
-    day: date.getDate(),
-    full: date.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    }),
-  };
-}
+import { eventDateParts } from "@/utils/date";
 
 const styles = StyleSheet.create({
   container: {
@@ -236,7 +224,7 @@ export default function EventsScreen() {
   const featured = events.slice(0, 5);
 
   const renderItem = ({ item }: { item: EventWithRSVPs }) => {
-    const fd = formatDate(item.date);
+    const fd = eventDateParts(item.date);
     const rsvped =
       item.event_rsvps?.some((r) => r.user_id === currentUserId) ?? false;
 
@@ -335,7 +323,7 @@ export default function EventsScreen() {
                   contentContainerStyle={styles.featuredContent}
                 >
                   {featured.map((event) => {
-                    const fd = formatDate(event.date);
+                    const fd = eventDateParts(event.date);
                     return (
                       <Pressable key={event.id} style={styles.featuredCard}>
                         {event.image_url ? (

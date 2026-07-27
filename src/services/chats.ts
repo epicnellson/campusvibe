@@ -4,6 +4,7 @@ import { withRetry } from "@/services/retry";
 import { sanitizeText } from "@/services/sanitize";
 import { notifyMessage } from "@/services/notifications";
 import { collection, query, where, onSnapshot, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayUnion } from "firebase/firestore";
+import { toDate } from "@/utils/date";
 import type {
   Channel,
   Message,
@@ -44,9 +45,9 @@ export async function fetchMessages(channelId: string): Promise<MessageWithSende
     });
 
     messages.sort((a: any, b: any) => {
-      const ta = a.created_at?.seconds ?? a.created_at ?? 0;
-      const tb = b.created_at?.seconds ?? b.created_at ?? 0;
-      return (typeof ta === "number" ? ta : new Date(ta).getTime()) - (typeof tb === "number" ? tb : new Date(tb).getTime());
+      const ta = toDate(a.created_at)?.getTime() ?? 0;
+      const tb = toDate(b.created_at)?.getTime() ?? 0;
+      return ta - tb;
     });
 
     const senderIds = [...new Set(messages.map((m) => m.user_id).filter(Boolean))];
@@ -214,9 +215,9 @@ export async function fetchChannelLastMessage(
     });
     if (messages.length === 0) return null;
     messages.sort((a: any, b: any) => {
-      const ta = a.created_at?.seconds ?? a.created_at ?? 0;
-      const tb = b.created_at?.seconds ?? b.created_at ?? 0;
-      return (typeof tb === "number" ? tb : new Date(tb).getTime()) - (typeof ta === "number" ? ta : new Date(ta).getTime());
+      const ta = toDate(a.created_at)?.getTime() ?? 0;
+      const tb = toDate(b.created_at)?.getTime() ?? 0;
+      return tb - ta;
     });
     const msg = messages[0] as any;
     const sender = await db_ops.get("profiles", msg.user_id);
@@ -226,6 +227,9 @@ export async function fetchChannelLastMessage(
       createdAt = new Date(createdAt.seconds * 1000).toISOString();
     } else if (typeof createdAt === "number") {
       createdAt = new Date(createdAt).toISOString();
+    } else if (typeof createdAt !== "string") {
+      const d = toDate(createdAt);
+      createdAt = d ? d.toISOString() : "";
     }
     return {
       content: msg.content ?? "",
@@ -363,9 +367,9 @@ export function subscribeToChannelUpdates(
         ...d.data(),
       })) as any[];
       docs.sort((a: any, b: any) => {
-        const ta = a.created_at?.seconds ?? a.created_at ?? 0;
-        const tb = b.created_at?.seconds ?? b.created_at ?? 0;
-        return (typeof tb === "number" ? tb : new Date(tb).getTime()) - (typeof ta === "number" ? ta : new Date(ta).getTime());
+        const ta = toDate(a.created_at)?.getTime() ?? 0;
+        const tb = toDate(b.created_at)?.getTime() ?? 0;
+        return tb - ta;
       });
       if (docs.length > 0) {
         const latest = docs[0];

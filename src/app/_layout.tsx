@@ -3,12 +3,12 @@ import { Stack } from "expo-router";
 import { LogBox, Platform } from "react-native";
 import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { Pressable } from "react-native";
 import { router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
 import { Poppins_700Bold, Poppins_800ExtraBold } from "@expo-google-fonts/poppins";
+import { Ionicons } from "@expo/vector-icons";
 
 LogBox.ignoreAllLogs(true);
 
@@ -77,6 +77,7 @@ function ThemeAwareLayout() {
   const [fontsLoaded] = useFonts({
     Poppins_700Bold,
     Poppins_800ExtraBold,
+    ...Ionicons.font,
   });
 
   useEffect(() => {

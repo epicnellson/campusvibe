@@ -19,6 +19,7 @@ import {
 import { resolveImageUrl } from "@/services/storage";
 import { useTheme } from "@/hooks/use-theme";
 import { NotificationsListSkeleton } from "@/components/feed-skeleton";
+import { formatRelative } from "@/utils/date";
 
 const ICON_MAP: Record<string, string> = {
   like: "heart",
@@ -33,19 +34,6 @@ const SCREEN_MAP: Record<string, string> = {
   event: "/event/",
   profile: "/",
 };
-
-function formatRelative(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d`;
-  return new Date(dateStr).toLocaleDateString();
-}
-
 
 const styles = StyleSheet.create({
   container: {

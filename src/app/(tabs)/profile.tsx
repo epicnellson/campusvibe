@@ -27,17 +27,12 @@ import { db_ops } from "@/services/db";
 import { auth } from "@/services/firebase";
 import { signOut } from "@/services/auth";
 import type { PostWithProfile, ListingWithSeller } from "@/services/database.types";
+import { joinDate } from "@/utils/date";
 
 const GRID_COLUMNS = 3;
 const GRID_GAP = 2;
 const GRID_PADDING = 2;
 const AVATAR_SIZE = 88;
-
-function formatJoinDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `Joined ${months[d.getMonth()]} ${d.getFullYear()}`;
-}
 
 type ActiveTab = "posts" | "listings" | "about";
 
@@ -570,7 +565,7 @@ export default function ProfileScreen() {
         { label: "Department", value: profile?.department ?? "Not set" },
         { label: "Year", value: profile?.year ?? "Not set" },
         { label: "Verification", value: isVerified ? "Verified Student" : "Pending" },
-        { label: "Joined", value: profile?.created_at ? formatJoinDate(profile.created_at) : "Unknown" },
+        { label: "Joined", value: profile?.created_at ? joinDate(profile.created_at) : "Unknown" },
       ].map(({ label, value }) => (
         <View key={label} style={[styles.aboutRow, { borderBottomColor: colors.divider }]}>
           <ThemedText style={styles.aboutLabel}>{label}</ThemedText>
@@ -635,7 +630,7 @@ export default function ProfileScreen() {
           {profile?.created_at && (
             <View style={styles.joinedRow}>
               <Ionicons name="calendar-outline" size={13} color="#71717A" />
-              <ThemedText style={styles.joinedText}>{formatJoinDate(profile.created_at)}</ThemedText>
+              <ThemedText style={styles.joinedText}>{joinDate(profile.created_at)}</ThemedText>
             </View>
           )}
 

@@ -14,21 +14,7 @@ import { repostPost, unrepostPost } from "@/services/reposts";
 import { setReaction, removeReaction, REACTION_EMOJIS, type ReactionEmoji } from "@/services/reactions";
 import { resolveImageUrl } from "@/services/storage";
 import type { PostWithProfile } from "@/services/database.types";
-
-function relativeTime(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffMs = now - then;
-  const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 60) return "just now";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d`;
-  return new Date(dateStr).toLocaleDateString();
-}
+import { relativeTime } from "@/utils/date";
 
 const actionBtnStyles = StyleSheet.create({
   actionButton: {

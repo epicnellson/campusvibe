@@ -15,6 +15,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { useTheme } from "@/hooks/use-theme";
 import { fetchListings } from "@/services/marketplace";
 import type { ListingWithSeller } from "@/services/database.types";
+import { timeAgo } from "@/utils/date";
 
 const CATEGORIES = [
   { label: "All", icon: "grid" as const },
@@ -29,21 +30,6 @@ const SORT_OPTIONS = ["Newest", "Price ↑", "Price ↓"] as const;
 
 function formatPrice(price: string): string {
   return price.startsWith("$") ? price : `$${price}`;
-}
-
-function timeAgo(dateStr: string): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d`;
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 const styles = StyleSheet.create({

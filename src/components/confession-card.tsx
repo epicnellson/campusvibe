@@ -23,6 +23,7 @@ import { resolveImageUrl } from "@/services/storage";
 import { deleteConfession } from "@/services/confessions";
 import { submitReport } from "@/services/reports";
 import type { ConfessionWithLikes } from "@/services/database.types";
+import { relativeTime } from "@/utils/date";
 
 const ANIMALS = [
   "Panda", "Fox", "Owl", "Dolphin", "Tiger", "Koala", "Penguin",
@@ -48,21 +49,6 @@ function colorFromId(id: string): string {
     hash = id.charCodeAt(i) + ((hash << 5) - hash);
   }
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function relativeTime(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffMs = now - then;
-  const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 60) return "just now";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d`;
-  return new Date(dateStr).toLocaleDateString();
 }
 
 const actionBtnStyles = StyleSheet.create({

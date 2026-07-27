@@ -25,17 +25,12 @@ import { db_ops } from "@/services/db";
 import { getOrCreateDMChannel } from "@/services/chats";
 import { followUser, unfollowUser } from "@/services/follows";
 import type { Profile, PostWithProfile, ListingWithSeller } from "@/services/database.types";
+import { joinDate } from "@/utils/date";
 
 const GRID_COLUMNS = 3;
 const GRID_GAP = 2;
 const GRID_PADDING = 2;
 const AVATAR_SIZE = 88;
-
-function formatJoinDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `Joined ${months[d.getMonth()]} ${d.getFullYear()}`;
-}
 
 export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -218,7 +213,7 @@ export default function UserProfileScreen() {
           {profile.created_at && (
             <View style={styles.joinedRow}>
               <Ionicons name="calendar-outline" size={13} color="#71717A" />
-              <ThemedText style={styles.joinedText}>{formatJoinDate(profile.created_at)}</ThemedText>
+              <ThemedText style={styles.joinedText}>{joinDate(profile.created_at)}</ThemedText>
             </View>
           )}
 

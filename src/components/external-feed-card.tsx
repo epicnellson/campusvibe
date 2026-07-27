@@ -9,20 +9,7 @@ import { ThemedText } from "@/components/themed-text";
 import { Avatar } from "@/components/ui/Avatar";
 import { useTheme } from "@/hooks/use-theme";
 import type { ExternalFeedItem } from "@/services/feed/types";
-
-function relativeTime(dateStr?: string): string {
-  if (!dateStr) return "";
-  const ts = new Date(dateStr).getTime();
-  if (!ts || ts < 86400000) return "";
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d`;
-}
+import { relativeTime } from "@/utils/date";
 
 const actionBtnStyles = StyleSheet.create({
   actionButton: {

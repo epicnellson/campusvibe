@@ -20,6 +20,7 @@ import { resolveImageUrl } from "@/services/storage";
 import type { EventWithRSVPs } from "@/services/database.types";
 import { db_ops } from "@/services/db";
 import { EventDetailSkeleton } from "@/components/feed-skeleton";
+import { eventFullDate } from "@/utils/date";
 
 type EventDetail = EventWithRSVPs;
 
@@ -331,11 +332,6 @@ export default function EventDetailScreen() {
     }
   }, [event, triggerFeedRefresh]);
 
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr + "T00:00:00");
-    return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-  };
-
   const formatTime = (timeStr: string) => {
     if (!timeStr) return "";
     const [h, m] = timeStr.split(":").map(Number);
@@ -418,7 +414,7 @@ export default function EventDetailScreen() {
         <View style={styles.content}>
           <View style={styles.dateBadge}>
             <Ionicons name="calendar-outline" size={14} color="#FFFFFF" />
-            <Text style={styles.dateBadgeText}>{formatDate(event.date)}</Text>
+            <Text style={styles.dateBadgeText}>{eventFullDate(event.date)}</Text>
           </View>
 
           <Text style={styles.title}>{event.title}</Text>
