@@ -342,6 +342,7 @@ export type ChannelUpdate = {
   lastMessage: string;
   lastMessageTime: string;
   type?: string;
+  userId: string;
 };
 
 export function subscribeToChannelUpdates(
@@ -373,6 +374,7 @@ export function subscribeToChannelUpdates(
           lastMessage: latest.content ?? "",
           lastMessageTime: latest.created_at ?? "",
           type: latest.type ?? "text",
+          userId: latest.user_id ?? "",
         });
       }
     });

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { spacing, fontSize, fontWeight } from "@/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSession } from "@/hooks/use-session";
-import { sendOTP, signInWithGoogle } from "@/services/auth";
+import { signUp, signInWithGoogle } from "@/services/auth";
 
 
 const styles = StyleSheet.create({
@@ -25,7 +25,7 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    maxWidth: 800,
+    maxWidth: 480,
   },
   content: {
     flex: 1,
@@ -84,12 +84,19 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     flexShrink: 1,
   },
+  loginRow: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: spacing.sm,
+  },
 });
 
 export default function SignupScreen() {
   const colors = useTheme();
   const { session, isLoading } = useSession();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [agreeAge, setAgreeAge] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -103,6 +110,18 @@ export default function SignupScreen() {
       : submitted && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
         ? "Please enter a valid email address"
         : undefined;
+
+  const passwordError =
+    submitted && !password
+      ? "Password is required"
+      : submitted && password.length < 6
+        ? "Password must be at least 6 characters"
+        : undefined;
+
+  const confirmError =
+    submitted && password !== confirmPassword
+      ? "Passwords do not match"
+      : undefined;
 
   useEffect(() => {
     const timer = setTimeout(() => emailRef.current?.focus(), 300);
@@ -134,9 +153,9 @@ export default function SignupScreen() {
   }
   if (session) return <Redirect href="/" />;
 
-  const handleSendOTP = async () => {
+  const handleSignUp = async () => {
     setSubmitted(true);
-    if (emailError) return;
+    if (emailError || passwordError || confirmError) return;
     if (!agreeAge) {
       setError("You must be 16 or older to use CampusVibe");
       return;
@@ -144,10 +163,15 @@ export default function SignupScreen() {
     setError(null);
     setSending(true);
     try {
-      await sendOTP(email);
-      router.push(`/verify?email=${encodeURIComponent(email)}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to send code");
+      await signUp(email.trim(), password);
+      router.replace("/verify");
+    } catch (e: any) {
+      let msg = "Failed to create account";
+      if (e.code === "auth/email-already-in-use") msg = "An account with this email already exists";
+      else if (e.code === "auth/weak-password") msg = "Password is too weak";
+      else if (e.code === "auth/invalid-email") msg = "Invalid email address";
+      else if (e instanceof Error) msg = e.message;
+      setError(msg);
     } finally {
       setSending(false);
     }
@@ -164,7 +188,7 @@ export default function SignupScreen() {
           <ThemedView style={styles.header}>
             <ThemedText style={styles.title}>Create account</ThemedText>
             <ThemedText themeColor="textSecondary">
-              Enter your email to get started
+              Sign up with your email to get started
             </ThemedText>
           </ThemedView>
 
@@ -179,9 +203,20 @@ export default function SignupScreen() {
               keyboardType="email-address"
               error={emailError}
             />
-            {error && (
-              <ThemedText style={styles.error}>{error}</ThemedText>
-            )}
+            <Input
+              placeholder="Password (6+ characters)"
+              value={password}
+              onChangeText={(t: string) => { setPassword(t); setError(null); }}
+              secureTextEntry
+              error={passwordError}
+            />
+            <Input
+              placeholder="Confirm password"
+              value={confirmPassword}
+              onChangeText={(t: string) => { setConfirmPassword(t); setError(null); }}
+              secureTextEntry
+              error={confirmError}
+            />
 
             <ThemedView style={styles.ageRow}>
               <Pressable
@@ -206,10 +241,14 @@ export default function SignupScreen() {
               </Pressable>
             </ThemedView>
 
+            {error && (
+              <ThemedText style={styles.error}>{error}</ThemedText>
+            )}
+
             <Button
-              title={sending ? "Sending code..." : "Send verification code"}
-              onPress={handleSendOTP}
-              disabled={sending || !email.trim() || !agreeAge}
+              title={sending ? "Creating account..." : "Create account"}
+              onPress={handleSignUp}
+              disabled={sending || !email.trim() || !password || !confirmPassword || !agreeAge}
               size="lg"
             />
           </ThemedView>
@@ -227,6 +266,17 @@ export default function SignupScreen() {
             variant="secondary"
             size="lg"
           />
+
+          <ThemedView style={styles.loginRow}>
+            <ThemedText themeColor="textSecondary">
+              Already have an account?{" "}
+            </ThemedText>
+            <Pressable onPress={() => router.push("/login")}>
+              <ThemedText style={{ color: colors.primary, fontWeight: fontWeight.semibold }}>
+                Sign in
+              </ThemedText>
+            </Pressable>
+          </ThemedView>
 
           <Button
             title="Back to welcome"

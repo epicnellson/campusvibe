@@ -206,7 +206,9 @@ export default function ChatsScreen() {
               ...prev[update.channelId],
               lastMessage: update.lastMessage,
               lastMessageTime: update.lastMessageTime,
-              unreadCount: (prev[update.channelId]?.unreadCount ?? 0) + 1,
+              unreadCount: update.userId !== currentUserId
+                ? (prev[update.channelId]?.unreadCount ?? 0) + 1
+                : (prev[update.channelId]?.unreadCount ?? 0),
             },
           }));
         }

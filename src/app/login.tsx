@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { spacing, fontSize, fontWeight } from "@/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSession } from "@/hooks/use-session";
-import { sendOTP, signInWithGoogle } from "@/services/auth";
+import { signIn, signInWithGoogle } from "@/services/auth";
 
 
 const styles = StyleSheet.create({
@@ -25,7 +25,7 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    maxWidth: 800,
+    maxWidth: 480,
   },
   content: {
     flex: 1,
@@ -67,12 +67,18 @@ const styles = StyleSheet.create({
   eyeIcon: {
     fontSize: 18,
   },
+  signupRow: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: spacing.sm,
+  },
 });
 
 export default function LoginScreen() {
   const colors = useTheme();
   const { session, isLoading } = useSession();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -86,6 +92,11 @@ export default function LoginScreen() {
       : submitted && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
         ? "Please enter a valid email address"
         : undefined;
+
+  const passwordError =
+    submitted && !password
+      ? "Password is required"
+      : undefined;
 
   useEffect(() => {
     const timer = setTimeout(() => emailRef.current?.focus(), 300);
@@ -117,16 +128,22 @@ export default function LoginScreen() {
   }
   if (session) return <Redirect href="/" />;
 
-  const handleSendOTP = async () => {
+  const handleSignIn = async () => {
     setSubmitted(true);
-    if (emailError) return;
+    if (emailError || passwordError) return;
     setError(null);
     setSending(true);
     try {
-      await sendOTP(email);
-      router.push(`/verify?email=${encodeURIComponent(email)}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to send code");
+      await signIn(email.trim(), password);
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      let msg = "Failed to sign in";
+      if (e.code === "auth/user-not-found") msg = "No account found with this email";
+      else if (e.code === "auth/wrong-password" || e.code === "auth/invalid-credential") msg = "Invalid email or password";
+      else if (e.code === "auth/too-many-requests") msg = "Too many attempts. Try again later";
+      else if (e.code === "auth/user-disabled") msg = "This account has been disabled";
+      else if (e instanceof Error) msg = e.message;
+      setError(msg);
     } finally {
       setSending(false);
     }
@@ -143,7 +160,7 @@ export default function LoginScreen() {
           <ThemedView style={styles.header}>
             <ThemedText style={styles.title}>Welcome back</ThemedText>
             <ThemedText themeColor="textSecondary">
-              Enter your email to receive a login code
+              Sign in with your email and password
             </ThemedText>
           </ThemedView>
 
@@ -155,21 +172,28 @@ export default function LoginScreen() {
               onChangeText={(t: string) => { setEmail(t); setError(null); }}
               autoCapitalize="none"
               autoCorrect={false}
-              keyboardType={showPassword ? "visible-password" : "email-address"}
+              keyboardType="email-address"
               error={emailError}
-              rightIcon={
-                <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeToggle}>
-                  <ThemedText style={styles.eyeIcon}>{showPassword ? "👁" : "👁‍🗨"}</ThemedText>
-                </Pressable>
-              }
             />
+            <View style={{ position: "relative" }}>
+              <Input
+                placeholder="Password"
+                value={password}
+                onChangeText={(t: string) => { setPassword(t); setError(null); }}
+                secureTextEntry={!showPassword}
+                error={passwordError}
+              />
+              <Pressable onPress={() => setShowPassword(!showPassword)} style={[styles.eyeToggle, { position: "absolute", right: 8, top: 10 }]}>
+                <ThemedText style={styles.eyeIcon}>{showPassword ? "👁" : "👁‍🗨"}</ThemedText>
+              </Pressable>
+            </View>
             {error && (
               <ThemedText style={styles.error}>{error}</ThemedText>
             )}
             <Button
-              title={sending ? "Sending code..." : "Send login code"}
-              onPress={handleSendOTP}
-              disabled={sending || !email.trim()}
+              title={sending ? "Signing in..." : "Sign in"}
+              onPress={handleSignIn}
+              disabled={sending || !email.trim() || !password}
               size="lg"
             />
           </ThemedView>
@@ -187,6 +211,17 @@ export default function LoginScreen() {
             variant="secondary"
             size="lg"
           />
+
+          <ThemedView style={styles.signupRow}>
+            <ThemedText themeColor="textSecondary">
+              Don't have an account?{" "}
+            </ThemedText>
+            <Pressable onPress={() => router.push("/signup")}>
+              <ThemedText style={{ color: colors.primary, fontWeight: fontWeight.semibold }}>
+                Sign up
+              </ThemedText>
+            </Pressable>
+          </ThemedView>
 
           <Button
             title="Back to welcome"

@@ -1,70 +1,40 @@
 import {
-  sendSignInLinkToEmail,
-  signInWithEmailLink,
-  isSignInWithEmailLink,
-  signInWithCredential,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
   signOut as fbSignOut,
   GoogleAuthProvider,
+  signInWithCredential,
+  type User,
 } from "firebase/auth";
 import { auth } from "@/services/firebase";
 import { withRetry } from "@/services/retry";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const EMAIL_LINK_STORAGE_KEY = "firebase_email_for_link";
-
-function getWebCallbackUrl() {
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return `${window.location.origin}/auth/callback`;
-  }
-  return "http://localhost:8081/auth/callback";
-}
-
-function getActionCodeSettings() {
-  if (Platform.OS === "web") {
-    return {
-      handleCodeInApp: true,
-      url: getWebCallbackUrl(),
-    };
-  }
-  return {
-    handleCodeInApp: true,
-    url: "campusvibe://auth/callback",
-    iOS: { bundleId: "com.campusvibe.app" },
-    android: { packageName: "com.campusvibe.app", installApp: true, minimumVersion: "1" },
-  };
-}
-
-export async function sendOTP(email: string) {
+export async function signUp(email: string, password: string) {
   return withRetry(async () => {
-    await AsyncStorage.setItem(EMAIL_LINK_STORAGE_KEY, email);
-    await sendSignInLinkToEmail(auth, email, getActionCodeSettings());
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    await sendEmailVerification(credential.user);
+    return credential.user;
   });
 }
 
-export async function verifyOTP(email: string, _token: string) {
+export async function signIn(email: string, password: string) {
   return withRetry(async () => {
-    const storedEmail = await AsyncStorage.getItem(EMAIL_LINK_STORAGE_KEY);
-    const targetEmail = storedEmail || email;
-    await signInWithEmailLink(auth, targetEmail, window.location.href);
-    await AsyncStorage.removeItem(EMAIL_LINK_STORAGE_KEY);
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    return credential.user;
   });
 }
 
-export async function completeEmailLinkSignIn(email: string, link: string) {
-  await signInWithEmailLink(auth, email, link);
-  await AsyncStorage.removeItem(EMAIL_LINK_STORAGE_KEY);
-}
-
-export function isEmailLinkSignIn(url: string): boolean {
-  try {
-    return isSignInWithEmailLink(auth, url);
-  } catch {
-    return url.includes("apiKey=") && url.includes("mode=signIn");
-  }
+export async function resendVerification() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("No authenticated user");
+  return withRetry(async () => {
+    await sendEmailVerification(user);
+  });
 }
 
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "";
@@ -75,22 +45,13 @@ function generateNonce(): string {
   return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function sha256(plain: string): Promise<ArrayBuffer> {
-  const encoder = new TextEncoder();
-  return crypto.subtle.digest("SHA-256", encoder.encode(plain));
-}
-
-function base64urlencode(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let str = "";
-  for (const b of bytes) str += String.fromCharCode(b);
-  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
 async function buildGoogleAuthUrl(redirectUri: string, nonce: string): Promise<string> {
   const encoder = new TextEncoder();
   const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(nonce));
-  const hashedNonce = base64urlencode(hashBuffer);
+  const bytes = new Uint8Array(hashBuffer);
+  let str = "";
+  for (const b of bytes) str += String.fromCharCode(b);
+  const hashedNonce = btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
@@ -106,7 +67,7 @@ async function buildGoogleAuthUrl(redirectUri: string, nonce: string): Promise<s
 
 export async function signInWithGoogle() {
   if (!GOOGLE_CLIENT_ID) {
-    throw new Error("Google sign-in is not configured. Missing EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.");
+    throw new Error("Google sign-in is not configured.");
   }
 
   const redirectUri = Platform.OS === "web"
