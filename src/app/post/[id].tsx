@@ -26,13 +26,14 @@ import { useTheme } from "@/hooks/use-theme";
 import { useSession } from "@/hooks/use-session";
 import { useProfile } from "@/hooks/use-profile";
 import { useRefresh } from "@/hooks/use-refresh";
+import { usePostInteractions } from "@/hooks/use-post-interactions";
 import { fetchPostById, likePost, unlikePost, deletePost } from "@/services/posts";
 import { fetchComments, createComment } from "@/services/comments";
 import { followUser, unfollowUser } from "@/services/follows";
 import { submitReport } from "@/services/reports";
 import { resolveImageUrl } from "@/services/storage";
-import { repostPost, unrepostPost, getRepostCount } from "@/services/reposts";
-import { fetchReactions, setReaction, removeReaction, REACTION_EMOJIS, type ReactionEmoji, type Reaction } from "@/services/reactions";
+import { repostPost, unrepostPost } from "@/services/reposts";
+import { setReaction, removeReaction, REACTION_EMOJIS, type ReactionEmoji } from "@/services/reactions";
 import { db_ops } from "@/services/db";
 import type { PostWithProfile, CommentWithProfile } from "@/services/database.types";
 import { relativeTime, fullTimestamp } from "@/utils/date";
@@ -63,10 +64,15 @@ export default function PostDetailScreen() {
   const [showRepostSheet, setShowRepostSheet] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const [reactions, setReactions] = useState<Reaction[]>([]);
-  const [userReaction, setUserReaction] = useState<string | null>(null);
-  const [isReposted, setIsReposted] = useState(false);
-  const [repostCount, setRepostCountState] = useState(0);
+
+  const {
+    reactionsMap,
+    repostedIds,
+    repostCounts,
+    commentCounts: sharedCommentCounts,
+    toggleReaction: ctxToggleReaction,
+    toggleRepost: ctxToggleRepost,
+  } = usePostInteractions();
 
   const likeScale = useRef(new Animated.Value(1)).current;
   const inputRef = useRef<TextInput>(null);
@@ -81,24 +87,16 @@ export default function PostDetailScreen() {
     try {
       setLoading(true);
       setError(null);
-      const [postData, commentResult, reactionsResult, repostResult] = await Promise.allSettled([
+      const [postData, commentResult] = await Promise.allSettled([
         fetchPostById(id),
         fetchComments(id),
-        fetchReactions(id),
-        getRepostCount(id),
       ]);
       if (postData.status === "fulfilled") setPost(postData.value);
       else throw postData.reason;
       setComments(commentResult.status === "fulfilled" ? commentResult.value : []);
-      setReactions(reactionsResult.status === "fulfilled" ? reactionsResult.value : []);
-      setRepostCountState(repostResult.status === "fulfilled" ? repostResult.value : 0);
-      const reactionsData = reactionsResult.status === "fulfilled" ? reactionsResult.value : [];
-      const myReaction = reactionsData.find((r) => r.user_id === currentUserId);
-      setUserReaction(myReaction?.emoji ?? null);
 
-      const postDataVal = postData.status === "fulfilled" ? postData.value : null;
-      if (currentUserId && postDataVal?.user_id && postDataVal.user_id !== currentUserId) {
-        const followId = `${currentUserId}_${postDataVal.user_id}`;
+      if (currentUserId && postData.status === "fulfilled" && postData.value?.user_id && postData.value.user_id !== currentUserId) {
+        const followId = `${currentUserId}_${postData.value.user_id}`;
         const existing = await db_ops.get("follows", followId);
         setIsFollowing(!!existing);
       }
@@ -113,7 +111,11 @@ export default function PostDetailScreen() {
 
   const userLiked = post?.likes?.some((l) => l.user_id === currentUserId) ?? false;
   const likeCount = post?.likes?.length ?? 0;
-  const commentCount = comments.length;
+  const reactions = (id ? reactionsMap.get(id as string) : undefined) ?? [];
+  const userReaction = reactions.find((r) => r.user_id === currentUserId)?.emoji ?? null;
+  const commentCount = (id ? sharedCommentCounts.get(id as string) : undefined) ?? comments.length;
+  const isReposted = (id ? repostedIds.has(id as string) : false);
+  const repostCount = (id ? repostCounts.get(id as string) : undefined) ?? 0;
   const authorName = post?.profiles?.name ?? "Unknown";
   const authorDept = post?.profiles?.department ?? "";
   const isOwnPost = post?.user_id === currentUserId;
@@ -141,7 +143,6 @@ export default function PostDetailScreen() {
       } else {
         await likePost(post.id);
       }
-      triggerFeedRefresh();
     } catch {
       setPost((prev) =>
         prev ? { ...prev, likes: wasLiked ? [...prev.likes, { id: "", user_id: currentUserId! }] : prev.likes.filter((l) => l.user_id !== currentUserId) } : prev
@@ -206,35 +207,26 @@ export default function PostDetailScreen() {
   }, [post, isFollowing]);
 
   const handleReaction = useCallback(async (emoji: ReactionEmoji) => {
-    if (!post) return;
+    if (!post || !id || !currentUserId) return;
     const wasReaction = userReaction;
     setShowReactionPicker(false);
     if (wasReaction === emoji) {
-      setUserReaction(null);
-      setReactions((prev) => prev.filter((r) => r.user_id !== currentUserId));
+      ctxToggleReaction(id, currentUserId, null);
       try {
         await removeReaction(post.id);
-        triggerFeedRefresh();
-      } catch { setUserReaction(wasReaction); }
+      } catch { ctxToggleReaction(id, currentUserId, wasReaction); }
     } else {
-      setUserReaction(emoji);
-      setReactions((prev) => {
-        const without = prev.filter((r) => r.user_id !== currentUserId);
-        without.push({ id: "", user_id: currentUserId!, post_id: post.id, emoji, created_at: "" });
-        return without;
-      });
+      ctxToggleReaction(id, currentUserId, emoji);
       try {
         await setReaction(post.id, emoji);
-        triggerFeedRefresh();
-      } catch { setUserReaction(wasReaction); }
+      } catch { ctxToggleReaction(id, currentUserId, wasReaction); }
     }
-  }, [post, userReaction, currentUserId, triggerFeedRefresh]);
+  }, [post, id, userReaction, currentUserId, ctxToggleReaction]);
 
   const handleRepost = useCallback(async () => {
-    if (!post || isOwnPost) return;
+    if (!post || isOwnPost || !id || !currentUserId) return;
     const wasReposted = isReposted;
-    setIsReposted(!wasReposted);
-    setRepostCountState((c) => wasReposted ? c - 1 : c + 1);
+    ctxToggleRepost(id, currentUserId, !wasReposted);
     setShowRepostSheet(false);
     try {
       if (wasReposted) {
@@ -242,12 +234,10 @@ export default function PostDetailScreen() {
       } else {
         await repostPost(post.id);
       }
-      triggerFeedRefresh();
     } catch {
-      setIsReposted(wasReposted);
-      setRepostCountState((c) => wasReposted ? c + 1 : c - 1);
+      ctxToggleRepost(id, currentUserId, wasReposted);
     }
-  }, [post, isOwnPost, isReposted, triggerFeedRefresh]);
+  }, [post, isOwnPost, isReposted, id, currentUserId, ctxToggleRepost]);
 
   const handleSendReply = useCallback(async () => {
     if (!id || !replyText.trim() || sendingReply) return;

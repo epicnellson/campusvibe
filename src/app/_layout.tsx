@@ -59,6 +59,7 @@ import { RefreshProvider } from "@/hooks/use-refresh";
 import { useNotifications } from "@/hooks/use-notifications";
 import { ThemeProvider as AppThemeProvider, useThemePreference } from "@/hooks/use-theme-context";
 import { MuteProvider } from "@/hooks/use-mute";
+import { PostInteractionsProvider } from "@/hooks/use-post-interactions";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { NetworkBanner } from "@/components/network-banner";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -118,6 +119,7 @@ function ThemeAwareLayout() {
               <ToastProvider>
                 <MuteProvider>
                   <RefreshProvider>
+                  <PostInteractionsProvider>
                   <AnimatedSplashOverlay />
                   <NetworkBanner />
                   <Stack screenOptions={defaultHeader}>
@@ -250,6 +252,7 @@ function ThemeAwareLayout() {
     }}
   />
                 </Stack>
+                  </PostInteractionsProvider>
                   </RefreshProvider>
                 </MuteProvider>
               </ToastProvider>

@@ -65,8 +65,9 @@ function VoicePlayer({ url, isOwn, duration }: { url: string; isOwn: boolean; du
   const [isPlaying, setIsPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [durationMs, setDurationMs] = useState(duration * 1000);
-  const positionRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -74,60 +75,62 @@ function VoicePlayer({ url, isOwn, duration }: { url: string; isOwn: boolean; du
       try {
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: url },
-          { shouldPlay: false }
+          { shouldPlay: false, progressUpdateIntervalMillis: 50 }
         );
-        if (!mounted) {
-          newSound.unloadAsync();
-          return;
-        }
+        if (!mounted) { newSound.unloadAsync(); return; }
         newSound.setOnPlaybackStatusUpdate((status) => {
           if (!status.isLoaded) return;
           if (status.didJustFinish) {
             setIsPlaying(false);
             setPosition(0);
-            positionRef.current = 0;
-            if (timerRef.current) {
-              clearInterval(timerRef.current);
-              timerRef.current = null;
-            }
           } else {
             setPosition(status.positionMillis);
-            positionRef.current = status.positionMillis;
             setDurationMs(status.durationMillis ?? duration * 1000);
           }
         });
+        soundRef.current = newSound;
         setSound(newSound);
-      } catch (e) {
-        console.warn("Failed to load voice:", e);
-      }
+        setLoading(false);
+      } catch { setLoading(false); }
     };
     loadSound();
     return () => {
       mounted = false;
-      sound?.unloadAsync();
-      if (timerRef.current) clearInterval(timerRef.current);
+      soundRef.current?.unloadAsync();
+      soundRef.current = null;
     };
   }, [url]);
 
   const togglePlay = useCallback(async () => {
-    if (!sound) return;
+    const s = soundRef.current;
+    if (!s) return;
     try {
       if (isPlaying) {
-        await sound.pauseAsync();
+        await s.pauseAsync();
         setIsPlaying(false);
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
       } else {
         await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-        await sound.playAsync();
+        await s.playAsync();
         setIsPlaying(true);
       }
-    } catch (e) {
-      console.warn("Playback error:", e);
-    }
-  }, [sound, isPlaying]);
+    } catch {}
+  }, [isPlaying]);
+
+  const seekTo = useCallback(async (pct: number) => {
+    const s = soundRef.current;
+    if (!s) return;
+    const seekMs = Math.floor(pct * durationMs);
+    await s.setPositionAsync(seekMs);
+    setPosition(seekMs);
+  }, [durationMs]);
+
+  const cycleSpeed = useCallback(async () => {
+    const s = soundRef.current;
+    if (!s) return;
+    const next = playbackRate >= 2 ? 1 : playbackRate + 0.5;
+    await s.setRateAsync(next, true);
+    setPlaybackRate(next);
+  }, [playbackRate]);
 
   const totalDur = durationMs || duration * 1000;
   const progress = totalDur > 0 ? position / totalDur : 0;
@@ -137,44 +140,58 @@ function VoicePlayer({ url, isOwn, duration }: { url: string; isOwn: boolean; du
   const elapsedLabel = `${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, "0")}`;
   const totalLabel = `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, "0")}`;
 
+  if (loading) {
+    return (
+      <View style={styles.voiceContainer}>
+        <View style={[styles.playBtn, { backgroundColor: isOwn ? "rgba(255,255,255,0.2)" : "rgba(108,71,255,0.15)" }]}>
+          <Ionicons name="hourglass-outline" size={16} color={isOwn ? "#FFFFFF" : "#6C47FF"} />
+        </View>
+        <View style={styles.voiceInfo}>
+          <View style={[styles.voiceBar, { backgroundColor: isOwn ? "rgba(255,255,255,0.15)" : "#2A2A2A" }]} />
+          <ThemedText style={[styles.voiceTime, { color: isOwn ? "rgba(255,255,255,0.4)" : "#555" }]}>Loading...</ThemedText>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <Pressable onPress={togglePlay} style={styles.voiceContainer}>
-      <View style={[styles.playBtn, { backgroundColor: isOwn ? "rgba(255,255,255,0.2)" : "rgba(108,71,255,0.15)" }]}>
+    <View style={styles.voiceContainer}>
+      <Pressable onPress={togglePlay} style={[styles.playBtn, { backgroundColor: isOwn ? "rgba(255,255,255,0.2)" : "rgba(108,71,255,0.15)" }]}>
         <Ionicons
           name={isPlaying ? "pause" : "play"}
-          size={20}
+          size={18}
           color={isOwn ? "#FFFFFF" : "#6C47FF"}
-          style={isPlaying ? undefined : { marginLeft: 2 }}
+          style={!isPlaying ? { marginLeft: 2 } : undefined}
         />
-      </View>
+      </Pressable>
+
       <View style={styles.voiceInfo}>
-        <View style={[styles.voiceBar, { backgroundColor: isOwn ? "rgba(255,255,255,0.2)" : "#2A2A2A" }]}>
-          <View
-            style={[
-              styles.voiceProgress,
-              {
-                width: `${progressPct}%`,
-                backgroundColor: isOwn ? "#FFFFFF" : "#6C47FF",
-              },
-            ]}
-          />
-          {isPlaying && (
-            <View
-              style={[
-                styles.voiceDot,
-                {
-                  left: `${progressPct}%`,
-                  backgroundColor: isOwn ? "#FFFFFF" : "#6C47FF",
-                },
-              ]}
-            />
-          )}
+        <Pressable
+          onPress={(e) => {
+            const { locationX } = e.nativeEvent;
+            const barWidth = 130;
+            const pct = Math.min(1, Math.max(0, locationX / barWidth));
+            seekTo(pct);
+          }}
+          style={[styles.voiceBar, { backgroundColor: isOwn ? "rgba(255,255,255,0.15)" : "#2A2A2A" }]}
+          hitSlop={8}
+        >
+          <View style={[styles.voiceProgress, { width: `${progressPct}%`, backgroundColor: isOwn ? "#FFFFFF" : "#6C47FF" }]} />
+          <View style={[styles.voiceDot, { left: `${progressPct}%`, backgroundColor: isOwn ? "#FFFFFF" : "#6C47FF" }]} />
+        </Pressable>
+
+        <View style={styles.voiceMeta}>
+          <ThemedText style={[styles.voiceTime, { color: isOwn ? "rgba(255,255,255,0.5)" : "#71717A" }]}>
+            {elapsedLabel} / {totalLabel}
+          </ThemedText>
+          <Pressable onPress={cycleSpeed} hitSlop={4}>
+            <ThemedText style={[styles.speedBadge, { color: isOwn ? "rgba(255,255,255,0.6)" : "#6C47FF", backgroundColor: isOwn ? "rgba(255,255,255,0.1)" : "rgba(108,71,255,0.1)" }]}>
+              {playbackRate}x
+            </ThemedText>
+          </Pressable>
         </View>
-        <ThemedText style={[styles.voiceTime, { color: isOwn ? "rgba(255,255,255,0.5)" : "#71717A" }]}>
-          {isPlaying ? elapsedLabel : totalLabel}
-        </ThemedText>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -530,6 +547,21 @@ const styles = StyleSheet.create({
     top: -3,
     marginLeft: -5,
   },
-  voiceTime: { fontSize: 11, marginTop: 2 },
+  voiceTime: { fontSize: 10, letterSpacing: 0.2 },
+  voiceMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  speedBadge: {
+    fontSize: 9,
+    fontWeight: "600",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    overflow: "hidden",
+    letterSpacing: 0.3,
+  },
   edited: { fontSize: 10, fontStyle: "italic", marginLeft: 4 },
 });

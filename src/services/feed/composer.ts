@@ -7,6 +7,8 @@ import { SeenStore } from "./seen";
 import { diversify } from "./diversifier";
 import { fetchConcurrentIndependent } from "./fetch-utils";
 import { clearTransientState } from "./budget";
+import { db } from "@/services/firebase";
+import { collection, query, where, limit as fbLimit, getDocs } from "firebase/firestore";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PROVIDER_TIMEOUT_MS = 12000;
@@ -77,6 +79,56 @@ export class FeedComposer {
     if (this.initialized) return;
     await Promise.all([this.dedup.restore(), this.seen.load()]);
     this.initialized = true;
+    this.buildInterests().catch(() => {});
+  }
+
+  private async buildInterests(): Promise<void> {
+    try {
+      const interests = new Map<string, number>();
+
+      const likesQ = query(
+        collection(db, "reactions"),
+        where("user_id", "==", this.userId),
+        fbLimit(50)
+      );
+      const likesSnap = await getDocs(likesQ);
+      for (const doc of likesSnap.docs) {
+        const data = doc.data() as Record<string, any>;
+        if (data.emoji) interests.set(`emoji:${data.emoji}`, (interests.get(`emoji:${data.emoji}`) ?? 0) + 0.2);
+      }
+
+      const followsQ = query(
+        collection(db, "follows"),
+        where("follower_id", "==", this.userId),
+        fbLimit(50)
+      );
+      const followsSnap = await getDocs(followsQ);
+      for (const doc of followsSnap.docs) {
+        const data = doc.data() as Record<string, any>;
+        if (data.following_id) {
+          const profileDoc = await import("@/services/db").then(m => m.db_ops.get("profiles", data.following_id));
+          if (profileDoc?.department) {
+            interests.set(profileDoc.department.toLowerCase(), (interests.get(profileDoc.department.toLowerCase()) ?? 0) + 0.3);
+          }
+        }
+      }
+
+      const postsQ = query(
+        collection(db, "posts"),
+        where("user_id", "==", this.userId),
+        fbLimit(20)
+      );
+      const postsSnap = await getDocs(postsQ);
+      for (const doc of postsSnap.docs) {
+        const data = doc.data() as Record<string, any>;
+        const words = (data.content ?? "").toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
+        for (const word of words.slice(0, 10)) {
+          interests.set(word, (interests.get(word) ?? 0) + 0.1);
+        }
+      }
+
+      if (interests.size > 0) this.scorer.setInterests(interests);
+    } catch {}
   }
 
   async loadInitial(onProgressiveUpdate?: (items: FeedItem[], hasMore: boolean) => void): Promise<FeedPage> {

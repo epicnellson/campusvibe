@@ -19,6 +19,7 @@ import { FeedSkeleton } from "@/components/feed-skeleton";
 import { useSession } from "@/hooks/use-session";
 import { useRefresh } from "@/hooks/use-refresh";
 import { useTheme } from "@/hooks/use-theme";
+import { usePostInteractions } from "@/hooks/use-post-interactions";
 import { fetchPostById } from "@/services/posts";
 import { fetchConfessionById } from "@/services/confessions";
 import { fetchReactionsForPosts, type Reaction } from "@/services/reactions";
@@ -97,10 +98,19 @@ export default function HomeFeedScreen() {
   const [feedHasMore, setFeedHasMore] = useState(true);
   const [emptyLoadCount, setEmptyLoadCount] = useState(0);
 
-  const [reactionsMap, setReactionsMap] = useState<Map<string, Reaction[]>>(new Map());
-  const [repostedIds, setRepostedIds] = useState<Set<string>>(new Set());
-  const [repostCounts, setRepostCounts] = useState<Map<string, number>>(new Map());
-  const [commentCounts, setCommentCounts] = useState<Map<string, number>>(new Map());
+  const {
+    reactionsMap,
+    repostedIds,
+    repostCounts,
+    commentCounts,
+    toggleReaction: ctxToggleReaction,
+    toggleRepost: ctxToggleRepost,
+    setReactionsForPost,
+    bulkSetReactions,
+    bulkSetRepostedIds,
+    bulkSetRepostCounts,
+    bulkSetCommentCounts,
+  } = usePostInteractions();
 
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50, minimumViewTime: 300 }).current;
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -158,9 +168,9 @@ export default function HomeFeedScreen() {
       fetchCommentCounts(postIds),
     ]);
 
-    setReactionsMap(reactionsData);
-    setRepostedIds(userReposted);
-    setCommentCounts(commentCountsData);
+    bulkSetReactions(reactionsData);
+    bulkSetRepostedIds(userReposted);
+    bulkSetCommentCounts(commentCountsData);
 
     const counts = new Map<string, number>();
     await Promise.all(
@@ -169,7 +179,7 @@ export default function HomeFeedScreen() {
         if (c > 0) counts.set(id, c);
       })
     );
-    setRepostCounts(counts);
+    bulkSetRepostCounts(counts);
   }, [currentUserId]);
 
   const load = useCallback(async (isRefresh = false) => {
@@ -354,6 +364,71 @@ export default function HomeFeedScreen() {
     };
   }, [currentUserId]);
 
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const postIds = items
+      .filter((i) => i.type === "post")
+      .map((i) => i.data.id)
+      .slice(0, 30);
+
+    if (postIds.length === 0) return;
+
+    const postsRef = collection(db, "posts");
+    const q = query(postsRef, where("__name__", "in", postIds));
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      for (const change of snapshot.docChanges()) {
+        if (change.type !== "modified") continue;
+        const data = change.doc.data() as Record<string, any>;
+        const updatedLikes = (data.likes ?? []).map((uid: string) => ({ user_id: uid }));
+        setItems((prev) =>
+          prev.map((item) => {
+            if (item.type !== "post" || item.data.id !== change.doc.id) return item;
+            return { ...item, data: { ...item.data, likes: updatedLikes } };
+          })
+        );
+      }
+    }, () => {});
+
+    return () => unsub();
+  }, [currentUserId, items.length]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const postIds = items
+      .filter((i) => i.type === "post")
+      .map((i) => i.data.id)
+      .slice(0, 30);
+
+    if (postIds.length === 0) return;
+
+    const reactionsRef = collection(db, "reactions");
+    const q = query(reactionsRef, where("post_id", "in", postIds));
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      const changes = snapshot.docChanges();
+      if (changes.length === 0) return;
+
+      const affectedPostIds = new Set<string>();
+      for (const change of changes) {
+        const data = change.doc.data() as Record<string, any>;
+        if (data.post_id) affectedPostIds.add(data.post_id);
+      }
+
+      for (const postId of affectedPostIds) {
+        const postReactions = snapshot.docs
+          .filter((d) => (d.data() as Record<string, any>).post_id === postId)
+          .map((d) => ({ id: d.id, ...(d.data() as Record<string, any>) })) as Reaction[];
+
+        setReactionsForPost(postId, postReactions);
+      }
+    }, () => {});
+
+    return () => unsub();
+  }, [currentUserId, items.length]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     load(true);
@@ -395,35 +470,13 @@ export default function HomeFeedScreen() {
 
   const handleReactionChanged = useCallback((postId: string, emoji: string | null) => {
     if (!currentUserId) return;
-    setReactionsMap((prev) => {
-      const next = new Map(prev);
-      const existing = next.get(postId) ?? [];
-      if (emoji === null) {
-        next.set(postId, existing.filter((r) => r.user_id !== currentUserId));
-      } else {
-        const without = existing.filter((r) => r.user_id !== currentUserId);
-        without.push({ id: "", user_id: currentUserId, post_id: postId, emoji, created_at: "" });
-        next.set(postId, without);
-      }
-      return next;
-    });
-  }, [currentUserId]);
+    ctxToggleReaction(postId, currentUserId, emoji);
+  }, [currentUserId, ctxToggleReaction]);
 
   const handleRepostToggled = useCallback((postId: string, reposted: boolean) => {
     if (!currentUserId) return;
-    setRepostedIds((prev) => {
-      const next = new Set(prev);
-      if (reposted) next.add(postId);
-      else next.delete(postId);
-      return next;
-    });
-    setRepostCounts((prev) => {
-      const next = new Map(prev);
-      const current = next.get(postId) ?? 0;
-      next.set(postId, reposted ? current + 1 : Math.max(0, current - 1));
-      return next;
-    });
-  }, [currentUserId]);
+    ctxToggleRepost(postId, currentUserId, reposted);
+  }, [currentUserId, ctxToggleRepost]);
 
   const renderItem = useCallback(({ item }: { item: FeedDisplayItem }) => {
     switch (item.type) {
