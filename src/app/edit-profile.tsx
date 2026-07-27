@@ -21,6 +21,8 @@ import { useSession } from "@/hooks/use-session";
 import { useTheme } from "@/hooks/use-theme";
 import { updateProfile } from "@/services/profile";
 import { uploadProfilePhoto } from "@/services/storage";
+import { useToast } from "@/components/ui/Toast";
+import { getErrorMessage } from "@/services/retry";
 
 const DEPARTMENTS = [
   "Computer Science",
@@ -206,6 +208,7 @@ export default function EditProfileScreen() {
   const { session, isLoading: sessionLoading } = useSession();
   const { profile, isLoading: profileLoading, refreshProfile } = useProfile();
   const userId = session?.user?.id;
+  const toast = useToast();
 
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
@@ -258,9 +261,9 @@ export default function EditProfileScreen() {
       await updateProfile(userId, { avatar_url: url });
       await refreshProfile();
       setUploading(false);
-    } catch (e) {
+    } catch (err) {
       setUploading(false);
-      setError(e instanceof Error ? e.message : "Failed to upload photo");
+      toast.show(getErrorMessage(err), "error");
     }
   };
 
@@ -284,8 +287,8 @@ export default function EditProfileScreen() {
       await updateProfile(userId, { name: name.trim(), department, year });
       await refreshProfile();
       router.canGoBack() ? router.back() : router.replace("/");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save");
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     } finally {
       setSaving(false);
     }

@@ -27,6 +27,8 @@ import { db_ops } from "@/services/db";
 import { resolveImageUrl } from "@/services/storage";
 import type { ListingWithSeller } from "@/services/database.types";
 import { timeAgo } from "@/utils/date";
+import { useToast } from "@/components/ui/Toast";
+import { getErrorMessage } from "@/services/retry";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 const IMAGE_HEIGHT = SCREEN_HEIGHT * 0.4;
@@ -39,6 +41,7 @@ export default function ListingDetailScreen() {
   const colors = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useSession();
+  const toast = useToast();
   const listingId = id!;
   const currentUserId = session?.user?.id;
 
@@ -105,8 +108,8 @@ export default function ListingDetailScreen() {
     try {
       const channelId = await getOrCreateDMChannel(currentUserId, listing.user_id);
       router.push(`/chat/${channelId}`);
-    } catch (e) {
-      console.warn("Failed to create DM:", e);
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     }
   }, [currentUserId, listing]);
 
@@ -138,8 +141,8 @@ export default function ListingDetailScreen() {
         });
         setSaved(true);
       }
-    } catch (e) {
-      console.warn("Failed to save:", e);
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     }
   }, [currentUserId, listing, saved, listingId]);
 

@@ -27,7 +27,9 @@ import { useSession } from "@/hooks/use-session";
 import { useProfile } from "@/hooks/use-profile";
 import { useRefresh } from "@/hooks/use-refresh";
 import { usePostInteractions } from "@/hooks/use-post-interactions";
+import { useToast } from "@/components/ui/Toast";
 import { fetchPostById, likePost, unlikePost, deletePost } from "@/services/posts";
+import { getErrorMessage } from "@/services/retry";
 import { fetchComments, createComment } from "@/services/comments";
 import { followUser, unfollowUser } from "@/services/follows";
 import { submitReport } from "@/services/reports";
@@ -50,6 +52,7 @@ export default function PostDetailScreen() {
   const { triggerFeedRefresh } = useRefresh();
   const insets = useSafeAreaInsets();
   const colors = useTheme();
+  const toast = useToast();
   const currentUserId = session?.user?.id;
   const [post, setPost] = useState<PostWithProfile | null>(null);
   const [comments, setComments] = useState<CommentWithProfile[]>([]);
@@ -147,6 +150,7 @@ export default function PostDetailScreen() {
       setPost((prev) =>
         prev ? { ...prev, likes: wasLiked ? [...prev.likes, { id: "", user_id: currentUserId! }] : prev.likes.filter((l) => l.user_id !== currentUserId) } : prev
       );
+      toast.show("Like failed. Please try again.", "error");
     }
   }, [post, userLiked, currentUserId, likeScale, triggerFeedRefresh]);
 
@@ -170,7 +174,10 @@ export default function PostDetailScreen() {
     if (!post) return;
     try {
       await submitReport(post.id, "post", "Other");
-    } catch {}
+      toast.show("Report submitted.", "success");
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
+    }
     setShowMenu(false);
   }, [post]);
 
@@ -201,8 +208,9 @@ export default function PostDetailScreen() {
       } else {
         await followUser(post.user_id);
       }
-    } catch {
+    } catch (err) {
       setIsFollowing(wasFollowing);
+      toast.show(getErrorMessage(err), "error");
     }
   }, [post, isFollowing]);
 
@@ -214,12 +222,18 @@ export default function PostDetailScreen() {
       ctxToggleReaction(id, currentUserId, null);
       try {
         await removeReaction(post.id);
-      } catch { ctxToggleReaction(id, currentUserId, wasReaction); }
+      } catch (err) {
+        ctxToggleReaction(id, currentUserId, wasReaction);
+        toast.show(getErrorMessage(err), "error");
+      }
     } else {
       ctxToggleReaction(id, currentUserId, emoji);
       try {
         await setReaction(post.id, emoji);
-      } catch { ctxToggleReaction(id, currentUserId, wasReaction); }
+      } catch (err) {
+        ctxToggleReaction(id, currentUserId, wasReaction);
+        toast.show(getErrorMessage(err), "error");
+      }
     }
   }, [post, id, userReaction, currentUserId, ctxToggleReaction]);
 
@@ -234,8 +248,9 @@ export default function PostDetailScreen() {
       } else {
         await repostPost(post.id);
       }
-    } catch {
+    } catch (err) {
       ctxToggleRepost(id, currentUserId, wasReposted);
+      toast.show(getErrorMessage(err), "error");
     }
   }, [post, isOwnPost, isReposted, id, currentUserId, ctxToggleRepost]);
 

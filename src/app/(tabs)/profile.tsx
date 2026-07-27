@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Image,
   Modal,
@@ -26,6 +25,8 @@ import { resolveImageUrl } from "@/services/storage";
 import { db_ops } from "@/services/db";
 import { auth } from "@/services/firebase";
 import { signOut } from "@/services/auth";
+import { useToast } from "@/components/ui/Toast";
+import { getErrorMessage } from "@/services/retry";
 import type { PostWithProfile, ListingWithSeller } from "@/services/database.types";
 import { joinDate } from "@/utils/date";
 
@@ -350,6 +351,7 @@ export default function ProfileScreen() {
   const { session } = useSession();
   const { profile, isLoading } = useProfile();
   const { width: rawScreenWidth } = useWindowDimensions();
+  const toast = useToast();
   const screenWidth = Math.min(rawScreenWidth, 800);
   const userId = session?.user?.id;
   const TILE_SIZE = (screenWidth - GRID_PADDING * 2 - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
@@ -437,8 +439,8 @@ export default function ProfileScreen() {
     try {
       await signOut();
       router.replace("/login");
-    } catch {
-      Alert.alert("Error", "Could not log out. Please try again.");
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     }
   }, []);
 

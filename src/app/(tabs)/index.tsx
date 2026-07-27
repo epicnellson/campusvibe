@@ -591,7 +591,15 @@ export default function HomeFeedScreen() {
 
         {error ? (
           <View style={styles.center}>
+            <Ionicons name="cloud-offline-outline" size={40} color="#555" />
             <Text style={styles.errorText}>{error}</Text>
+            <Pressable
+              onPress={() => { setError(null); setLoading(true); load(); }}
+              style={({ pressed }) => [styles.retryBtn, pressed && styles.pressed]}
+            >
+              <Ionicons name="refresh" size={16} color="#FFFFFF" />
+              <Text style={styles.retryBtnText}>Try again</Text>
+            </Pressable>
           </View>
         ) : items.length === 0 ? (
           <View style={styles.emptyState}>
@@ -725,6 +733,22 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: "center",
     color: "#71717A",
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  retryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#6C47FF",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+  },
+  retryBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   emptyState: {
     alignItems: "center",

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -24,6 +23,8 @@ import { resolveImageUrl } from "@/services/storage";
 import { db_ops } from "@/services/db";
 import { getOrCreateDMChannel } from "@/services/chats";
 import { followUser, unfollowUser } from "@/services/follows";
+import { useToast } from "@/components/ui/Toast";
+import { getErrorMessage } from "@/services/retry";
 import type { Profile, PostWithProfile, ListingWithSeller } from "@/services/database.types";
 import { joinDate } from "@/utils/date";
 
@@ -37,6 +38,7 @@ export default function UserProfileScreen() {
   const colors = useTheme();
   const { session } = useSession();
   const { width: screenWidth } = useWindowDimensions();
+  const toast = useToast();
   const currentUserId = session?.user?.id;
   const TILE_SIZE = (screenWidth - GRID_PADDING * 2 - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
 
@@ -121,10 +123,10 @@ export default function UserProfileScreen() {
       } else {
         await followUser(id);
       }
-    } catch (e) {
+    } catch (err) {
       setIsFollowing(wasFollowing);
       setFollowerCount((c) => wasFollowing ? c + 1 : Math.max(0, c - 1));
-      Alert.alert("Error", "Could not update follow status.");
+      toast.show(getErrorMessage(err), "error");
     } finally {
       setFollowLoading(false);
     }
@@ -141,9 +143,8 @@ export default function UserProfileScreen() {
       if (channelId) {
         router.push(`/chat/${channelId}`);
       }
-    } catch (e) {
-      console.warn("Failed to create DM from profile:", e);
-      Alert.alert("Error", "Could not start conversation. Please try again.");
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     }
   }, [id, currentUserId]);
 

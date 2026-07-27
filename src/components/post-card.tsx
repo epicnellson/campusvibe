@@ -9,10 +9,12 @@ import { ResponsiveImage } from "@/components/responsive-image";
 import { Avatar } from "@/components/ui/Avatar";
 import { useSession } from "@/hooks/use-session";
 import { useTheme } from "@/hooks/use-theme";
+import { useToast } from "@/components/ui/Toast";
 import { likePost, unlikePost, deletePost } from "@/services/posts";
 import { repostPost, unrepostPost } from "@/services/reposts";
 import { setReaction, removeReaction, REACTION_EMOJIS, type ReactionEmoji } from "@/services/reactions";
 import { resolveImageUrl } from "@/services/storage";
+import { getErrorMessage } from "@/services/retry";
 import type { PostWithProfile } from "@/services/database.types";
 import { relativeTime } from "@/utils/date";
 
@@ -106,6 +108,7 @@ function PostCardInner({
 }: PostCardProps) {
   const { session } = useSession();
   const colors = useTheme();
+  const toast = useToast();
   const currentUserId = session?.user?.id;
   const userLiked = post.likes?.some((l) => l.user_id === currentUserId) ?? false;
   const likeCount = post.likes?.length ?? 0;
@@ -126,7 +129,9 @@ function PostCardInner({
         await likePost(post.id);
       }
       onLikeToggled?.(post.id, !userLiked);
-    } catch {}
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
+    }
   }, [post.id, userLiked, onLikeToggled]);
 
   const handleRepost = useCallback(async () => {
@@ -139,8 +144,9 @@ function PostCardInner({
       } else {
         await repostPost(post.id);
       }
-    } catch {
+    } catch (err) {
       onRepostToggled?.(post.id, wasReposted);
+      toast.show(getErrorMessage(err), "error");
     }
   }, [post.id, isOwnPost, isReposted, onRepostToggled]);
 
@@ -156,8 +162,9 @@ function PostCardInner({
         await setReaction(post.id, emoji);
         onReactionChanged?.(post.id, emoji);
       }
-    } catch {
+    } catch (err) {
       onReactionChanged?.(post.id, wasReaction);
+      toast.show(getErrorMessage(err), "error");
     }
   }, [post.id, userReaction, onReactionChanged]);
 

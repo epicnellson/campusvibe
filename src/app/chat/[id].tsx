@@ -54,6 +54,8 @@ import { uploadChatImage, uploadChatFile, uploadChatVoice } from "@/services/sto
 import { db_ops } from "@/services/db";
 import { auth } from "@/services/firebase";
 import type { MessageWithSender } from "@/services/database.types";
+import { useToast } from "@/components/ui/Toast";
+import { getErrorMessage } from "@/services/retry";
 import { router, useLocalSearchParams } from "expo-router";
 
 const REACTION_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🔥"];
@@ -124,6 +126,7 @@ export default function ChatDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const channelId = id!;
   const { profile } = useProfile();
+  const toast = useToast();
   const [messages, setMessages] = useState<MessageWithSender[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -327,9 +330,9 @@ export default function ChatDetailScreen() {
         setTimeout(() => {
           setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
         }, 800);
-      } catch (e) {
+      } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
-        console.warn("Failed to send message:", e);
+        toast.show(getErrorMessage(err), "error");
       }
     },
     [channelId, profile, replyingTo, currentUserId]
@@ -410,8 +413,8 @@ export default function ChatDetailScreen() {
     async (messageId: string, emoji: string) => {
       try {
         await toggleReaction(messageId, emoji);
-      } catch {
-        console.warn("Failed to toggle reaction");
+      } catch (err) {
+        toast.show(getErrorMessage(err), "error");
       }
     },
     []
@@ -454,8 +457,8 @@ export default function ChatDetailScreen() {
             : m
         )
       );
-    } catch (e) {
-      console.warn("Failed to edit:", e);
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     }
     handleCancelEdit();
   }, [editingMessage, editText, handleCancelEdit]);
@@ -466,8 +469,8 @@ export default function ChatDetailScreen() {
       await pinMessage(channelId, contextMenu.message.id);
       const pins = await fetchPinnedMessages(channelId);
       setPinnedMessages(pins);
-    } catch (e) {
-      console.warn("Failed to pin:", e);
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     }
     closeContextMenu();
   }, [channelId, contextMenu.message, closeContextMenu]);
@@ -484,8 +487,8 @@ export default function ChatDetailScreen() {
       try {
         await forwardMessage(forwardModal.messageId, targetChannelId);
         Alert.alert("Forwarded", "Message forwarded.");
-      } catch (e) {
-        console.warn("Failed to forward:", e);
+      } catch (err) {
+        toast.show(getErrorMessage(err), "error");
       }
       setForwardModal({ visible: false, messageId: "" });
     },
@@ -497,8 +500,8 @@ export default function ChatDetailScreen() {
     try {
       await deleteMessageForMe(contextMenu.message.id);
       setMessages((prev) => prev.filter((m) => m.id !== contextMenu.message!.id));
-    } catch (e) {
-      console.warn("Failed to delete:", e);
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     }
     closeContextMenu();
   }, [contextMenu.message, closeContextMenu]);
@@ -514,8 +517,8 @@ export default function ChatDetailScreen() {
           try {
             await deleteMessageForEveryone(contextMenu.message!.id);
             setMessages((prev) => prev.filter((m) => m.id !== contextMenu.message!.id));
-          } catch (e) {
-            console.warn("Failed to delete:", e);
+          } catch (err) {
+            toast.show(getErrorMessage(err), "error");
           }
           closeContextMenu();
         },
@@ -539,8 +542,8 @@ export default function ChatDetailScreen() {
       try {
         await reportMessage(reportModal.messageId, reason, reportModal.channelOwnerId);
         Alert.alert("Reported", "Thank you for your report.");
-      } catch (e) {
-        console.warn("Failed to report:", e);
+      } catch (err) {
+        toast.show(getErrorMessage(err), "error");
       }
       setReportModal({ visible: false, messageId: "", channelOwnerId: "" });
     },
@@ -559,8 +562,8 @@ export default function ChatDetailScreen() {
             await blockUser(otherUserId);
             setBlocked(true);
             Alert.alert("Blocked", `${channelName} has been blocked.`);
-          } catch (e) {
-            console.warn("Failed to block:", e);
+          } catch (err) {
+            toast.show(getErrorMessage(err), "error");
           }
         },
       },

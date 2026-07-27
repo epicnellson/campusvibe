@@ -76,3 +76,41 @@ export function getAuthErrorMessage(err: unknown): string {
     return "Unable to connect. Check your internet.";
   return e.message ?? "Something went wrong. Please try again.";
 }
+
+export function getErrorMessage(err: unknown): string {
+  if (!err) return "An unexpected error occurred";
+
+  const supabase = getSupabaseErrorMessage(err);
+  if (supabase) return supabase;
+
+  if (isNetworkError(err)) return "No internet connection. Please try again.";
+
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes("permission") || msg.includes("403") || msg.includes("denied"))
+      return "You don't have permission to do that.";
+    if (msg.includes("not found") || msg.includes("404"))
+      return "This content could not be found.";
+    if (msg.includes("timeout"))
+      return "Request timed out. Please try again.";
+    if (msg.includes("row-level security") || msg.includes("42501"))
+      return "You need verification to do this. Upload your student ID in settings.";
+    if (msg.includes("storage") || msg.includes("bucket"))
+      return "File upload failed. Please try again.";
+    if (msg.includes("quota") || msg.includes("limit"))
+      return "Storage limit reached. Try a smaller file.";
+    return err.message || "Something went wrong. Please try again.";
+  }
+
+  return "Something went wrong. Please try again.";
+}
+
+export function isRetryableError(err: unknown): boolean {
+  if (isNetworkError(err)) return true;
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes("timeout")) return true;
+    if (msg.includes("503") || msg.includes("502") || msg.includes("500")) return true;
+  }
+  return false;
+}

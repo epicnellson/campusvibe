@@ -22,6 +22,8 @@ import { useTheme } from "@/hooks/use-theme";
 import { createListing, updateListingPhotos } from "@/services/marketplace";
 import { uploadListingPhoto } from "@/services/storage";
 import { requireVerified } from "@/services/verification";
+import { useToast } from "@/components/ui/Toast";
+import { getErrorMessage } from "@/services/retry";
 
 const CATEGORIES = ["Textbooks", "Electronics", "Clothing", "Other"];
 
@@ -149,6 +151,7 @@ export default function CreateListingScreen() {
   const colors = useTheme();
   const { session, isLoading } = useSession();
   const { profile } = useProfile();
+  const toast = useToast();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -215,8 +218,8 @@ export default function CreateListingScreen() {
       const newUris = result.assets.map((a: { uri: string }) => a.uri);
       setImageUris((prev) => [...prev, ...newUris].slice(0, 4));
       setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to pick images");
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     }
   };
 
@@ -257,8 +260,8 @@ export default function CreateListingScreen() {
       }
 
       router.canGoBack() ? router.back() : router.replace("/");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create listing");
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     } finally {
       setSubmitting(false);
     }

@@ -22,6 +22,8 @@ import { useTheme } from "@/hooks/use-theme";
 import { createEvent } from "@/services/events";
 import { uploadEventImage } from "@/services/storage";
 import { requireVerified } from "@/services/verification";
+import { useToast } from "@/components/ui/Toast";
+import { getErrorMessage } from "@/services/retry";
 
 
 const styles = StyleSheet.create({
@@ -80,6 +82,7 @@ export default function CreateEventScreen() {
   const { session, isLoading } = useSession();
   const { profile } = useProfile();
   const { triggerFeedRefresh } = useRefresh();
+  const toast = useToast();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -152,8 +155,8 @@ export default function CreateEventScreen() {
       if (result.canceled) return;
       setImageUri(result.assets[0].uri);
       setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to pick image");
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     }
   };
 
@@ -193,8 +196,8 @@ export default function CreateEventScreen() {
 
       triggerFeedRefresh();
       router.canGoBack() ? router.back() : router.replace("/");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create event");
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     } finally {
       setSubmitting(false);
     }

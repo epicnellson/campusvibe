@@ -19,9 +19,11 @@ import { ThemedText } from "@/components/themed-text";
 import { ResponsiveImage } from "@/components/responsive-image";
 import { useSession } from "@/hooks/use-session";
 import { useTheme } from "@/hooks/use-theme";
+import { useToast } from "@/components/ui/Toast";
 import { resolveImageUrl } from "@/services/storage";
 import { deleteConfession } from "@/services/confessions";
 import { submitReport } from "@/services/reports";
+import { getErrorMessage } from "@/services/retry";
 import type { ConfessionWithLikes } from "@/services/database.types";
 import { relativeTime } from "@/utils/date";
 
@@ -119,6 +121,7 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
   const { session } = useSession();
   const insets = useSafeAreaInsets();
   const colors = useTheme();
+  const toast = useToast();
   const currentUserId = session?.user?.id;
   const userLiked =
     confession.confession_likes?.some((l) => l.user_id === currentUserId) ?? false;
@@ -143,7 +146,10 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
   const handleReport = useCallback(async () => {
     try {
       await submitReport(confession.id, "confession", "Other");
-    } catch {}
+      toast.show("Report submitted.", "success");
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
+    }
     setShowMenu(false);
     setShowImageViewer(false);
   }, [confession.id]);
@@ -162,8 +168,8 @@ function ConfessionCardInner({ confession, onLikeToggled, onConfessionDeleted }:
       await deleteConfession(confession.id);
       setShowImageViewer(false);
       onConfessionDeleted?.(confession.id);
-    } catch {
-      Alert.alert("Error", "Could not delete confession. Please try again.");
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     }
   }, [confession.id, onConfessionDeleted]);
 

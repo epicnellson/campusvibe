@@ -21,6 +21,8 @@ import type { EventWithRSVPs } from "@/services/database.types";
 import { db_ops } from "@/services/db";
 import { EventDetailSkeleton } from "@/components/feed-skeleton";
 import { eventFullDate } from "@/utils/date";
+import { useToast } from "@/components/ui/Toast";
+import { getErrorMessage } from "@/services/retry";
 
 type EventDetail = EventWithRSVPs;
 
@@ -252,6 +254,7 @@ export default function EventDetailScreen() {
   const { session } = useSession();
   const insets = useSafeAreaInsets();
   const { triggerFeedRefresh } = useRefresh();
+  const toast = useToast();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -316,7 +319,9 @@ export default function EventDetailScreen() {
             : prev
         );
       }
-    } catch {}
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
+    }
     setRsvpLoading(false);
   }, [event, currentUserId, isGoing]);
 

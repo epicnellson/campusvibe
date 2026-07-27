@@ -19,6 +19,8 @@ import { fetchAllUsers, getOrCreateDMChannel } from "@/services/chats";
 import { auth } from "@/services/firebase";
 import { router } from "expo-router";
 import { db_ops } from "@/services/db";
+import { useToast } from "@/components/ui/Toast";
+import { getErrorMessage } from "@/services/retry";
 
 type UserResult = {
   id: string;
@@ -150,6 +152,7 @@ export default function NewDMScreen() {
   const [searching, setSearching] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [creatingChannel, setCreatingChannel] = useState<string | null>(null);
+  const toast = useToast();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -220,9 +223,8 @@ export default function NewDMScreen() {
       try {
         const channelId = await getOrCreateDMChannel(currentUserId, otherUserId);
         router.push(`/chat/${channelId}`);
-      } catch (e) {
-        console.warn("Failed to create DM:", e);
-        Alert.alert("Error", "Could not start conversation. Try again.");
+      } catch (err) {
+        toast.show(getErrorMessage(err), "error");
       } finally {
         setCreatingChannel(null);
       }

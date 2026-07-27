@@ -27,6 +27,8 @@ import { createPost } from "@/services/posts";
 import { createConfession } from "@/services/confessions";
 import { uploadPostImage } from "@/services/storage";
 import { requireVerified } from "@/services/verification";
+import { useToast } from "@/components/ui/Toast";
+import { getErrorMessage } from "@/services/retry";
 
 const MAX_CHARS = 500;
 const WARN_CHARS = 400;
@@ -170,6 +172,7 @@ export default function ComposeScreen() {
   const { profile } = useProfile();
   const { triggerFeedRefresh } = useRefresh();
   const colors = useTheme();
+  const toast = useToast();
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -233,8 +236,8 @@ export default function ComposeScreen() {
       }
       triggerFeedRefresh();
       router.replace("/(tabs)");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to submit");
+    } catch (err) {
+      toast.show(getErrorMessage(err), "error");
     } finally {
       setSubmitting(false);
     }
