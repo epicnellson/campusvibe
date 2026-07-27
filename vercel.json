@@ -1,7 +1,4 @@
 {
-  "installCommand": "npm install --legacy-peer-deps",
-  "buildCommand": "npx expo export --platform web && cp -r admin dist/admin",
-  "outputDirectory": "dist",
   "rewrites": [
     { "source": "/admin/(.*)", "destination": "/admin/index.html" },
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
