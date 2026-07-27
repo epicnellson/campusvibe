@@ -16,7 +16,15 @@ import { useTheme } from "@/hooks/use-theme";
 import { fetchListings } from "@/services/marketplace";
 import type { ListingWithSeller } from "@/services/database.types";
 
-const CATEGORIES = ["All", "Textbooks", "Electronics", "Clothing", "Other"] as const;
+const CATEGORIES = [
+  { label: "All", icon: "grid" as const },
+  { label: "Textbooks", icon: "book" as const },
+  { label: "Electronics", icon: "laptop" as const },
+  { label: "Clothing", icon: "shirt" as const },
+  { label: "Furniture", icon: "bed" as const },
+  { label: "Tickets", icon: "ticket" as const },
+  { label: "Other", icon: "ellipsis-horizontal" as const },
+] as const;
 const SORT_OPTIONS = ["Newest", "Price ↑", "Price ↓"] as const;
 
 function formatPrice(price: string): string {
@@ -109,22 +117,24 @@ const styles = StyleSheet.create({
   },
   filterScroll: {
     maxHeight: 60,
-    marginBottom: spacing.sm,
+    marginBottom: 4,
   },
   filterContent: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
+    paddingHorizontal: 16,
+    gap: 8,
     alignItems: "center",
   },
   filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderRadius: 24,
     backgroundColor: "#1C1C1E",
     borderWidth: 1,
     borderColor: "#2C2C2E",
     minHeight: 40,
-    justifyContent: "center",
+    gap: 6,
   },
   filterChipActive: {
     backgroundColor: "#6C47FF",
@@ -138,6 +148,9 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: "#ffffff",
+  },
+  filterChipIcon: {
+    marginRight: -2,
   },
   list: {
     paddingHorizontal: spacing.sm,
@@ -344,20 +357,26 @@ export default function MarketplaceScreen() {
         >
           {CATEGORIES.map((cat) => (
             <Pressable
-              key={cat}
-              onPress={() => setSelectedCategory(cat)}
+              key={cat.label}
+              onPress={() => setSelectedCategory(cat.label)}
               style={[
                 styles.filterChip,
-                selectedCategory === cat && styles.filterChipActive,
+                selectedCategory === cat.label && styles.filterChipActive,
               ]}
             >
+              <Ionicons
+                name={cat.icon}
+                size={16}
+                color={selectedCategory === cat.label ? "#FFFFFF" : "#A1A1AA"}
+                style={styles.filterChipIcon}
+              />
               <ThemedText
                 style={[
                   styles.filterChipText,
-                  selectedCategory === cat && styles.filterChipTextActive,
+                  selectedCategory === cat.label && styles.filterChipTextActive,
                 ]}
               >
-                {cat}
+                {cat.label}
               </ThemedText>
             </Pressable>
           ))}
