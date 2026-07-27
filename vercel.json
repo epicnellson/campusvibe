@@ -1,9 +1,0 @@
-{
-  "installCommand": "npm install --legacy-peer-deps",
-  "buildCommand": "npx expo export --platform web",
-  "outputDirectory": "dist",
-  
-  "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
-  ]
-}
