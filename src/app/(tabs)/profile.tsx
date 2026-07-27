@@ -39,7 +39,14 @@ type ActiveTab = "posts" | "listings" | "about";
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
     backgroundColor: "#000000",
+  },
+  inner: {
+    flex: 1,
+    maxWidth: 800,
+    width: "100%",
   },
   loadingContainer: {
     flex: 1,
@@ -342,7 +349,8 @@ export default function ProfileScreen() {
   const colors = useTheme();
   const { session } = useSession();
   const { profile, isLoading } = useProfile();
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: rawScreenWidth } = useWindowDimensions();
+  const screenWidth = Math.min(rawScreenWidth, 800);
   const userId = session?.user?.id;
   const TILE_SIZE = (screenWidth - GRID_PADDING * 2 - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
 
@@ -589,6 +597,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.inner}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 140 }}
@@ -692,6 +701,7 @@ export default function ProfileScreen() {
           {activeTab === "about" && renderAboutTab()}
         </View>
       </ScrollView>
+      </View>
 
       {/* Profile 3-dot menu */}
       <Modal visible={showProfileMenu} transparent animationType="fade" onRequestClose={() => setShowProfileMenu(false)}>

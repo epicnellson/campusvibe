@@ -7,11 +7,13 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { VerificationBanner } from "@/components/verification-banner";
 import { CustomTabBar } from "@/components/custom-tab-bar";
+import { WebSidebar } from "@/components/web-sidebar";
 import { SwipeablePager, PagerViewRef } from "@/components/PagerViewWrapper";
 import { FeedSkeleton } from "@/components/feed-skeleton";
 import { useProfile } from "@/hooks/use-profile";
 import { useSession } from "@/hooks/use-session";
 import { useTheme } from "@/hooks/use-theme";
+import { useResponsive } from "@/hooks/use-responsive";
 import { spacing } from "@/theme";
 
 import FeedScreen from "./index";
@@ -20,11 +22,37 @@ import MarketplaceScreen from "./marketplace";
 import SearchScreen from "./search";
 import ProfileScreen from "./profile";
 
+const TAB_KEYS = ["feed", "chats", "marketplace", "search", "profile"] as const;
+
+function SidebarLayout({ profile }: { profile: { verification_status: string | null } }) {
+  const colors = useTheme();
+  const [activeTab, setActiveTab] = useState("feed");
+
+  const screens: Record<string, React.ReactNode> = {
+    feed: <FeedScreen />,
+    chats: <ChatsScreen />,
+    marketplace: <MarketplaceScreen />,
+    search: <SearchScreen />,
+    profile: <ProfileScreen />,
+  };
+
+  return (
+    <View style={styles.sidebarRoot}>
+      <WebSidebar activeTab={activeTab} onTabPress={setActiveTab} />
+      <View style={styles.sidebarContent}>
+        <VerificationBanner status={profile.verification_status as "pending" | "approved" | "rejected" | null} />
+        {screens[activeTab]}
+      </View>
+    </View>
+  );
+}
+
 export default function TabLayout() {
   const colors = useTheme();
   const { session, isLoading } = useSession();
   const { profile, isLoading: profileLoading } = useProfile();
   const insets = useSafeAreaInsets();
+  const { showSidebar } = useResponsive();
   const pagerRef = useRef<PagerViewRef>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -59,11 +87,19 @@ export default function TabLayout() {
     );
   }
 
+  if (showSidebar) {
+    return (
+      <ErrorBoundary>
+        <SidebarLayout profile={profile} />
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <ThemedView style={styles.root}>
         <View style={[styles.headerArea, { paddingTop: insets.top }]}>
-          <VerificationBanner status={profile.verification_status} />
+        <VerificationBanner status={profile.verification_status as "pending" | "approved" | "rejected" | null} />
         </View>
 
         <SwipeablePager
@@ -98,6 +134,14 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   page: {
+    flex: 1,
+  },
+  sidebarRoot: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "#000000",
+  },
+  sidebarContent: {
     flex: 1,
   },
 });

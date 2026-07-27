@@ -38,7 +38,14 @@ const SCREEN_MAP: Record<string, string> = {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
     backgroundColor: "#000000",
+  },
+  inner: {
+    flex: 1,
+    maxWidth: 600,
+    width: "100%",
   },
   header: {
     flexDirection: "row",
@@ -229,6 +236,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.inner}>
       <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
@@ -257,6 +265,7 @@ export default function NotificationsScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
+      </View>
     </View>
   );
 }
