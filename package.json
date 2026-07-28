@@ -53,7 +53,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "build:web": "npx expo export --platform web && cp -r admin dist/admin && cp -r public/* dist/"
+    "build:web": "npx expo export --platform web && xcopy /E /I /Y admin dist\\admin > nul 2>&1 & if exist public xcopy /E /I /Y public dist > nul 2>&1"
   },
   "private": true
 }
