@@ -9,8 +9,10 @@ import { PexelsProvider } from "./providers/pexels";
 import { GiphyProvider } from "./providers/giphy";
 import { FeedComposer } from "./composer";
 
-export type { FeedItem, FeedPage, ContentType, DiversitySlot, MediaItem, ScoringWeights, ComposerConfig, DEFAULT_CONFIG } from "./types";
+export type { FeedItem, FeedPage, ContentType, DiversitySlot, ContentCategory, MediaItem, ScoringWeights, ComposerConfig, DEFAULT_CONFIG } from "./types";
 export type { IFeedProvider, FetchContext, FetchResult, HealthStatus, RateBudget, PageState } from "./providers/types";
+export type { CachedUserProfile } from "./user-profile";
+export type { UserInterests } from "./interests";
 
 export { FeedComposer } from "./composer";
 export { FeedScorer } from "./scorer";
@@ -18,6 +20,10 @@ export { FeedDeduplicator } from "./dedup";
 export { SeenStore } from "./seen";
 export { diversify } from "./diversifier";
 export { computeDedupKeys, normalizeUrl, stripHtml, safeDate } from "./normalize";
+export { getUserProfile, getCachedProfile, invalidateUserProfile } from "./user-profile";
+export { getUserInterests, classifyContentCategory, computeKeywordScore, invalidateInterests } from "./interests";
+export { computeTrendingScore, updateTrendingCache, getTrendingScore } from "./trending";
+export { getCurrentPhase, getPhaseWeights, computeSessionFitScore } from "./time-aware";
 
 export {
   CampusProvider,

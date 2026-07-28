@@ -138,8 +138,9 @@ export class UnsplashProvider implements IFeedProvider {
             expiresAt: null,
           },
           engagement: { likeCount: null, commentCount: null, shareCount: null, viewCount: null, userLiked: null },
-          scores: { composite: 0, freshness: 0, engagement: 0, quality: 0, diversity: 0, interest: 0 },
+          scores: { composite: 0, freshness: 0, engagement: 0, quality: 0, diversity: 0, interest: 0, relationship: 0, trending: 0, exploration: 0, campusRelevance: 0, sessionFit: 0 },
           diversitySlot: "photo",
+          contentCategory: "general" as const,
           dedup: { nativeId: p.id, canonicalUrl: null, imageUrl: null, videoId: null, titleHash: 0, bodyHash: 0 },
           meta: { orientation: p.orientation ?? null, likes: p.likes ?? null },
         };

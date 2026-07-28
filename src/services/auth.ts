@@ -5,6 +5,10 @@ import {
   signOut as fbSignOut,
   GoogleAuthProvider,
   signInWithCredential,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  browserPopupRedirectResolver,
   type User,
 } from "firebase/auth";
 import { auth } from "@/services/firebase";
@@ -70,10 +74,23 @@ export async function signInWithGoogle() {
     throw new Error("Google sign-in is not configured.");
   }
 
-  const redirectUri = Platform.OS === "web"
-    ? `${window.location.origin}/auth/callback`
-    : "campusvibe://auth/callback";
+  if (Platform.OS === "web") {
+    const provider = new GoogleAuthProvider();
+    provider.addScope("profile");
+    provider.addScope("email");
+    try {
+      await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+    } catch (e: any) {
+      if (e.code === "auth/popup-blocked") {
+        await signInWithRedirect(auth, provider).catch(() => {});
+        return;
+      }
+      throw e;
+    }
+    return;
+  }
 
+  const redirectUri = "campusvibe://auth/callback";
   const nonce = generateNonce();
   const authUrl = await buildGoogleAuthUrl(redirectUri, nonce);
 

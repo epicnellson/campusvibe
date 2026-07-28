@@ -15,6 +15,7 @@ import { useSession } from "@/hooks/use-session";
 import { useTheme } from "@/hooks/use-theme";
 import { createProfile, updateProfile } from "@/services/profile";
 import { uploadProfilePhoto } from "@/services/storage";
+import { syncProfileToSupabase } from "@/services/sync-profile";
 
 const TOTAL_STEPS = 4;
 
@@ -138,6 +139,14 @@ export default function OnboardingScreen() {
         department: department || "Other",
         year: year || "Freshman",
       });
+
+      syncProfileToSupabase({
+        id: profileData.id,
+        email: session?.user?.email ?? "",
+        name: name.trim() || "Student",
+        department: department || "Other",
+        year: year || "Freshman",
+      }).catch(() => {});
 
       if (photoUri) {
         const url = await uploadProfilePhoto(profileData.id, photoUri).catch(() => null);

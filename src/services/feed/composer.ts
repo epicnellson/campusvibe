@@ -1,4 +1,4 @@
-import type { FeedItem, FeedPage } from "./types";
+import type { FeedItem, FeedPage, ComposerConfig, DEFAULT_CONFIG } from "./types";
 import { ProviderRegistry } from "./providers/registry";
 import type { IFeedProvider, FetchContext, FetchResult, PageState } from "./providers/types";
 import { FeedScorer } from "./scorer";
@@ -7,8 +7,9 @@ import { SeenStore } from "./seen";
 import { diversify } from "./diversifier";
 import { fetchConcurrentIndependent } from "./fetch-utils";
 import { clearTransientState } from "./budget";
-import { db } from "@/services/firebase";
-import { collection, query, where, limit as fbLimit, getDocs } from "firebase/firestore";
+import { getUserProfile, type CachedUserProfile } from "./user-profile";
+import { getUserInterests, type UserInterests } from "./interests";
+import { updateTrendingCache } from "./trending";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PROVIDER_TIMEOUT_MS = 12000;
@@ -19,6 +20,7 @@ type FeedComposerOptions = {
   userId: string;
   pageSize?: number;
   providers: IFeedProvider[];
+  config?: Partial<ComposerConfig>;
 };
 
 export class FeedComposer {
@@ -36,32 +38,60 @@ export class FeedComposer {
   private initialized = false;
   private abortController: AbortController | null = null;
   private loadingLock = false;
+  private userProfile: CachedUserProfile | null = null;
+  private userInterests: UserInterests | null = null;
+  private config: ComposerConfig;
 
   constructor(opts: FeedComposerOptions) {
     this.userId = opts.userId;
     this.pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
 
+    this.config = {
+      ...({
+        pageSize: 20,
+        fetchTimeoutMs: 8000,
+        maxConcurrent: 3,
+        cacheTtlMs: 15 * 60 * 1000,
+        staleWindowMs: 5 * 60 * 1000,
+        maxInMemoryFeed: 500,
+        scoringWeights: {
+          freshness: 0.22,
+          engagement: 0.15,
+          quality: 0.10,
+          diversity: 0.12,
+          interest: 0.15,
+          relationship: 0.12,
+          trending: 0.06,
+          exploration: 0.04,
+          campusRelevance: 0.02,
+          sessionFit: 0.02,
+        },
+        providerPriority: {
+          campus: 1.0,
+          bluesky: 0.5,
+          news: 0.4,
+          mastodon: 0.4,
+          youtube: 0.3,
+          unsplash: 0.2,
+          pexels: 0.2,
+          giphy: 0.1,
+        },
+        explorationRatio: 0.18,
+        campusRatioMin: 0.70,
+        campusRatioMax: 0.85,
+        maxSameAuthor: 2,
+        maxConsecutiveType: 3,
+        candidatePoolSize: 300,
+      } as ComposerConfig),
+      ...opts.config,
+    };
+
     this.registry = new ProviderRegistry();
     for (const p of opts.providers) this.registry.register(p);
 
     this.scorer = new FeedScorer(
-      {
-        freshness: 0.30,
-        engagement: 0.20,
-        quality: 0.15,
-        diversity: 0.15,
-        interest: 0.10,
-        provider: 0.10,
-      },
-      {
-        campus: 1.0,
-        news: 0.5,
-        mastodon: 0.4,
-        youtube: 0.4,
-        giphy: 0.3,
-        unsplash: 0.3,
-        pexels: 0.3,
-      }
+      this.config.scoringWeights,
+      this.config.providerPriority
     );
 
     this.dedup = new FeedDeduplicator(opts.userId);
@@ -79,55 +109,20 @@ export class FeedComposer {
     if (this.initialized) return;
     await Promise.all([this.dedup.restore(), this.seen.load()]);
     this.initialized = true;
-    this.buildInterests().catch(() => {});
+
+    this.loadPersonalization().catch(() => {});
   }
 
-  private async buildInterests(): Promise<void> {
+  private async loadPersonalization(): Promise<void> {
     try {
-      const interests = new Map<string, number>();
-
-      const likesQ = query(
-        collection(db, "reactions"),
-        where("user_id", "==", this.userId),
-        fbLimit(50)
-      );
-      const likesSnap = await getDocs(likesQ);
-      for (const doc of likesSnap.docs) {
-        const data = doc.data() as Record<string, any>;
-        if (data.emoji) interests.set(`emoji:${data.emoji}`, (interests.get(`emoji:${data.emoji}`) ?? 0) + 0.2);
-      }
-
-      const followsQ = query(
-        collection(db, "follows"),
-        where("follower_id", "==", this.userId),
-        fbLimit(50)
-      );
-      const followsSnap = await getDocs(followsQ);
-      for (const doc of followsSnap.docs) {
-        const data = doc.data() as Record<string, any>;
-        if (data.following_id) {
-          const profileDoc = await import("@/services/db").then(m => m.db_ops.get("profiles", data.following_id));
-          if (profileDoc?.department) {
-            interests.set(profileDoc.department.toLowerCase(), (interests.get(profileDoc.department.toLowerCase()) ?? 0) + 0.3);
-          }
-        }
-      }
-
-      const postsQ = query(
-        collection(db, "posts"),
-        where("user_id", "==", this.userId),
-        fbLimit(20)
-      );
-      const postsSnap = await getDocs(postsQ);
-      for (const doc of postsSnap.docs) {
-        const data = doc.data() as Record<string, any>;
-        const words = (data.content ?? "").toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
-        for (const word of words.slice(0, 10)) {
-          interests.set(word, (interests.get(word) ?? 0) + 0.1);
-        }
-      }
-
-      if (interests.size > 0) this.scorer.setInterests(interests);
+      const [profile, interests] = await Promise.all([
+        getUserProfile(this.userId),
+        getUserInterests(this.userId),
+      ]);
+      this.userProfile = profile;
+      this.userInterests = interests;
+      this.scorer.setUserProfile(profile);
+      this.scorer.setInterests(interests);
     } catch {}
   }
 
@@ -141,7 +136,6 @@ export class FeedComposer {
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
 
-    this.dedup.clear();
     this.memoryBuffer = [];
     this.providerPages.clear();
     this.providerDone.clear();
@@ -151,14 +145,14 @@ export class FeedComposer {
     for (const p of this.registry.getAll()) p.resetState();
 
     await clearTransientState();
-    await this.seen.clear();
 
     try {
+      // STAGE 1: Build large candidate pool from campus
       const campusProvider = this.registry.getById("campus");
       const externalProviders = this.getActiveProviders().filter((p) => p.id !== "campus");
 
       const campusCtx: FetchContext = {
-        pageSize: this.pageSize,
+        pageSize: this.config.candidatePoolSize,
         timeoutMs: PROVIDER_TIMEOUT_MS,
         signal,
         pageState: {},
@@ -178,53 +172,46 @@ export class FeedComposer {
         this.providerDone.set("campus", true);
       }
 
-      const campusDeduped = this.dedup.filterNew(campusItems);
-      for (const item of campusDeduped) {
-        this.dedup.register(item);
+      // Progressive update with campus items only
+      const campusForProgressive = diversify([...campusItems], {
+        pageSize: this.pageSize,
+        campusRatioMin: this.config.campusRatioMin,
+        campusRatioMax: this.config.campusRatioMax,
+        maxSameAuthor: this.config.maxSameAuthor,
+        maxConsecutiveType: this.config.maxConsecutiveType,
+        explorationSlots: Math.floor(this.pageSize * this.config.explorationRatio),
+      });
+
+      if (campusForProgressive.length > 0 && onProgressiveUpdate) {
+        onProgressiveUpdate(campusForProgressive, true);
       }
 
-      let campusScored = this.scorer.scoreAll(campusDeduped, []);
-      campusScored = this.stableSort(campusScored);
-      const campusForProgressive = diversify([...campusScored], this.pageSize);
-      const campusRendered = this.seen.filterNew(campusForProgressive);
-
-      for (const item of campusRendered) {
-        this.memoryBuffer.push(item);
-      }
-
-      if (campusRendered.length > 0 && onProgressiveUpdate) {
-        onProgressiveUpdate(campusRendered, true);
-      }
-
+      // STAGE 1b: Fetch external providers concurrently
       if (externalProviders.length === 0) {
+        for (const item of campusForProgressive) {
+          this.memoryBuffer.push(item);
+        }
+        this.updateTrendingFromItems(campusItems);
+        await this.seen.markSeen(campusForProgressive.map((i) => i.id));
         await this.dedup.persist();
-        return { items: campusRendered, hasMore: true, isStale: false };
+        return { items: campusForProgressive, hasMore: true, isStale: false };
       }
 
       const extResults = await this.fetchIndependent(externalProviders, signal);
-
       const allExternalNormalized: FeedItem[] = [];
       for (const [providerId, result] of extResults) {
         const provider = this.registry.getById(providerId);
         if (!provider) continue;
-
         this.providerPages.set(providerId, result.nextPageState);
-
         if (result._skipped) {
           const prev = this.providerSkipped.get(providerId) ?? 0;
           const newCount = prev + 1;
           this.providerSkipped.set(providerId, newCount);
-          if (newCount >= 3) {
-            this.providerDone.set(providerId, true);
-          } else {
-            this.providerDone.set(providerId, false);
-          }
+          if (newCount >= 3) this.providerDone.set(providerId, true);
         } else {
           this.providerSkipped.delete(providerId);
         }
-
         if (result.budgetCost > 0) this.registry.recordBudgetConsumption(providerId, result.budgetCost);
-
         if (result.rawItems.length > 0) {
           const normalized = provider.normalize(result.rawItems, new Date());
           allExternalNormalized.push(...normalized);
@@ -232,30 +219,42 @@ export class FeedComposer {
         }
       }
 
+      // STAGE 2: Dedup across all sources
+      const campusDeduped = this.dedup.filterNew(campusItems);
       const extDeduped = this.dedup.filterNew(allExternalNormalized);
-      for (const item of extDeduped) {
+      for (const item of [...campusDeduped, ...extDeduped]) {
         this.dedup.register(item);
       }
 
-      let allItems = [...campusScored, ...extDeduped];
-      allItems = this.scorer.scoreAll(allItems, []);
-      allItems = this.stableSort(allItems);
-      allItems = diversify(allItems, this.pageSize);
-      allItems = this.seen.filterNew(allItems);
+      // STAGE 3: Merge all candidates
+      let allCandidates = [...campusDeduped, ...extDeduped];
 
-      this.memoryBuffer = [...allItems];
+      // STAGE 4: Score all candidates
+      allCandidates = this.scorer.scoreAll(allCandidates, []);
+
+      // STAGE 5: Diversify with strict rules
+      allCandidates = diversify(allCandidates, {
+        pageSize: this.pageSize,
+        campusRatioMin: this.config.campusRatioMin,
+        campusRatioMax: this.config.campusRatioMax,
+        maxSameAuthor: this.config.maxSameAuthor,
+        maxConsecutiveType: this.config.maxConsecutiveType,
+        explorationSlots: Math.floor(this.pageSize * this.config.explorationRatio),
+      });
+
+      // STAGE 6: Filter seen items
+      allCandidates = this.seen.filterNew(allCandidates);
+
+      this.memoryBuffer = [...allCandidates];
       if (this.memoryBuffer.length > MAX_BUFFER) {
         this.memoryBuffer = this.memoryBuffer.slice(-TRIM_TO);
       }
 
-      await this.seen.markSeen(allItems.map((i) => i.id));
+      this.updateTrendingFromItems(allCandidates);
+      await this.seen.markSeen(allCandidates.map((i) => i.id));
       await this.dedup.persist();
 
-      return {
-        items: allItems,
-        hasMore: true,
-        isStale: false,
-      };
+      return { items: allCandidates, hasMore: true, isStale: false };
     } finally {
       this.loadingLock = false;
     }
@@ -271,42 +270,58 @@ export class FeedComposer {
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
 
-    // Clear dedup, seen, and external caches so full feed reappears on refresh
-    this.dedup.clear();
-    await this.seen.clear();
-    await clearTransientState();
+    // Refresh personalization data
+    this.userProfile = null;
+    this.userInterests = null;
+    await this.loadPersonalization();
 
-    // Reset campus provider to get latest posts; external providers continue cycling
+    // Do NOT clear seen — rolling history is preserved across refreshes
+    // Reset campus provider to fetch latest
     const campus = this.registry.getById("campus");
     if (campus) campus.resetState();
 
     try {
-      const allNormalized = await this.fetchFromActiveProviders(signal);
+      // Fetch all active providers fresh
+      const campusResult = await this.fetchCampusFresh(signal);
+      const extResult = await this.fetchExternalFresh(signal);
 
-      for (const item of allNormalized) {
+      // STAGE 2: Dedup
+      const allRaw = [...campusResult, ...extResult];
+      const deduped = this.dedup.filterNew(allRaw);
+      for (const item of deduped) {
         this.dedup.register(item);
       }
 
-      let scored = this.scorer.scoreAll(allNormalized, this.memoryBuffer.slice(-5));
-      scored = this.stableSort(scored);
-      scored = diversify(scored, this.pageSize);
+      // STAGE 3-4: Score
+      let scored = this.scorer.scoreAll(deduped, this.memoryBuffer.slice(-5));
 
+      // STAGE 5: Diversify
+      scored = diversify(scored, {
+        pageSize: this.pageSize,
+        campusRatioMin: this.config.campusRatioMin,
+        campusRatioMax: this.config.campusRatioMax,
+        maxSameAuthor: this.config.maxSameAuthor,
+        maxConsecutiveType: this.config.maxConsecutiveType,
+        explorationSlots: Math.floor(this.pageSize * this.config.explorationRatio),
+      });
+
+      // STAGE 6: Filter seen (but allow resurfacing after 24h)
       const newItems = this.seen.filterNew(scored);
 
-      this.memoryBuffer = [...newItems, ...this.memoryBuffer];
+      // Merge: new items on top, then existing buffer (minus items already in newItems)
+      const newItemIds = new Set(newItems.map((i) => i.id));
+      const remainingBuffer = this.memoryBuffer.filter((i) => !newItemIds.has(i.id));
+      this.memoryBuffer = [...newItems, ...remainingBuffer];
 
       if (this.memoryBuffer.length > MAX_BUFFER) {
         this.memoryBuffer = this.memoryBuffer.slice(-TRIM_TO);
       }
 
+      this.updateTrendingFromItems(allRaw);
       await this.seen.markSeen(newItems.map((i) => i.id));
       await this.dedup.persist();
 
-      return {
-        items: newItems,
-        hasMore: true,
-        isStale: false,
-      };
+      return { items: newItems, hasMore: true, isStale: false };
     } finally {
       this.loadingLock = false;
     }
@@ -324,7 +339,6 @@ export class FeedComposer {
         this.recycleExhaustedProviders();
         providers = this.getActiveProviders();
       }
-
       if (providers.length === 0) {
         return { items: [], hasMore: false, isStale: false };
       }
@@ -336,24 +350,16 @@ export class FeedComposer {
       for (const [providerId, result] of results) {
         const provider = this.registry.getById(providerId);
         if (!provider) continue;
-
         this.providerPages.set(providerId, result.nextPageState);
-
         if (result._skipped) {
           const prev = this.providerSkipped.get(providerId) ?? 0;
           const newCount = prev + 1;
           this.providerSkipped.set(providerId, newCount);
-          if (newCount >= 3) {
-            this.providerDone.set(providerId, true);
-          } else {
-            this.providerDone.set(providerId, false);
-          }
+          if (newCount >= 3) this.providerDone.set(providerId, true);
         } else {
           this.providerSkipped.delete(providerId);
         }
-
         if (result.budgetCost > 0) this.registry.recordBudgetConsumption(providerId, result.budgetCost);
-
         if (result.rawItems.length > 0) {
           const normalized = provider.normalize(result.rawItems, new Date());
           allNormalized.push(...normalized);
@@ -361,32 +367,47 @@ export class FeedComposer {
         }
       }
 
+      // STAGE 2: Dedup
       const deduped = this.dedup.filterNew(allNormalized);
       for (const item of deduped) {
         this.dedup.register(item);
       }
 
+      // STAGE 4: Score
       let scored = this.scorer.scoreAll(deduped, this.memoryBuffer.slice(-5));
-      scored = this.stableSort(scored);
-      scored = diversify(scored, this.pageSize);
 
+      // STAGE 5: Diversify
+      scored = diversify(scored, {
+        pageSize: this.pageSize,
+        campusRatioMin: this.config.campusRatioMin,
+        campusRatioMax: this.config.campusRatioMax,
+        maxSameAuthor: this.config.maxSameAuthor,
+        maxConsecutiveType: this.config.maxConsecutiveType,
+        explorationSlots: Math.floor(this.pageSize * this.config.explorationRatio),
+      });
+
+      // STAGE 6: Filter seen
       const newItems = scored.filter((item) => !this.seen.has(item.id));
 
+      // Fallback: if all filtered, try items not in memory buffer
       if (newItems.length === 0 && allNormalized.length > 0) {
-        const dedupedFallback = allNormalized.filter((item) => !this.memoryBuffer.some((m) => m.id === item.id));
-        if (dedupedFallback.length > 0) {
-          let fallbackScored = this.scorer.scoreAll(dedupedFallback, this.memoryBuffer.slice(-5));
-          fallbackScored = this.stableSort(fallbackScored);
-          const fallbackItems = fallbackScored.slice(0, this.pageSize);
-          for (const item of fallbackItems) {
-            this.memoryBuffer.push(item);
-          }
-          if (this.memoryBuffer.length > MAX_BUFFER) {
-            this.memoryBuffer = this.memoryBuffer.slice(-TRIM_TO);
-          }
-          await this.seen.markSeen(fallbackItems.map((i) => i.id));
+        const fallbackItems = allNormalized.filter((item) => !this.memoryBuffer.some((m) => m.id === item.id));
+        if (fallbackItems.length > 0) {
+          let fallbackScored = this.scorer.scoreAll(fallbackItems, this.memoryBuffer.slice(-5));
+          fallbackScored = diversify(fallbackScored, {
+            pageSize: this.pageSize,
+            campusRatioMin: this.config.campusRatioMin,
+            campusRatioMax: this.config.campusRatioMax,
+            maxSameAuthor: this.config.maxSameAuthor,
+            maxConsecutiveType: this.config.maxConsecutiveType,
+            explorationSlots: 0,
+          });
+          const final = fallbackScored.slice(0, this.pageSize);
+          for (const item of final) this.memoryBuffer.push(item);
+          if (this.memoryBuffer.length > MAX_BUFFER) this.memoryBuffer = this.memoryBuffer.slice(-TRIM_TO);
+          await this.seen.markSeen(final.map((i) => i.id));
           await this.dedup.persist();
-          return { items: fallbackItems, hasMore: true, isStale: false };
+          return { items: final, hasMore: true, isStale: false };
         }
       }
 
@@ -394,22 +415,13 @@ export class FeedComposer {
         this.recycleExhaustedProviders();
       }
 
-      for (const item of newItems) {
-        this.memoryBuffer.push(item);
-      }
-
-      if (this.memoryBuffer.length > MAX_BUFFER) {
-        this.memoryBuffer = this.memoryBuffer.slice(-TRIM_TO);
-      }
+      for (const item of newItems) this.memoryBuffer.push(item);
+      if (this.memoryBuffer.length > MAX_BUFFER) this.memoryBuffer = this.memoryBuffer.slice(-TRIM_TO);
 
       await this.seen.markSeen(newItems.map((i) => i.id));
       await this.dedup.persist();
 
-      return {
-        items: newItems,
-        hasMore: true,
-        isStale: false,
-      };
+      return { items: newItems, hasMore: true, isStale: false };
     } finally {
       this.loadingLock = false;
     }
@@ -421,6 +433,20 @@ export class FeedComposer {
     this.seen.persist();
   }
 
+  getBufferedItems(): FeedItem[] {
+    return [...this.memoryBuffer];
+  }
+
+  addProvider(provider: IFeedProvider): void {
+    this.registry.register(provider);
+  }
+
+  removeProvider(id: string): void {
+    this.registry.unregister(id);
+  }
+
+  // Private helpers
+
   private getActiveProviders(): IFeedProvider[] {
     return this.registry.getWithinBudget().filter((p) => {
       const skipCount = this.providerSkipped.get(p.id) ?? 0;
@@ -430,7 +456,6 @@ export class FeedComposer {
   }
 
   private recycleExhaustedProviders(): void {
-    // Reset all provider done states and skip counts to allow infinite cycling
     this.providerDone.clear();
     this.providerSkipped.clear();
     this.providerPages.clear();
@@ -438,34 +463,49 @@ export class FeedComposer {
     for (const p of this.registry.getAll()) p.resetState();
   }
 
-  private async fetchFromActiveProviders(signal: AbortSignal): Promise<FeedItem[]> {
-    const providers = this.getActiveProviders();
+  private async fetchCampusFresh(signal: AbortSignal): Promise<FeedItem[]> {
+    const campus = this.registry.getById("campus");
+    if (!campus) return [];
+
+    try {
+      const campusCtx: FetchContext = {
+        pageSize: this.config.candidatePoolSize,
+        timeoutMs: PROVIDER_TIMEOUT_MS,
+        signal,
+        pageState: {},
+      };
+      const result = await campus.fetch(campusCtx);
+      this.providerPages.set("campus", result.nextPageState);
+      this.providerDone.set("campus", !result.hasMore);
+      if (result.rawItems.length > 0) {
+        this.registry.updateHealth("campus", true);
+        return campus.normalize(result.rawItems, new Date());
+      }
+    } catch {
+      this.registry.updateHealth("campus", false);
+    }
+    return [];
+  }
+
+  private async fetchExternalFresh(signal: AbortSignal): Promise<FeedItem[]> {
+    const providers = this.getActiveProviders().filter((p) => p.id !== "campus");
     if (providers.length === 0) return [];
 
     const results = await this.fetchIndependent(providers, signal);
-
     const allNormalized: FeedItem[] = [];
+
     for (const [providerId, result] of results) {
       const provider = this.registry.getById(providerId);
       if (!provider) continue;
-
       this.providerPages.set(providerId, result.nextPageState);
-
       if (result._skipped) {
         const prev = this.providerSkipped.get(providerId) ?? 0;
-        const newCount = prev + 1;
-        this.providerSkipped.set(providerId, newCount);
-        if (newCount >= 3) {
-          this.providerDone.set(providerId, true);
-        } else {
-          this.providerDone.set(providerId, false);
-        }
+        this.providerSkipped.set(providerId, prev + 1);
+        if (prev + 1 >= 3) this.providerDone.set(providerId, true);
       } else {
         this.providerSkipped.delete(providerId);
       }
-
       if (result.budgetCost > 0) this.registry.recordBudgetConsumption(providerId, result.budgetCost);
-
       if (result.rawItems.length > 0) {
         const normalized = provider.normalize(result.rawItems, new Date());
         allNormalized.push(...normalized);
@@ -474,17 +514,6 @@ export class FeedComposer {
     }
 
     return allNormalized;
-  }
-
-  private stableSort(items: FeedItem[]): FeedItem[] {
-    return [...items].sort((a, b) => {
-      const scoreDiff = b.scores.composite - a.scores.composite;
-      if (Math.abs(scoreDiff) > 0.001) return scoreDiff;
-
-      const aTime = a.timestamps.publishedAt?.getTime() ?? 0;
-      const bTime = b.timestamps.publishedAt?.getTime() ?? 0;
-      return bTime - aTime;
-    });
   }
 
   private async fetchIndependent(
@@ -522,15 +551,17 @@ export class FeedComposer {
     return output;
   }
 
-  addProvider(provider: IFeedProvider): void {
-    this.registry.register(provider);
-  }
-
-  removeProvider(id: string): void {
-    this.registry.unregister(id);
-  }
-
-  getBufferedItems(): FeedItem[] {
-    return [...this.memoryBuffer];
+  private updateTrendingFromItems(items: FeedItem[]): void {
+    const trendingItems = items
+      .filter((i) => i.source === "campus" && i.timestamps.publishedAt)
+      .map((i) => ({
+        id: i.id,
+        source: i.source,
+        likeCount: i.engagement?.likeCount ?? 0,
+        commentCount: i.engagement?.commentCount ?? 0,
+        shareCount: i.engagement?.shareCount ?? 0,
+        publishedAt: i.timestamps.publishedAt,
+      }));
+    updateTrendingCache(trendingItems);
   }
 }

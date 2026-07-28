@@ -115,7 +115,7 @@ function ThemeAwareLayout() {
         <SessionProvider>
           <ProfileProvider>
             <ErrorBoundary>
-              <NotificationsInitializer />
+              {Platform.OS !== "web" && <NotificationsInitializer />}
               <ToastProvider>
                 <MuteProvider>
                   <RefreshProvider>

@@ -1,13 +1,13 @@
 import { Redirect, router } from "expo-router";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { onAuthStateChanged } from "firebase/auth";
+import { getRedirectResult, onAuthStateChanged } from "firebase/auth";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
 import { auth } from "@/services/firebase";
 
-function waitForAuth(timeoutMs = 8000): Promise<boolean> {
+function waitForAuth(timeoutMs = 10000): Promise<boolean> {
   return new Promise((resolve) => {
     if (auth.currentUser) {
       resolve(true);
@@ -33,20 +33,35 @@ export default function AuthCallbackScreen() {
   useEffect(() => {
     if (done || error) return;
 
-    const hash = window.location.hash;
-    if (hash && hash.includes("id_token")) {
-      waitForAuth().then((ok) => {
+    const handleRedirect = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          setDone(true);
+          return;
+        }
+      } catch (e: any) {
+        if (e.code !== "auth/no-auth-event") {
+          setError(e.message || "Sign-in failed");
+          return;
+        }
+      }
+
+      const hash = window.location.hash;
+      if (hash && hash.includes("id_token")) {
+        const ok = await waitForAuth();
         if (ok) setDone(true);
         else setError("Google sign-in failed. Please try again.");
-      });
-      return;
-    }
+        return;
+      }
 
-    waitForAuth().then((ok) => {
+      const ok = await waitForAuth();
       if (ok) setDone(true);
       else router.replace("/login");
-    });
-  }, []);
+    };
+
+    handleRedirect();
+  }, [done, error]);
 
   const styles = StyleSheet.create({
     container: {

@@ -1,6 +1,6 @@
 import { Redirect, router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -11,43 +11,45 @@ import { useTheme } from "@/hooks/use-theme";
 import { useSession } from "@/hooks/use-session";
 import { signIn, signInWithGoogle } from "@/services/auth";
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: "row",
     justifyContent: "center",
   },
-  overlay: {
-    ...(StyleSheet.absoluteFill as object),
-    opacity: 0.03,
-    backgroundColor: "#6C47FF",
-  },
   safeArea: {
     flex: 1,
     maxWidth: 480,
+    width: "100%",
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: spacing.lg,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
-    gap: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl * 2,
   },
   header: {
-    gap: spacing.xs,
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
   },
   title: {
     fontSize: fontSize.xxl,
     fontWeight: fontWeight.bold,
     lineHeight: 34,
   },
+  subtitle: {
+    fontSize: fontSize.md,
+    lineHeight: 22,
+  },
   form: {
-    gap: spacing.sm,
+    gap: spacing.md,
+    marginBottom: spacing.lg,
   },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.md,
+    marginVertical: spacing.md,
   },
   dividerLine: {
     flex: 1,
@@ -56,21 +58,35 @@ const styles = StyleSheet.create({
   },
   dividerText: {
     fontSize: fontSize.sm,
+    color: "#8E8E93",
   },
   error: {
-    color: "#FF3B30",
+    color: "#FF453A",
     fontSize: fontSize.sm,
+    lineHeight: 20,
+    paddingVertical: spacing.xs,
   },
   eyeToggle: {
-    padding: spacing.xs,
+    padding: spacing.sm,
   },
-  eyeIcon: {
-    fontSize: 18,
-  },
-  signupRow: {
+  footlink: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: spacing.sm,
+    gap: spacing.xs,
+    paddingTop: spacing.lg,
+  },
+  footlinkText: {
+    fontSize: fontSize.md,
+  },
+  footlinkAction: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+    marginRight: spacing.sm,
   },
 });
 
@@ -109,8 +125,13 @@ export default function LoginScreen() {
     try {
       await signInWithGoogle();
     } catch (e) {
-      if (e instanceof Error && e.message !== "Google sign-in was cancelled") {
-        setError(e.message);
+      if (e instanceof Error) {
+        const msg = e.message;
+        if (msg.includes("popup") || msg.includes("blocked")) {
+          setError("Popup was blocked by your browser. Please allow popups for this site, or use email sign-in.");
+        } else if (msg !== "Google sign-in was cancelled") {
+          setError(msg);
+        }
       }
     } finally {
       setGoogleLoading(false);
@@ -120,9 +141,11 @@ export default function LoginScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <View style={{ width: 140, height: 24, borderRadius: 8, backgroundColor: colors.skeleton }} />
-        <View style={{ width: 200, height: 14, borderRadius: 7, backgroundColor: colors.skeleton, marginTop: 12 }} />
-        <View style={{ width: "80%", height: 48, borderRadius: 12, backgroundColor: colors.skeleton, marginTop: 24 }} />
+        <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
+          <View style={{ width: 140, height: 24, borderRadius: 8, backgroundColor: colors.skeleton }} />
+          <View style={{ width: 200, height: 14, borderRadius: 7, backgroundColor: colors.skeleton, marginTop: 12 }} />
+          <View style={{ width: "60%", height: 48, borderRadius: 12, backgroundColor: colors.skeleton, marginTop: 24 }} />
+        </View>
       </View>
     );
   }
@@ -151,83 +174,99 @@ export default function LoginScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedView style={styles.overlay} />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.content}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         >
-          <ThemedView style={styles.header}>
-            <ThemedText style={styles.title}>Welcome back</ThemedText>
-            <ThemedText themeColor="textSecondary">
-              Sign in with your email and password
-            </ThemedText>
-          </ThemedView>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <ThemedView style={styles.header}>
+              <ThemedText style={styles.title}>Welcome back</ThemedText>
+              <ThemedText themeColor="textSecondary" style={styles.subtitle}>
+                Sign in with your email and password
+              </ThemedText>
+            </ThemedView>
 
-          <ThemedView style={styles.form}>
-            <Input
-              ref={emailRef}
-              placeholder="you@example.com"
-              value={email}
-              onChangeText={(t: string) => { setEmail(t); setError(null); }}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              error={emailError}
-            />
-            <View style={{ position: "relative" }}>
+            <ThemedView style={styles.form}>
               <Input
-                placeholder="Password"
-                value={password}
-                onChangeText={(t: string) => { setPassword(t); setError(null); }}
-                secureTextEntry={!showPassword}
-                error={passwordError}
+                ref={emailRef}
+                placeholder="you@example.com"
+                value={email}
+                onChangeText={(t: string) => { setEmail(t); setError(null); }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                error={emailError}
               />
-              <Pressable onPress={() => setShowPassword(!showPassword)} style={[styles.eyeToggle, { position: "absolute", right: 8, top: 10 }]}>
-                <ThemedText style={styles.eyeIcon}>{showPassword ? "👁" : "👁‍🗨"}</ThemedText>
-              </Pressable>
-            </View>
-            {error && (
-              <ThemedText style={styles.error}>{error}</ThemedText>
-            )}
+              <View style={{ position: "relative" }}>
+                <Input
+                  placeholder="Password"
+                  value={password}
+                  onChangeText={(t: string) => { setPassword(t); setError(null); }}
+                  secureTextEntry={!showPassword}
+                  error={passwordError}
+                />
+                <Pressable
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={[styles.eyeToggle, { position: "absolute", right: 8, top: Platform.OS === "web" ? 14 : 10 }]}
+                  accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                >
+                  <ThemedText style={{ fontSize: 18 }}>{showPassword ? "🙈" : "👁"}</ThemedText>
+                </Pressable>
+              </View>
+              {error && (
+                <ThemedView style={{ backgroundColor: "#3A0A0A", borderRadius: 8, padding: spacing.sm, marginTop: spacing.xs }}>
+                  <ThemedText style={styles.error}>{error}</ThemedText>
+                </ThemedView>
+              )}
+              <Button
+                title={sending ? "Signing in..." : "Sign in"}
+                onPress={handleSignIn}
+                disabled={sending || !email.trim() || !password}
+                size="lg"
+              />
+            </ThemedView>
+
+            <ThemedView style={styles.dividerRow}>
+              <ThemedView style={styles.dividerLine} />
+              <ThemedText style={styles.dividerText}>or</ThemedText>
+              <ThemedView style={styles.dividerLine} />
+            </ThemedView>
+
             <Button
-              title={sending ? "Signing in..." : "Sign in"}
-              onPress={handleSignIn}
-              disabled={sending || !email.trim() || !password}
+              title={googleLoading ? "Opening Google..." : "Continue with Google"}
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
+              variant="secondary"
               size="lg"
             />
-          </ThemedView>
 
-          <ThemedView style={styles.dividerRow}>
-            <ThemedView style={styles.dividerLine} />
-            <ThemedText themeColor="textTertiary" style={styles.dividerText}>or</ThemedText>
-            <ThemedView style={styles.dividerLine} />
-          </ThemedView>
+            <ThemedView style={styles.footlink}>
+              <ThemedText themeColor="textSecondary" style={styles.footlinkText}>
+                Don't have an account?
+              </ThemedText>
+              <Pressable onPress={() => router.push("/signup")} hitSlop={8}>
+                <ThemedText style={[styles.footlinkAction, { color: colors.primary }]}>
+                  Sign up
+                </ThemedText>
+              </Pressable>
+            </ThemedView>
 
-          <Button
-            title={googleLoading ? "Opening Google..." : "Continue with Google"}
-            onPress={handleGoogleSignIn}
-            disabled={googleLoading}
-            variant="secondary"
-            size="lg"
-          />
-
-          <ThemedView style={styles.signupRow}>
-            <ThemedText themeColor="textSecondary">
-              Don't have an account?{" "}
-            </ThemedText>
-            <Pressable onPress={() => router.push("/signup")}>
-              <ThemedText style={{ color: colors.primary, fontWeight: fontWeight.semibold }}>
-                Sign up
+            <Pressable
+              onPress={() => router.replace("/")}
+              hitSlop={8}
+              style={{ alignItems: "center", paddingTop: spacing.md }}
+            >
+              <ThemedText themeColor="textTertiary" style={{ fontSize: fontSize.sm }}>
+                Back to welcome
               </ThemedText>
             </Pressable>
-          </ThemedView>
-
-          <Button
-            title="Back to welcome"
-            variant="ghost"
-            onPress={() => router.replace("/")}
-          />
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </ThemedView>

@@ -5,13 +5,36 @@ export type DiversitySlot =
   | "campus_confession"
   | "campus_event"
   | "campus_listing"
+  | "friend_post"
+  | "department_post"
+  | "trending_post"
+  | "high_engagement"
   | "social_text"
   | "social_image"
   | "social_video"
   | "news"
   | "photo"
   | "video"
-  | "gif";
+  | "gif"
+  | "exploration";
+
+export type ContentCategory =
+  | "study"
+  | "news"
+  | "events"
+  | "internships"
+  | "memes"
+  | "sports"
+  | "gaming"
+  | "music"
+  | "confessions"
+  | "career"
+  | "technology"
+  | "lifestyle"
+  | "marketplace"
+  | "academic"
+  | "social"
+  | "general";
 
 export type MediaItem = {
   url: string;
@@ -74,9 +97,15 @@ export type FeedItem = {
     quality: number;
     diversity: number;
     interest: number;
+    relationship: number;
+    trending: number;
+    exploration: number;
+    campusRelevance: number;
+    sessionFit: number;
   };
 
   diversitySlot: DiversitySlot;
+  contentCategory: ContentCategory;
 
   dedup: {
     nativeId: string;
@@ -102,7 +131,11 @@ export type ScoringWeights = {
   quality: number;
   diversity: number;
   interest: number;
-  provider: number;
+  relationship: number;
+  trending: number;
+  exploration: number;
+  campusRelevance: number;
+  sessionFit: number;
 };
 
 export type ComposerConfig = {
@@ -114,6 +147,12 @@ export type ComposerConfig = {
   maxInMemoryFeed: number;
   scoringWeights: ScoringWeights;
   providerPriority: Record<string, number>;
+  explorationRatio: number;
+  campusRatioMin: number;
+  campusRatioMax: number;
+  maxSameAuthor: number;
+  maxConsecutiveType: number;
+  candidatePoolSize: number;
 };
 
 export const DEFAULT_CONFIG: ComposerConfig = {
@@ -124,12 +163,16 @@ export const DEFAULT_CONFIG: ComposerConfig = {
   staleWindowMs: 5 * 60 * 1000,
   maxInMemoryFeed: 500,
   scoringWeights: {
-    freshness: 0.30,
-    engagement: 0.20,
-    quality: 0.15,
-    diversity: 0.15,
-    interest: 0.10,
-    provider: 0.10,
+    freshness: 0.22,
+    engagement: 0.15,
+    quality: 0.10,
+    diversity: 0.12,
+    interest: 0.15,
+    relationship: 0.12,
+    trending: 0.06,
+    exploration: 0.04,
+    campusRelevance: 0.02,
+    sessionFit: 0.02,
   },
   providerPriority: {
     campus: 1.0,
@@ -141,6 +184,12 @@ export const DEFAULT_CONFIG: ComposerConfig = {
     pexels: 0.2,
     giphy: 0.1,
   },
+  explorationRatio: 0.18,
+  campusRatioMin: 0.70,
+  campusRatioMax: 0.85,
+  maxSameAuthor: 2,
+  maxConsecutiveType: 3,
+  candidatePoolSize: 300,
 };
 
 export type ExternalFeedItem = {

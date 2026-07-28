@@ -156,8 +156,9 @@ export class BlueskyProvider implements IFeedProvider {
             viewCount: null,
             userLiked: null,
           },
-          scores: { composite: 0, freshness: 0, engagement: 0, quality: 0, diversity: 0, interest: 0 },
+          scores: { composite: 0, freshness: 0, engagement: 0, quality: 0, diversity: 0, interest: 0, relationship: 0, trending: 0, exploration: 0, campusRelevance: 0, sessionFit: 0 },
           diversitySlot: hasVideo ? "social_video" : imageUrl ? "social_image" : "social_text",
+          contentCategory: "general" as const,
           dedup: { nativeId: p.uri, canonicalUrl: null, imageUrl: null, videoId: null, titleHash: 0, bodyHash: 0 },
           meta: { language: langs[0] ?? null },
         };
