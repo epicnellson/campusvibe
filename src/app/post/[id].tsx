@@ -72,7 +72,6 @@ export default function PostDetailScreen() {
     reactionsMap,
     repostedIds,
     repostCounts,
-    commentCounts: sharedCommentCounts,
     toggleReaction: ctxToggleReaction,
     toggleRepost: ctxToggleRepost,
   } = usePostInteractions();
@@ -116,7 +115,7 @@ export default function PostDetailScreen() {
   const likeCount = post?.likes?.length ?? 0;
   const reactions = (id ? reactionsMap.get(id as string) : undefined) ?? [];
   const userReaction = reactions.find((r) => r.user_id === currentUserId)?.emoji ?? null;
-  const commentCount = (id ? sharedCommentCounts.get(id as string) : undefined) ?? comments.length;
+  const commentCount = comments.length;
   const isReposted = (id ? repostedIds.has(id as string) : false);
   const repostCount = (id ? repostCounts.get(id as string) : undefined) ?? 0;
   const authorName = post?.profiles?.name ?? "Unknown";

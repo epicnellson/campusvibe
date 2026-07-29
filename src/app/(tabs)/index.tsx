@@ -543,13 +543,6 @@ export default function HomeFeedScreen() {
             </Pressable>
             <Text style={styles.headerTitle}>CampusVibe</Text>
             <Pressable
-              onPress={() => router.push("/search")}
-              style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}
-              accessibilityLabel="Search"
-            >
-              <Ionicons name="search-outline" size={22} color={colors.textOnDark} />
-            </Pressable>
-            <Pressable
               onPress={() => setMenuVisible(true)}
               style={({ pressed }) => [styles.fabButton, pressed && styles.pressed]}
               accessibilityLabel="Create post"

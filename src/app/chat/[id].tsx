@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Clipboard,
   FlatList,
@@ -631,11 +632,13 @@ export default function ChatDetailScreen() {
     [searchResults, currentResultIndex, sortedMessages]
   );
 
+  const [connectingCall, setConnectingCall] = useState<"audio" | "video" | null>(null);
+
   // Call handlers
   const handleStartCall = useCallback(
     (type: "audio" | "video") => {
       setCallTypeModal(false);
-      Alert.alert("Coming Soon", `${type === "video" ? "Video" : "Audio"} calling will be available soon.`);
+      setConnectingCall(type);
     },
     []
   );
@@ -998,6 +1001,38 @@ export default function ChatDetailScreen() {
         </View>
       </Modal>
 
+      {/* Connecting call overlay */}
+      <Modal visible={connectingCall !== null} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.connectingCallSheet}>
+            <View style={styles.connectingCallAvatar}>
+              <Ionicons
+                name={connectingCall === "video" ? "videocam" : "call"}
+                size={40}
+                color="#FFFFFF"
+              />
+            </View>
+            <ThemedText style={styles.connectingCallTitle}>
+              {connectingCall === "video" ? "Video Call" : "Audio Call"}
+            </ThemedText>
+            <ThemedText style={styles.connectingCallSubtitle}>
+              Connecting Secure Call...
+            </ThemedText>
+            <ActivityIndicator
+              size="large"
+              color="#6C47FF"
+              style={styles.connectingSpinner}
+            />
+            <Pressable
+              onPress={() => setConnectingCall(null)}
+              style={styles.connectingCancel}
+            >
+              <Ionicons name="close" size={28} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       {/* Forward modal */}
       <Modal visible={forwardModal.visible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -1318,4 +1353,43 @@ const styles = StyleSheet.create({
   callOptionText: { fontSize: 13, color: "#FFFFFF", fontWeight: "500" },
   callCancel: { paddingVertical: 10, paddingHorizontal: 32 },
   callCancelText: { fontSize: 16, color: "#6C47FF", fontWeight: "600" },
+
+  // Connecting call overlay
+  connectingCallSheet: {
+    position: "absolute",
+    top: "30%",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    gap: 16,
+  },
+  connectingCallAvatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#6C47FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  connectingCallTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  connectingCallSubtitle: {
+    fontSize: 15,
+    color: "#A1A1AA",
+  },
+  connectingSpinner: {
+    marginTop: 8,
+  },
+  connectingCancel: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+  },
 });

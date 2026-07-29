@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { ChannelCard } from "@/components/channel-card";
@@ -157,6 +158,7 @@ export default function ChatsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const unsubRef = useRef<(() => void) | null>(null);
+  const hasFocusedOnce = useRef(false);
 
   const load = useCallback(async () => {
     if (!currentUserId) return;
@@ -226,6 +228,16 @@ export default function ChatsScreen() {
       if (unsubRef.current) unsubRef.current();
     };
   }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hasFocusedOnce.current) {
+        load();
+      } else {
+        hasFocusedOnce.current = true;
+      }
+    }, [load])
+  );
 
   const sortedChannels = useMemo(() => {
     return [...channels].sort((a, b) => {
