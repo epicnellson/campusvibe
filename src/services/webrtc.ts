@@ -1,14 +1,8 @@
 import { Platform } from "react-native";
-import {
-  RTCPeerConnection,
-  RTCIceCandidate,
-  mediaDevices,
-  type MediaStream,
-} from "react-native-webrtc";
 import { db_ops } from "@/services/db";
 import { getCurrentUser } from "@/services/firebase";
 
-const ICE_SERVERS: RTCIceServer[] = [
+const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
 ];
@@ -28,26 +22,43 @@ export type CallInfo = {
 };
 
 type CallEventHandlers = {
-  onRemoteStream: (stream: MediaStream) => void;
+  onRemoteStream: (stream: any) => void;
   onStatusChange: (status: CallStatus) => void;
   onError: (error: string) => void;
 };
 
+function loadWebrtc(): any {
+  if (Platform.OS === "web") return null;
+  try {
+    return require("react-native-webrtc");
+  } catch {
+    return null;
+  }
+}
+
 class WebRTCService {
-  private pc: RTCPeerConnection | null = null;
-  private localStream: MediaStream | null = null;
-  private remoteStream: MediaStream | null = null;
+  private pc: any = null;
+  private localStream: any = null;
+  private remoteStream: any = null;
   private currentCallId: string | null = null;
   private handlers: CallEventHandlers | null = null;
   private unsubscribeCallDoc: (() => void) | null = null;
   private remoteDescriptionSet = false;
   private processedIceCandidates = new Set<string>();
   private amCaller = false;
+  private webrtc: any = null;
+
+  private getWebrtc() {
+    if (!this.webrtc) this.webrtc = loadWebrtc();
+    return this.webrtc;
+  }
 
   async requestCameraAndAudioPermission(): Promise<boolean> {
     if (Platform.OS === "web") return false;
+    const w = this.getWebrtc();
+    if (!w) return false;
     try {
-      const granted = await mediaDevices.getUserMedia({ audio: true, video: true } as any);
+      const granted = await w.mediaDevices.getUserMedia({ audio: true, video: true });
       granted.getTracks().forEach((t: any) => t.stop());
       return true;
     } catch {
@@ -55,12 +66,14 @@ class WebRTCService {
     }
   }
 
-  async startLocalStream(callType: CallType): Promise<MediaStream | null> {
+  async startLocalStream(callType: CallType): Promise<any> {
+    const w = this.getWebrtc();
+    if (!w) return null;
     try {
-      this.localStream = await mediaDevices.getUserMedia({
+      this.localStream = await w.mediaDevices.getUserMedia({
         audio: true,
         video: callType === "video" ? { facingMode: "user" } : false,
-      } as any);
+      });
       return this.localStream;
     } catch {
       return null;
@@ -69,15 +82,17 @@ class WebRTCService {
 
   stopLocalStream() {
     if (this.localStream) {
-      this.localStream.getTracks().forEach((t) => t.stop());
+      this.localStream.getTracks().forEach((t: any) => t.stop());
       this.localStream = null;
     }
   }
 
   private createPeerConnection() {
     if (this.pc) this.close();
+    const w = this.getWebrtc();
+    if (!w) return;
 
-    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    this.pc = new w.RTCPeerConnection({ iceServers: ICE_SERVERS });
 
     this.pc.onicecandidate = (event: any) => {
       if (!event.candidate || !this.currentCallId) return;
@@ -108,9 +123,9 @@ class WebRTCService {
 
   private addLocalTracksToPeer() {
     if (!this.pc || !this.localStream) return;
-    this.localStream.getTracks().forEach((track) => {
+    this.localStream.getTracks().forEach((track: any) => {
       if (this.localStream) {
-        this.pc!.addTrack(track, this.localStream);
+        this.pc.addTrack(track, this.localStream);
       }
     });
   }
@@ -143,6 +158,12 @@ class WebRTCService {
       ended_at: null,
     };
 
+    const w = this.getWebrtc();
+    if (!w) {
+      handlers.onError("WebRTC not available on this platform");
+      return null;
+    }
+
     const callId = await db_ops.add("calls", callData);
     this.currentCallId = callId;
     this.amCaller = true;
@@ -172,6 +193,9 @@ class WebRTCService {
     this.currentCallId = callInfo.id;
     this.amCaller = false;
 
+    const w = this.getWebrtc();
+    if (!w) return false;
+
     const stream = await this.startLocalStream(callInfo.callType);
     if (!stream) return false;
 
@@ -182,7 +206,7 @@ class WebRTCService {
     if (!callDoc || !callDoc.offer) return false;
 
     const offer = JSON.parse(callDoc.offer);
-    await this.pc!.setRemoteDescription(new RTCSessionDescription(offer));
+    await this.pc!.setRemoteDescription(new w.RTCSessionDescription(offer));
     this.remoteDescriptionSet = true;
 
     const answer = await this.pc!.createAnswer();
@@ -201,6 +225,7 @@ class WebRTCService {
     this.unsubscribeCallDoc = db_ops.subscribeToDoc("calls", callId, (doc) => {
       if (!doc || !this.pc) return;
 
+      const w = this.getWebrtc();
       const status = doc.status as string;
       if (status === "ended" || status === "missed") {
         this.handlers?.onStatusChange(status as CallStatus);
@@ -211,7 +236,7 @@ class WebRTCService {
       if (this.amCaller && doc.answer && !this.remoteDescriptionSet) {
         try {
           const answer = JSON.parse(doc.answer);
-          this.pc.setRemoteDescription(new RTCSessionDescription(answer));
+          this.pc.setRemoteDescription(new w.RTCSessionDescription(answer));
           this.remoteDescriptionSet = true;
           this.handlers?.onStatusChange("connected");
         } catch {
@@ -227,7 +252,7 @@ class WebRTCService {
             if (this.processedIceCandidates.has(candidateStr)) continue;
             this.processedIceCandidates.add(candidateStr);
             try {
-              this.pc.addIceCandidate(new RTCIceCandidate(JSON.parse(candidateStr)));
+              this.pc.addIceCandidate(new w.RTCIceCandidate(JSON.parse(candidateStr)));
             } catch {
             }
           }
@@ -256,7 +281,7 @@ class WebRTCService {
     if (!this.localStream) return;
     const track = this.localStream.getVideoTracks()[0];
     if (track) {
-      (track as any)._switchCamera();
+      track._switchCamera();
     }
   }
 
@@ -295,7 +320,7 @@ class WebRTCService {
     }
     this.stopLocalStream();
     if (this.remoteStream) {
-      this.remoteStream.getTracks().forEach((t) => t.stop());
+      this.remoteStream.getTracks().forEach((t: any) => t.stop());
       this.remoteStream = null;
     }
     this.currentCallId = null;
@@ -308,11 +333,11 @@ class WebRTCService {
     return this.currentCallId !== null;
   }
 
-  getRemoteStream(): MediaStream | null {
+  getRemoteStream(): any {
     return this.remoteStream;
   }
 
-  getLocalStream(): MediaStream | null {
+  getLocalStream(): any {
     return this.localStream;
   }
 }

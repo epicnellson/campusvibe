@@ -447,7 +447,7 @@ function MessageBubbleInner({
 export const MessageBubble = memo(MessageBubbleInner);
 
 const styles = StyleSheet.create({
-  wrapper: { marginVertical: 0 },
+  wrapper: { marginVertical: 0, width: "100%", alignSelf: "stretch" },
   ownWrapper: { alignItems: "flex-end", paddingRight: 12, paddingLeft: 64, marginBottom: 2 },
   otherWrapper: { alignItems: "flex-start", paddingLeft: 12, paddingRight: 64, marginBottom: 2 },
   bubble: {

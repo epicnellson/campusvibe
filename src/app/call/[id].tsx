@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  AppState,
   Platform,
   Pressable,
   StatusBar,
@@ -12,13 +10,20 @@ import {
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { RTCView } from "react-native-webrtc";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { webrtcService, type CallInfo, type CallStatus, type CallType } from "@/services/webrtc";
 import { db_ops } from "@/services/db";
 import { auth } from "@/services/firebase";
-import { useProfile } from "@/hooks/use-profile";
+
+let RTCView: any = View;
+if (Platform.OS !== "web") {
+  try {
+    const webrtc = require("react-native-webrtc");
+    RTCView = webrtc.RTCView;
+  } catch {
+  }
+}
 
 type CallState = "ringing" | "connecting" | "connected" | "ended";
 
