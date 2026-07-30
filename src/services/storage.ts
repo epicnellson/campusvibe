@@ -183,7 +183,13 @@ export async function uploadChatFile(
   contentType: string = "application/octet-stream"
 ): Promise<string> {
   return withRetry(async () => {
-    return await uploadToSupabase("post-images", `chat/${channelId}/${fileName}`, uri, contentType);
+    try {
+      return await uploadToSupabase("post-images", `chat/${channelId}/${fileName}`, uri, contentType);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.toLowerCase() : String(err);
+      if (msg.includes("bucket") || msg.includes("not found")) return "";
+      throw new Error(formatStorageError(err));
+    }
   });
 }
 
@@ -208,6 +214,12 @@ export async function uploadChatVoice(
   uri: string
 ): Promise<string> {
   return withRetry(async () => {
-    return await uploadToSupabase("post-images", `chat/${channelId}/voice/${fileName}`, uri, "audio/m4a");
+    try {
+      return await uploadToSupabase("post-images", `chat/${channelId}/voice/${fileName}`, uri, "audio/m4a");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.toLowerCase() : String(err);
+      if (msg.includes("bucket") || msg.includes("not found")) return "";
+      throw new Error(formatStorageError(err));
+    }
   });
 }

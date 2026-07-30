@@ -891,10 +891,6 @@ export default function ChatDetailScreen() {
           }}
           contentContainerStyle={styles.messageList}
           showsVerticalScrollIndicator={false}
-          initialScrollIndex={sortedMessages.length > 0 ? sortedMessages.length - 1 : undefined}
-          onScrollToIndexFailed={({ index }) => {
-            flatListRef.current?.scrollToEnd({ animated: false });
-          }}
           ListFooterComponent={otherUserTyping ? <TypingIndicator /> : null}
           ListEmptyComponent={
             <View style={styles.emptyChat}>
