@@ -80,6 +80,16 @@ function MessageInputInner({
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const durationRef = useRef(0);
 
+  // Web recording refs
+  const webRecorderRef = useRef<MediaRecorder | null>(null);
+  const webStreamRef = useRef<MediaStream | null>(null);
+  const webAudioChunksRef = useRef<Blob[]>([]);
+
+  // Web camera capture state
+  const [showWebCamera, setShowWebCamera] = useState(false);
+  const webCameraStreamRef = useRef<MediaStream | null>(null);
+  const webVideoRef = useRef<HTMLVideoElement>(null);
+
   const [mediaPreview, setMediaPreview] = useState<MediaPreview | null>(null);
 
   const handleSend = useCallback(() => {
@@ -93,8 +103,24 @@ function MessageInputInner({
 
   const handleCamera = useCallback(async () => {
     if (Platform.OS === "web") {
-      Alert.alert("Camera on web", "Use the Gallery option to select a photo.");
-      handleGallery();
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        webCameraStreamRef.current = stream;
+        setShowWebCamera(true);
+        setTimeout(() => {
+          if (webVideoRef.current) {
+            webVideoRef.current.srcObject = stream;
+          }
+        }, 100);
+      } catch (e: any) {
+        const msg = e?.message ?? "";
+        if (msg.includes("NotAllowed") || msg.includes("permission"))
+          Alert.alert("Permission denied", "Camera access is required to take photos. Allow it in browser settings.");
+        else if (msg.includes("NotFound"))
+          Alert.alert("No camera", "No camera found on this device.");
+        else
+          Alert.alert("Error", "Could not open camera.");
+      }
       return;
     }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -178,7 +204,39 @@ function MessageInputInner({
 
   const startRecording = useCallback(async () => {
     if (Platform.OS === "web") {
-      Alert.alert("Not available", "Voice recording is not available on web. Please use the mobile app.");
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : "audio/webm";
+        const recorder = new MediaRecorder(stream, { mimeType });
+        const chunks: Blob[] = [];
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+        recorder.onstop = () => {
+          stream.getTracks().forEach((t) => t.stop());
+        };
+        recorder.start();
+        webRecorderRef.current = recorder;
+        webStreamRef.current = stream;
+        webAudioChunksRef.current = chunks;
+        setIsRecording(true);
+        setRecordingDuration(0);
+        durationRef.current = 0;
+        recordingTimerRef.current = setInterval(() => {
+          durationRef.current += 1;
+          setRecordingDuration(durationRef.current);
+        }, 1000);
+      } catch (e: any) {
+        const msg = e?.message ?? "";
+        if (msg.includes("NotAllowed") || msg.includes("permission"))
+          Alert.alert("Permission denied", "Microphone access is required for voice messages. Allow it in browser settings.");
+        else if (msg.includes("NotFound"))
+          Alert.alert("No microphone", "No microphone found on this device.");
+        else
+          Alert.alert("Error", "Could not start recording. Make sure you have a working microphone.");
+      }
       return;
     }
     try {
@@ -206,11 +264,44 @@ function MessageInputInner({
   }, []);
 
   const stopRecording = useCallback(async () => {
+    const finalDuration = durationRef.current;
+    if (Platform.OS === "web") {
+      const recorder = webRecorderRef.current;
+      if (!recorder || !onSendVoice) return;
+      try {
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+        const chunks = webAudioChunksRef.current;
+        recorder.stop();
+        webStreamRef.current?.getTracks().forEach((t) => t.stop());
+        if (finalDuration < 1) {
+          Alert.alert("Too short", "Recording must be at least 1 second.");
+          setIsRecording(false);
+          setRecordingDuration(0);
+          return;
+        }
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const uri = URL.createObjectURL(blob);
+        webRecorderRef.current = null;
+        webStreamRef.current = null;
+        webAudioChunksRef.current = [];
+        setIsRecording(false);
+        setRecordingDuration(0);
+        durationRef.current = 0;
+        onSendVoice(uri, finalDuration);
+      } catch {
+        Alert.alert("Error", "Could not process voice message.");
+        setIsRecording(false);
+        setRecordingDuration(0);
+      }
+      return;
+    }
     if (!recordingRef.current || !onSendVoice) {
       Alert.alert("Error", "Voice recording is not initialized.");
       return;
     }
-    const finalDuration = durationRef.current;
     try {
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
@@ -242,6 +333,23 @@ function MessageInputInner({
   }, [onSendVoice]);
 
   const cancelRecording = useCallback(async () => {
+    if (Platform.OS === "web") {
+      const recorder = webRecorderRef.current;
+      if (!recorder) return;
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      recorder.stop();
+      webStreamRef.current?.getTracks().forEach((t) => t.stop());
+      webRecorderRef.current = null;
+      webStreamRef.current = null;
+      webAudioChunksRef.current = [];
+      setIsRecording(false);
+      setRecordingDuration(0);
+      durationRef.current = 0;
+      return;
+    }
     if (!recordingRef.current) return;
     try {
       if (recordingTimerRef.current) {
@@ -257,9 +365,56 @@ function MessageInputInner({
     durationRef.current = 0;
   }, []);
 
+  const captureWebPhoto = useCallback(() => {
+    const video = webVideoRef.current;
+    if (!video) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const uri = URL.createObjectURL(blob);
+      webCameraStreamRef.current?.getTracks().forEach((t) => t.stop());
+      webCameraStreamRef.current = null;
+      setShowWebCamera(false);
+      setMediaPreview({ uri, type: "image" });
+    }, "image/jpeg", 0.85);
+  }, []);
+
+  const closeWebCamera = useCallback(() => {
+    webCameraStreamRef.current?.getTracks().forEach((t) => t.stop());
+    webCameraStreamRef.current = null;
+    setShowWebCamera(false);
+  }, []);
+
   return (
     <View style={styles.wrapper}>
       {replyPreview}
+
+      {showWebCamera && (
+        <View style={styles.webCamOverlay}>
+          <View style={styles.webCamHeader}>
+            <Pressable onPress={closeWebCamera} style={styles.webCamClose}>
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </Pressable>
+            <Text style={styles.webCamTitle}>Take Photo</Text>
+          </View>
+          <video
+            ref={webVideoRef}
+            autoPlay
+            playsInline
+            style={styles.webCamVideo as any}
+          />
+          <View style={styles.webCamFooter}>
+            <Pressable onPress={captureWebPhoto} style={styles.webCamCapture}>
+              <Ionicons name="camera" size={28} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       {mediaPreview && (
         <View style={styles.previewContainer}>
@@ -506,5 +661,54 @@ const styles = StyleSheet.create({
   },
   previewSend: {
     marginLeft: "auto",
+  },
+  webCamOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 500,
+    backgroundColor: "#000000",
+    zIndex: 100,
+    overflow: "hidden",
+  },
+  webCamHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 12,
+  },
+  webCamClose: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  webCamTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  webCamVideo: {
+    flex: 1,
+    width: "100%",
+    backgroundColor: "#000000",
+  },
+  webCamFooter: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  webCamCapture: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 4,
+    borderColor: "rgba(255,255,255,0.3)",
   },
 });
