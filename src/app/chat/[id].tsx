@@ -184,6 +184,8 @@ export default function ChatDetailScreen() {
 
   const initialLoadedRef = useRef(false);
   const messageIdsRef = useRef<Set<string>>(new Set());
+  const shouldAutoScroll = useRef(true);
+  const isNearBottomRef = useRef(true);
 
   const scrollToEnd = useCallback((animated = true) => {
     requestAnimationFrame(() => {
@@ -191,6 +193,19 @@ export default function ChatDetailScreen() {
         flatListRef.current?.scrollToEnd({ animated });
       }, 100);
     });
+  }, []);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (shouldAutoScroll.current) {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }
+  }, []);
+
+  const handleScroll = useCallback((e: any) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
+    isNearBottomRef.current = distanceFromBottom < 100;
+    shouldAutoScroll.current = distanceFromBottom < 100;
   }, []);
 
   const sortedMessages = useMemo(() => {
@@ -318,6 +333,7 @@ export default function ChatDetailScreen() {
         sender: profile ? { id: profile.id, name: profile.name, avatar_url: profile.avatar_url } as any : null,
       } as MessageWithSender;
       setMessages((prev) => [...prev, optimisticMsg]);
+      scrollToEnd(true);
       setReplyingTo(null);
 
       try {
@@ -891,6 +907,10 @@ export default function ChatDetailScreen() {
           }}
           contentContainerStyle={styles.messageList}
           showsVerticalScrollIndicator={false}
+          onContentSizeChange={handleContentSizeChange}
+          onScroll={handleScroll}
+          scrollEventThrottle={100}
+          onScrollToIndexFailed={() => scrollToEnd()}
           ListFooterComponent={otherUserTyping ? <TypingIndicator /> : null}
           ListEmptyComponent={
             <View style={styles.emptyChat}>

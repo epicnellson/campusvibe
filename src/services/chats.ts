@@ -73,6 +73,7 @@ export async function sendMessage(
     content: sanitizeText(content),
     status: "sent",
     seen_by: [],
+    created_at: new Date().toISOString(),
   });
 
   db_ops.query("channel_members", {
@@ -305,6 +306,7 @@ export async function sendReply(
     reply_to: replyToId,
     status: "sent",
     seen_by: [],
+    created_at: new Date().toISOString(),
   });
 
   db_ops.query("channel_members", {
@@ -407,6 +409,7 @@ export async function sendImageMessage(
     media_url: mediaUrl,
     status: "sent",
     seen_by: [],
+    created_at: new Date().toISOString(),
   });
 
   db_ops.query("channel_members", {
@@ -442,6 +445,7 @@ export async function sendFileMessage(
     file_size: fileSize,
     status: "sent",
     seen_by: [],
+    created_at: new Date().toISOString(),
   });
 
   db_ops.query("channel_members", {
@@ -476,6 +480,7 @@ export async function sendViewOnceMessage(
     viewed: false,
     status: "sent",
     seen_by: [],
+    created_at: new Date().toISOString(),
   });
 
   db_ops.query("channel_members", {
@@ -551,6 +556,7 @@ export async function forwardMessage(messageId: string, targetChannelId: string)
     file_size: msgData.file_size ?? null,
     voice_url: msgData.voice_url ?? null,
     voice_duration: msgData.voice_duration ?? null,
+    created_at: new Date().toISOString(),
   });
 }
 
@@ -664,6 +670,7 @@ export async function sendVoiceMessage(
     voice_duration: duration,
     status: "sent",
     seen_by: [],
+    created_at: new Date().toISOString(),
   });
 
   db_ops.query("channel_members", {
