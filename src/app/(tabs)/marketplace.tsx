@@ -104,8 +104,9 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
   filterScroll: {
+    height: 48,
     marginBottom: 4,
-    paddingTop: 4,
+    paddingTop: 6,
   },
   filterContent: {
     paddingHorizontal: 16,
