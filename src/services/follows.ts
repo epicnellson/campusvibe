@@ -2,6 +2,7 @@ import { db_ops } from "@/services/db";
 import { getCurrentUser } from "@/services/firebase";
 import { withRetry } from "@/services/retry";
 import { createNotification } from "@/services/in-app-notifications";
+import { notifyFollow } from "@/services/notifications";
 import type { Profile } from "@/services/database.types";
 
 export async function fetchSuggestedUsers(
@@ -37,6 +38,8 @@ export async function followUser(followingId: string): Promise<void> {
       following_id: followingId,
     });
     createNotification(followingId, user.uid, "follow", "profile", user.uid);
+    const sender = await db_ops.get("profiles", user.uid);
+    notifyFollow(followingId, sender?.name ?? "Someone", user.uid).catch(() => {});
   });
 }
 

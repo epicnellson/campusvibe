@@ -32,7 +32,7 @@ function formatFileSize(bytes?: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export type ReadStatus = "sent" | "delivered" | "seen";
+export type ReadStatus = "sending" | "sent" | "delivered" | "seen";
 
 export type MessageBubbleProps = {
   message: MessageWithSender;
@@ -47,16 +47,23 @@ export type MessageBubbleProps = {
 };
 
 function ReadCheck({ status }: { status: ReadStatus }) {
-  const color =
-    status === "seen" ? "#34C759" : status === "delivered" ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.35)";
+  if (status === "sending") {
+    return (
+      <View style={[styles.statusDot, { backgroundColor: "#FF3B30" }]} />
+    );
+  }
+  if (status === "delivered") {
+    return (
+      <View style={[styles.statusDot, { backgroundColor: "#FFD700" }]} />
+    );
+  }
+  if (status === "seen") {
+    return (
+      <Ionicons name="checkmark-done" size={14} color="#34C759" />
+    );
+  }
   return (
-    <View style={styles.readRow}>
-      <Ionicons
-        name={status === "sent" ? "checkmark" : "checkmark-done"}
-        size={14}
-        color={color}
-      />
-    </View>
+    <Ionicons name="checkmark" size={14} color="rgba(255,255,255,0.5)" />
   );
 }
 
@@ -441,10 +448,10 @@ export const MessageBubble = memo(MessageBubbleInner);
 
 const styles = StyleSheet.create({
   wrapper: { marginVertical: 0 },
-  ownWrapper: { alignItems: "flex-end", paddingRight: 12, paddingLeft: 48, marginBottom: 2 },
-  otherWrapper: { alignItems: "flex-start", paddingLeft: 12, paddingRight: 48, marginBottom: 2 },
+  ownWrapper: { alignItems: "flex-end", paddingRight: 12, paddingLeft: 64, marginBottom: 2 },
+  otherWrapper: { alignItems: "flex-start", paddingLeft: 12, paddingRight: 64, marginBottom: 2 },
   bubble: {
-    maxWidth: "100%",
+    maxWidth: "80%",
     paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: 18,
@@ -467,6 +474,7 @@ const styles = StyleSheet.create({
   ownTime: { color: "rgba(255,255,255,0.5)" },
   otherTime: { color: "#71717A" },
   readRow: { alignItems: "center", justifyContent: "center" },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
   chatImage: {
     width: 220,
     height: 220,

@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/services/firebase";
 import { withRetry } from "@/services/retry";
 import { sanitizeText } from "@/services/sanitize";
 import { createNotification } from "@/services/in-app-notifications";
+import { notifyComment } from "@/services/notifications";
 import type { CommentWithProfile } from "@/services/database.types";
 
 export async function fetchComments(postId: string): Promise<CommentWithProfile[]> {
@@ -53,6 +54,8 @@ export async function createComment(
     const post = await db_ops.get("posts", postId);
     if (post && post.user_id !== user.uid) {
       createNotification(post.user_id, user.uid, "comment", "post", postId);
+      const sender = await db_ops.get("profiles", user.uid);
+      notifyComment(post.user_id, sender?.name ?? "Someone", postId).catch(() => {});
     }
 
     return { id: commentId };

@@ -390,10 +390,12 @@ export default function ChatDetailScreen() {
         const url = await uploadChatVoice(channelId, fileName, uri);
         if (url) {
           await sendVoiceMessage(channelId, url, duration);
+        } else {
+          Alert.alert("Upload failed", "Could not upload voice message. Check that the storage bucket is configured.");
         }
       } catch (e) {
         console.warn("Failed to send voice:", e);
-        Alert.alert("Error", "Could not send voice message.");
+        Alert.alert("Error", `Could not send voice message: ${e instanceof Error ? e.message : "Unknown error"}`);
       } finally {
         setSending(false);
       }
@@ -632,19 +634,41 @@ export default function ChatDetailScreen() {
     [searchResults, currentResultIndex, sortedMessages]
   );
 
-  const [connectingCall, setConnectingCall] = useState<"audio" | "video" | null>(null);
-
-  // Call handlers
   const handleStartCall = useCallback(
-    (type: "audio" | "video") => {
+    async (type: "audio" | "video") => {
       setCallTypeModal(false);
-      setConnectingCall(type);
+      if (!otherUserId) return;
+      const user = auth.currentUser;
+      if (!user) return;
+      try {
+        const callId = await db_ops.add("calls", {
+          caller_id: user.uid,
+          callee_id: otherUserId,
+          call_type: type,
+          status: "ringing",
+          offer: null,
+          answer: null,
+          caller_ice: [],
+          callee_ice: [],
+          answered_at: null,
+          ended_at: null,
+        });
+        router.push(`/call/${callId}?direction=outgoing&name=${encodeURIComponent(channelName || "User")}` as any);
+      } catch {
+        toast.show("Failed to start call");
+      }
     },
-    []
+    [otherUserId, channelName, toast]
   );
 
   if (loading) {
-    return <ChatDetailSkeleton />;
+    return (
+      <View style={styles.container}>
+        <View style={styles.flex}>
+          <ChatDetailSkeleton />
+        </View>
+      </View>
+    );
   }
 
   const ownMessage = contextMenu.message?.user_id === currentUserId;
@@ -685,12 +709,6 @@ export default function ChatDetailScreen() {
             </View>
           </Pressable>
 
-          <Pressable
-            onPress={() => setSearchVisible(!searchVisible)}
-            style={styles.headerAction}
-          >
-            <Ionicons name={searchVisible ? "close" : "search"} size={20} color="#FFFFFF" />
-          </Pressable>
           {channelType === "dm" && (
             <Pressable
               onPress={() => setCallTypeModal(true)}
@@ -701,45 +719,6 @@ export default function ChatDetailScreen() {
           )}
         </View>
 
-        {/* In-chat search bar */}
-        {searchVisible && (
-          <View style={styles.searchBar}>
-            <View style={styles.searchField}>
-              <Ionicons name="search" size={14} color="#71717A" />
-              <TextInput
-                style={styles.searchInput}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Search messages..."
-                placeholderTextColor="#71717A"
-                autoFocus
-                returnKeyType="search"
-              />
-              {searchQuery.length > 0 && (
-                <ThemedText style={styles.searchCount}>
-                  {searchResults.length > 0
-                    ? `${currentResultIndex + 1}/${searchResults.length}`
-                    : "0 results"}
-                </ThemedText>
-              )}
-              {searchQuery.length > 0 && (
-                <Pressable onPress={() => setSearchQuery("")} style={styles.searchClear}>
-                  <Ionicons name="close" size={12} color="#A1A1A6" />
-                </Pressable>
-              )}
-            </View>
-            {searchResults.length > 1 && (
-              <View style={styles.searchNav}>
-                <Pressable onPress={() => navigateSearchResult("prev")} style={styles.searchNavBtn}>
-                  <Ionicons name="chevron-up" size={18} color="#FFFFFF" />
-                </Pressable>
-                <Pressable onPress={() => navigateSearchResult("next")} style={styles.searchNavBtn}>
-                  <Ionicons name="chevron-down" size={18} color="#FFFFFF" />
-                </Pressable>
-              </View>
-            )}
-          </View>
-        )}
       </SafeAreaView>
 
       {/* Pinned messages bar */}
@@ -890,16 +869,16 @@ export default function ChatDetailScreen() {
             return (
               <>
                 {showDate && <DateSeparator label={dayLabel(item.created_at)} />}
-                <MessageBubble
-                  message={item}
-                  isOwn={item.user_id === currentUserId}
-                  isGrouped={isGrouped}
-                  isHighlighted={searchResultIds.has(item.id)}
-                  readStatus="seen"
-                  onLongPress={handleLongPress}
-                  onReaction={handleReaction}
-                  currentUserId={currentUserId ?? undefined}
-                />
+                  <MessageBubble
+                    message={item}
+                    isOwn={item.user_id === currentUserId}
+                    isGrouped={isGrouped}
+                    isHighlighted={searchResultIds.has(item.id)}
+                    readStatus={item.id.startsWith("temp_") ? "sending" : (item as any).seen_by?.includes(otherUserId) ? "seen" : (item as any).status === "sending" ? "sending" : "delivered"}
+                    onLongPress={handleLongPress}
+                    onReaction={handleReaction}
+                    currentUserId={currentUserId ?? undefined}
+                  />
                 {hasUnread && index === initialCount - 1 && (
                   <View style={styles.unreadDivider}>
                     <View style={styles.unreadLine} />
@@ -996,38 +975,6 @@ export default function ChatDetailScreen() {
               style={styles.callCancel}
             >
               <ThemedText style={styles.callCancelText}>Cancel</ThemedText>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Connecting call overlay */}
-      <Modal visible={connectingCall !== null} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.connectingCallSheet}>
-            <View style={styles.connectingCallAvatar}>
-              <Ionicons
-                name={connectingCall === "video" ? "videocam" : "call"}
-                size={40}
-                color="#FFFFFF"
-              />
-            </View>
-            <ThemedText style={styles.connectingCallTitle}>
-              {connectingCall === "video" ? "Video Call" : "Audio Call"}
-            </ThemedText>
-            <ThemedText style={styles.connectingCallSubtitle}>
-              Connecting Secure Call...
-            </ThemedText>
-            <ActivityIndicator
-              size="large"
-              color="#6C47FF"
-              style={styles.connectingSpinner}
-            />
-            <Pressable
-              onPress={() => setConnectingCall(null)}
-              style={styles.connectingCancel}
-            >
-              <Ionicons name="close" size={28} color="#FFFFFF" />
             </Pressable>
           </View>
         </View>
@@ -1353,43 +1300,4 @@ const styles = StyleSheet.create({
   callOptionText: { fontSize: 13, color: "#FFFFFF", fontWeight: "500" },
   callCancel: { paddingVertical: 10, paddingHorizontal: 32 },
   callCancelText: { fontSize: 16, color: "#6C47FF", fontWeight: "600" },
-
-  // Connecting call overlay
-  connectingCallSheet: {
-    position: "absolute",
-    top: "30%",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    gap: 16,
-  },
-  connectingCallAvatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: "#6C47FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  connectingCallTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  connectingCallSubtitle: {
-    fontSize: 15,
-    color: "#A1A1AA",
-  },
-  connectingSpinner: {
-    marginTop: 8,
-  },
-  connectingCancel: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 16,
-  },
 });

@@ -3,6 +3,9 @@ export type NotificationPreferences = {
   messages: boolean;
   new_events: boolean;
   popular_confessions: boolean;
+  follows: boolean;
+  comments: boolean;
+  reposts: boolean;
 };
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
@@ -10,6 +13,9 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   messages: true,
   new_events: true,
   popular_confessions: true,
+  follows: true,
+  comments: true,
+  reposts: true,
 };
 
 export type Profile = {

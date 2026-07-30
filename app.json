@@ -14,7 +14,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "CampusVibe needs camera access to take profile photos and listing images.",
         "NSPhotoLibraryUsageDescription": "CampusVibe needs photo library access to upload profile pictures and listing images.",
-        "NSUserNotificationsUsageDescription": "CampusVibe sends notifications when someone likes your post, sends you a message, or when new campus events are posted."
+        "NSUserNotificationsUsageDescription": "CampusVibe sends notifications when someone likes your post, sends you a message, or when new campus events are posted.",
+        "NSMicrophoneUsageDescription": "CampusVibe uses the microphone for voice calls and audio messages."
       },
       "config": {
         "usesNonExemptEncryption": false
@@ -40,7 +41,6 @@
         "android.permission.ACCESS_BACKGROUND_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.RECORD_AUDIO",
         "android.permission.READ_CONTACTS",
         "android.permission.READ_CALL_LOG",
         "android.permission.SEND_SMS"
@@ -88,6 +88,13 @@
         {
     "icon": "./assets/images/logo.png",
           "color": "#208AEF"
+        }
+      ],
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "CampusVibe needs camera access for video calls.",
+          "microphonePermission": "CampusVibe needs microphone access for voice calls."
         }
       ]
     ],

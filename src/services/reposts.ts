@@ -1,6 +1,7 @@
 import { db_ops } from "@/services/db";
 import { getCurrentUser } from "@/services/firebase";
 import { createNotification } from "@/services/in-app-notifications";
+import { notifyRepost } from "@/services/notifications";
 
 export async function repostPost(postId: string) {
   const user = getCurrentUser();
@@ -23,6 +24,8 @@ export async function repostPost(postId: string) {
 
   if (post && post.user_id !== user.uid) {
     createNotification(post.user_id, user.uid, "repost", "post", postId);
+    const sender = await db_ops.get("profiles", user.uid);
+    notifyRepost(post.user_id, sender?.name ?? "Someone", postId).catch(() => {});
   }
 }
 

@@ -71,6 +71,8 @@ export async function sendMessage(
     channel_id: channelId,
     user_id: user.uid,
     content: sanitizeText(content),
+    status: "sent",
+    seen_by: [],
   });
 
   db_ops.query("channel_members", {
@@ -301,6 +303,8 @@ export async function sendReply(
     user_id: user.uid,
     content: sanitizeText(content),
     reply_to: replyToId,
+    status: "sent",
+    seen_by: [],
   });
 
   db_ops.query("channel_members", {
@@ -401,6 +405,8 @@ export async function sendImageMessage(
     content: sanitizeText(content || "📷 Photo"),
     type: "image",
     media_url: mediaUrl,
+    status: "sent",
+    seen_by: [],
   });
 
   db_ops.query("channel_members", {
@@ -434,6 +440,8 @@ export async function sendFileMessage(
     media_url: fileUrl,
     file_name: fileName,
     file_size: fileSize,
+    status: "sent",
+    seen_by: [],
   });
 
   db_ops.query("channel_members", {
@@ -466,6 +474,8 @@ export async function sendViewOnceMessage(
     type: "view_once",
     media_url: mediaUrl,
     viewed: false,
+    status: "sent",
+    seen_by: [],
   });
 
   db_ops.query("channel_members", {
@@ -652,6 +662,8 @@ export async function sendVoiceMessage(
     type: "voice",
     voice_url: voiceUrl,
     voice_duration: duration,
+    status: "sent",
+    seen_by: [],
   });
 
   db_ops.query("channel_members", {

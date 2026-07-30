@@ -39,6 +39,21 @@ const TOGGLES: {
     label: "Popular Confessions",
     description: "When your confession reaches 10+ likes",
   },
+  {
+    key: "follows",
+    label: "New Followers",
+    description: "When someone follows you",
+  },
+  {
+    key: "comments",
+    label: "Comments",
+    description: "When someone comments on your post",
+  },
+  {
+    key: "reposts",
+    label: "Reposts",
+    description: "When someone reposts your post",
+  },
 ];
 
 

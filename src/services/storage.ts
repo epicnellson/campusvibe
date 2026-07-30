@@ -10,15 +10,21 @@ function formatStorageError(err: unknown): string {
   const msg = err instanceof Error ? err.message.toLowerCase() : String(err);
   console.error("[storage] full error:", err);
   if (msg.includes("does not exist") || msg.includes("not found") || msg.includes("bucket")) {
-    return "Storage not configured. Please contact support.";
+    return "Storage bucket is not set up. Ask the admin to create the 'student-id-verification' bucket in Supabase.";
   }
-  if (msg.includes("file too large") || msg.includes("maximum size")) {
-    return "Image must be under 5MB.";
+  if (msg.includes("file too large") || msg.includes("maximum size") || msg.includes("413")) {
+    return "File is too large. Maximum size is 5MB.";
   }
-  if (msg.includes("file type") || msg.includes("extension")) {
+  if (msg.includes("file type") || msg.includes("extension") || msg.includes("415")) {
     return "Please upload a JPG, PNG, or PDF only.";
   }
-  return msg;
+  if (msg.includes("policy") || msg.includes("permission") || msg.includes("403") || msg.includes("401")) {
+    return "Permission denied. You may need to log out and log back in.";
+  }
+  if (msg.includes("timeout") || msg.includes("network") || msg.includes("fetch")) {
+    return "Network error. Check your internet connection and try again.";
+  }
+  return msg || "An unknown error occurred. Please try again.";
 }
 
 async function compressImage(uri: string): Promise<string> {

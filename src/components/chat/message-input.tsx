@@ -92,6 +92,11 @@ function MessageInputInner({
   }, [text, onSend]);
 
   const handleCamera = useCallback(async () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Camera on web", "Use the Gallery option to select a photo.");
+      handleGallery();
+      return;
+    }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       Alert.alert("Permission needed", "Camera access is required to take photos.");
@@ -172,6 +177,10 @@ function MessageInputInner({
   }, []);
 
   const startRecording = useCallback(async () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Not available", "Voice recording is not available on web. Please use the mobile app.");
+      return;
+    }
     try {
       const permission = await Audio.requestPermissionsAsync();
       if (!permission.granted) {
@@ -192,12 +201,15 @@ function MessageInputInner({
       }, 1000);
     } catch (e) {
       console.warn("Failed to start recording:", e);
-      Alert.alert("Error", "Could not start recording.");
+      Alert.alert("Error", "Could not start recording. Make sure you have a working microphone.");
     }
   }, []);
 
   const stopRecording = useCallback(async () => {
-    if (!recordingRef.current || !onSendVoice) return;
+    if (!recordingRef.current || !onSendVoice) {
+      Alert.alert("Error", "Voice recording is not initialized.");
+      return;
+    }
     const finalDuration = durationRef.current;
     try {
       if (recordingTimerRef.current) {
@@ -211,11 +223,18 @@ function MessageInputInner({
       setIsRecording(false);
       setRecordingDuration(0);
       durationRef.current = 0;
-      if (uri && finalDuration > 0) {
-        onSendVoice(uri, finalDuration);
+      if (!uri) {
+        Alert.alert("Error", "No recording data captured. Try again.");
+        return;
       }
+      if (finalDuration < 1) {
+        Alert.alert("Too short", "Recording must be at least 1 second.");
+        return;
+      }
+      onSendVoice(uri, finalDuration);
     } catch (e) {
       console.warn("Failed to stop recording:", e);
+      Alert.alert("Error", "Could not process voice message.");
       setIsRecording(false);
       setRecordingDuration(0);
       durationRef.current = 0;

@@ -1,20 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { useCallback, useEffect, useState } from "react";
+import { FlatList, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 
+import { MarketplaceListSkeleton } from "@/components/feed-skeleton";
 import { ReportModal } from "@/components/report-modal";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { MarketplaceListSkeleton } from "@/components/feed-skeleton";
 import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
-import { spacing, borderRadius, fontSize, fontWeight } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
 import { useTheme } from "@/hooks/use-theme";
-import { fetchListings } from "@/services/marketplace";
 import type { ListingWithSeller } from "@/services/database.types";
+import { fetchListings } from "@/services/marketplace";
+import { fontSize, fontWeight, spacing } from "@/theme";
 import { timeAgo } from "@/utils/date";
 
 const CATEGORIES = [
@@ -74,12 +74,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 8,
+    marginTop: 8,
   },
   sortRow: {
     flexDirection: "row",
     gap: 4,
     paddingHorizontal: 16,
     paddingBottom: 8,
+    marginTop: 8,
   },
   sortChip: {
     paddingVertical: 6,
@@ -104,6 +106,7 @@ const styles = StyleSheet.create({
   filterScroll: {
     maxHeight: 48,
     marginBottom: 4,
+     paddingTop: 4,
   },
   filterContent: {
     paddingHorizontal: 16,

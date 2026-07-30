@@ -136,6 +136,69 @@ export async function notifyNewEvent(
   }
 }
 
+export async function notifyFollow(
+  targetUserId: string,
+  followerName: string,
+  followerId: string
+): Promise<void> {
+  if (!targetUserId) return;
+  const profile = await db_ops.get("profiles", targetUserId);
+  const prefsData = profile?.notification_preferences as NotificationPreferences | undefined;
+  if (!prefsData?.follows) return;
+
+  const tokenData = await db_ops.get("push_tokens", targetUserId);
+  if (!tokenData?.token) return;
+
+  await sendExpoPush({
+    to: tokenData.token,
+    title: "New Follower",
+    body: `${followerName} started following you`,
+    data: { type: "follow", userId: followerId },
+  });
+}
+
+export async function notifyComment(
+  postOwnerId: string,
+  commenterName: string,
+  postId: string
+): Promise<void> {
+  if (!postOwnerId) return;
+  const profile = await db_ops.get("profiles", postOwnerId);
+  const prefsData = profile?.notification_preferences as NotificationPreferences | undefined;
+  if (!prefsData?.comments) return;
+
+  const tokenData = await db_ops.get("push_tokens", postOwnerId);
+  if (!tokenData?.token) return;
+
+  await sendExpoPush({
+    to: tokenData.token,
+    title: "New Comment",
+    body: `${commenterName} commented on your post`,
+    data: { type: "comment", postId },
+  });
+}
+
+export async function notifyRepost(
+  postOwnerId: string,
+  reposterName: string,
+  postId: string
+): Promise<void> {
+  if (!postOwnerId) return;
+  const profile = await db_ops.get("profiles", postOwnerId);
+  const prefsData = profile?.notification_preferences as NotificationPreferences | undefined;
+  if (!prefsData?.reposts) return;
+
+  const tokenData = await db_ops.get("push_tokens", postOwnerId);
+  if (!tokenData?.token) return;
+
+  await sendExpoPush({
+    to: tokenData.token,
+    title: "New Repost",
+    body: `${reposterName} reposted your post`,
+    data: { type: "repost", postId },
+  });
+}
+
 export async function notifyPopularConfession(
   ownerId: string,
   likeCount: number
