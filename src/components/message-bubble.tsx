@@ -50,17 +50,17 @@ export type MessageBubbleProps = {
 function ReadCheck({ status }: { status: ReadStatus }) {
   if (status === "sending") {
     return (
-      <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.4)" />
+      <View style={[styles.statusDot, { backgroundColor: "#FF3B30" }]} />
     );
   }
   if (status === "delivered") {
     return (
-      <Ionicons name="checkmark-done" size={14} color="rgba(255,255,255,0.5)" />
+      <View style={[styles.statusDot, { backgroundColor: "#FFD700" }]} />
     );
   }
   if (status === "seen") {
     return (
-      <Ionicons name="checkmark-done" size={14} color="#53BDEB" />
+      <Ionicons name="checkmark-done" size={14} color="#34C759" />
     );
   }
   return (
