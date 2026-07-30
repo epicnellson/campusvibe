@@ -25,6 +25,28 @@ if (Platform.OS !== "web") {
   }
 }
 
+function WebVideo({ stream, style, mirror }: { stream: any; style: any; mirror?: boolean }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted={mirror}
+      style={{
+        ...style,
+        transform: mirror ? "scaleX(-1)" : undefined,
+        objectFit: "cover",
+      }}
+    />
+  );
+}
+
 type CallState = "ringing" | "connecting" | "connected" | "ended";
 
 export default function CallScreen() {
@@ -223,22 +245,26 @@ export default function CallScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {remoteStream && (
+      {remoteStream && Platform.OS === "web" ? (
+        <WebVideo stream={remoteStream} style={styles.remoteVideo} />
+      ) : remoteStream ? (
         <RTCView
           streamURL={remoteStream.toURL()}
           style={styles.remoteVideo}
           objectFit="cover"
         />
-      )}
+      ) : null}
 
-      {localStream && callState === "connected" && (
+      {localStream && callState === "connected" && Platform.OS === "web" ? (
+        <WebVideo stream={localStream} style={styles.localVideo} mirror />
+      ) : localStream && callState === "connected" ? (
         <RTCView
           streamURL={localStream.toURL()}
           style={styles.localVideo}
           objectFit="cover"
           mirror
         />
-      )}
+      ) : null}
 
       {!remoteStream && callState !== "ended" && (
         <View style={styles.centerContent}>

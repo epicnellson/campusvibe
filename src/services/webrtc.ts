@@ -5,6 +5,10 @@ import { getCurrentUser } from "@/services/firebase";
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
+  { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turn:openrelay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
 ];
 
 export type CallType = "audio" | "video";
@@ -28,7 +32,17 @@ type CallEventHandlers = {
 };
 
 function loadWebrtc(): any {
-  if (Platform.OS === "web") return null;
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined" && typeof window.RTCPeerConnection === "function") {
+      return {
+        mediaDevices: navigator.mediaDevices,
+        RTCPeerConnection: window.RTCPeerConnection,
+        RTCSessionDescription: window.RTCSessionDescription,
+        RTCIceCandidate: window.RTCIceCandidate,
+      };
+    }
+    return null;
+  }
   try {
     return require("react-native-webrtc");
   } catch {
@@ -54,11 +68,11 @@ class WebRTCService {
   }
 
   async requestCameraAndAudioPermission(): Promise<boolean> {
-    if (Platform.OS === "web") return false;
     const w = this.getWebrtc();
     if (!w) return false;
     try {
-      const granted = await w.mediaDevices.getUserMedia({ audio: true, video: true });
+      const md = w.mediaDevices ?? w;
+      const granted = await md.getUserMedia({ audio: true, video: true });
       granted.getTracks().forEach((t: any) => t.stop());
       return true;
     } catch {
@@ -70,12 +84,22 @@ class WebRTCService {
     const w = this.getWebrtc();
     if (!w) return null;
     try {
-      this.localStream = await w.mediaDevices.getUserMedia({
+      const md = w.mediaDevices ?? w;
+      this.localStream = await md.getUserMedia({
         audio: true,
-        video: callType === "video" ? { facingMode: "user" } : false,
+        video: callType === "video" ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } : false,
       });
       return this.localStream;
-    } catch {
+    } catch (err: any) {
+      const msg = err?.message ?? "";
+      if (msg.includes("NotAllowed") || msg.includes("permission"))
+        this.handlers?.onError("Camera/microphone permission denied. Allow access in browser settings.");
+      else if (msg.includes("NotFound"))
+        this.handlers?.onError("No camera or microphone found on this device.");
+      else if (msg.includes("NotReadable"))
+        this.handlers?.onError("Camera or microphone is busy. Close other apps using them.");
+      else
+        this.handlers?.onError("Could not access camera/microphone.");
       return null;
     }
   }
@@ -140,10 +164,7 @@ class WebRTCService {
     this.handlers = handlers;
 
     const stream = await this.startLocalStream(callType);
-    if (!stream) {
-      handlers.onError("Could not access camera/microphone");
-      return null;
-    }
+    if (!stream) return null;
 
     const callData = {
       caller_id: user.uid,
@@ -160,7 +181,10 @@ class WebRTCService {
 
     const w = this.getWebrtc();
     if (!w) {
-      handlers.onError("WebRTC not available on this platform");
+      const msg = Platform.OS === "web"
+        ? "Your browser does not support WebRTC. Try Chrome, Firefox, or Safari."
+        : "WebRTC not available on this platform";
+      handlers.onError(msg);
       return null;
     }
 
@@ -279,9 +303,33 @@ class WebRTCService {
 
   async switchCamera() {
     if (!this.localStream) return;
-    const track = this.localStream.getVideoTracks()[0];
-    if (track) {
-      track._switchCamera();
+    if (Platform.OS === "web") {
+      const track = this.localStream.getVideoTracks()[0];
+      if (!track) return;
+      const curFacing = track.getSettings?.().facingMode ?? "user";
+      const newFacing = curFacing === "user" ? "environment" : "user";
+      track.stop();
+      const w = this.getWebrtc();
+      if (!w) return;
+      try {
+        const md = w.mediaDevices ?? w;
+        const newStream = await md.getUserMedia({
+          audio: false,
+          video: { facingMode: newFacing, width: { ideal: 640 }, height: { ideal: 480 } },
+        });
+        const newTrack = newStream.getVideoTracks()[0];
+        if (newTrack) {
+          this.localStream.removeTrack(track);
+          this.localStream.addTrack(newTrack);
+        }
+      } catch {
+        this.handlers?.onError("Could not switch camera.");
+      }
+    } else {
+      const track = this.localStream.getVideoTracks()[0];
+      if (track) {
+        track._switchCamera();
+      }
     }
   }
 
