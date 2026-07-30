@@ -186,6 +186,7 @@ export default function ChatDetailScreen() {
   const messageIdsRef = useRef<Set<string>>(new Set());
   const shouldAutoScroll = useRef(true);
   const isNearBottomRef = useRef(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const scrollToEnd = useCallback((animated = true) => {
     requestAnimationFrame(() => {
@@ -206,6 +207,7 @@ export default function ChatDetailScreen() {
     const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
     isNearBottomRef.current = distanceFromBottom < 100;
     shouldAutoScroll.current = distanceFromBottom < 100;
+    setShowScrollToBottom(distanceFromBottom > 150);
   }, []);
 
   const sortedMessages = useMemo(() => {
@@ -447,8 +449,9 @@ export default function ChatDetailScreen() {
     closeContextMenu();
   }, [contextMenu.message, closeContextMenu]);
 
-  const handleReply = useCallback(() => {
-    if (contextMenu.message) setReplyingTo(contextMenu.message);
+  const handleReply = useCallback((message?: MessageWithSender) => {
+    const target = message ?? contextMenu.message;
+    if (target) setReplyingTo(target);
     closeContextMenu();
   }, [contextMenu.message, closeContextMenu]);
 
@@ -781,7 +784,7 @@ export default function ChatDetailScreen() {
               ))}
             </View>
             <View style={styles.contextDivider} />
-            <Pressable onPress={handleReply} style={styles.contextItem}>
+            <Pressable onPress={() => handleReply()} style={styles.contextItem}>
               <Ionicons name="arrow-undo-outline" size={20} color="#FFFFFF" />
               <ThemedText style={styles.contextText}>Reply</ThemedText>
             </Pressable>
@@ -893,6 +896,7 @@ export default function ChatDetailScreen() {
                     readStatus={item.id.startsWith("temp_") ? "sending" : (item as any).seen_by?.includes(otherUserId) ? "seen" : (item as any).status === "sending" ? "sending" : "delivered"}
                     onLongPress={handleLongPress}
                     onReaction={handleReaction}
+                    onReply={handleReply}
                     currentUserId={currentUserId ?? undefined}
                   />
                 {hasUnread && index === initialCount - 1 && (
@@ -922,6 +926,15 @@ export default function ChatDetailScreen() {
             </View>
           }
         />
+
+        {showScrollToBottom && sortedMessages.length > 0 && (
+          <Pressable
+            onPress={() => scrollToEnd(true)}
+            style={styles.scrollToBottomBtn}
+          >
+            <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+          </Pressable>
+        )}
 
         {sending && (
           <View style={styles.sendingBar}>
@@ -1316,4 +1329,25 @@ const styles = StyleSheet.create({
   callOptionText: { fontSize: 13, color: "#FFFFFF", fontWeight: "500" },
   callCancel: { paddingVertical: 10, paddingHorizontal: 32 },
   callCancelText: { fontSize: 16, color: "#6C47FF", fontWeight: "600" },
+
+  // Scroll to bottom FAB
+  scrollToBottomBtn: {
+    position: "absolute",
+    bottom: 8,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#1C1C1E",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#2A2A2A",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
 });

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Animated, PanResponder, Platform, Pressable, StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
@@ -42,6 +42,7 @@ export type MessageBubbleProps = {
   readStatus?: ReadStatus;
   onLongPress?: (message: MessageWithSender) => void;
   onReaction?: (messageId: string, emoji: string) => void;
+  onReply?: (message: MessageWithSender) => void;
   currentUserId?: string;
   onViewImage?: (url: string) => void;
 };
@@ -49,17 +50,17 @@ export type MessageBubbleProps = {
 function ReadCheck({ status }: { status: ReadStatus }) {
   if (status === "sending") {
     return (
-      <View style={[styles.statusDot, { backgroundColor: "#FF3B30" }]} />
+      <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.4)" />
     );
   }
   if (status === "delivered") {
     return (
-      <View style={[styles.statusDot, { backgroundColor: "#FFD700" }]} />
+      <Ionicons name="checkmark-done" size={14} color="rgba(255,255,255,0.5)" />
     );
   }
   if (status === "seen") {
     return (
-      <Ionicons name="checkmark-done" size={14} color="#34C759" />
+      <Ionicons name="checkmark-done" size={14} color="#53BDEB" />
     );
   }
   return (
@@ -252,6 +253,7 @@ function MessageBubbleInner({
   readStatus = "delivered",
   onLongPress,
   onReaction,
+  onReply,
   currentUserId,
   onViewImage,
 }: MessageBubbleProps) {
@@ -259,7 +261,59 @@ function MessageBubbleInner({
     onLongPress?.(message);
   }, [message, onLongPress]);
 
+  const handleReply = useCallback(() => {
+    onReply?.(message);
+  }, [message, onReply]);
+
+  // Double-tap heart
+  const lastTapRef = useRef(0);
+  const handleDoubleTap = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 350) {
+      onReaction?.(message.id, "❤️");
+      lastTapRef.current = 0;
+    } else {
+      lastTapRef.current = now;
+    }
+  }, [message.id, onReaction]);
+
+  // Sending shimmer
+  const shimmerOpacity = useRef(new Animated.Value(0.6)).current;
+  useEffect(() => {
+    if (readStatus !== "sending") return;
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerOpacity, { toValue: 1, duration: 600, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(shimmerOpacity, { toValue: 0.4, duration: 600, useNativeDriver: Platform.OS !== "web" }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [readStatus]);
+
   const msgType = (message as any).type as MessageType | undefined;
+
+  const bubbleStyles = [
+    styles.bubble,
+    isOwn ? styles.ownBubble : styles.otherBubble,
+    isHighlighted && styles.highlighted,
+    isGrouped && styles.groupedMessage,
+    msgType === "image" && styles.imageBubble,
+    msgType === "file" && styles.fileBubble,
+    readStatus === "sending" && { opacity: shimmerOpacity as any },
+  ];
+
+  // Swipe-to-reply via PanResponder
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 15 && Math.abs(gs.dx) > Math.abs(gs.dy),
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dx > 50) {
+          handleReply();
+        }
+      },
+    })
+  ).current;
   const mediaUrl = (message as any).media_url as string | undefined;
   const fileName = (message as any).file_name as string | undefined;
   const fileSize = (message as any).file_size as number | undefined;
@@ -282,15 +336,12 @@ function MessageBubbleInner({
 
   if (msgType === "view_once") {
     return (
-      <View style={[styles.wrapper, isOwn ? styles.ownWrapper : styles.otherWrapper]}>
+      <View style={[styles.wrapper, isOwn ? styles.ownWrapper : styles.otherWrapper]} {...panResponder.panHandlers}>
         <Pressable
+          onPress={handleDoubleTap}
           onLongPress={handleLongPress}
           delayLongPress={400}
-          style={[
-            styles.bubble,
-            isOwn ? styles.ownBubble : styles.otherBubble,
-            isHighlighted && styles.highlighted,
-          ]}
+          style={bubbleStyles}
         >
           {!isOwn && !isGrouped && (
             <ThemedText style={styles.senderName}>
@@ -311,15 +362,12 @@ function MessageBubbleInner({
 
   if (msgType === "voice" && voiceUrl) {
     return (
-      <View style={[styles.wrapper, isOwn ? styles.ownWrapper : styles.otherWrapper]}>
+      <View style={[styles.wrapper, isOwn ? styles.ownWrapper : styles.otherWrapper]} {...panResponder.panHandlers}>
         <Pressable
+          onPress={handleDoubleTap}
           onLongPress={handleLongPress}
           delayLongPress={400}
-          style={[
-            styles.bubble,
-            isOwn ? styles.ownBubble : styles.otherBubble,
-            styles.voiceBubble,
-          ]}
+          style={[...bubbleStyles, styles.voiceBubble]}
         >
           {!isOwn && !isGrouped && (
             <ThemedText style={styles.senderName}>
@@ -344,18 +392,12 @@ function MessageBubbleInner({
   }
 
   return (
-    <View style={[styles.wrapper, isOwn ? styles.ownWrapper : styles.otherWrapper]}>
+    <View style={[styles.wrapper, isOwn ? styles.ownWrapper : styles.otherWrapper]} {...panResponder.panHandlers}>
       <Pressable
+        onPress={handleDoubleTap}
         onLongPress={handleLongPress}
         delayLongPress={400}
-        style={[
-          styles.bubble,
-          isOwn ? styles.ownBubble : styles.otherBubble,
-          isHighlighted && styles.highlighted,
-          isGrouped && styles.groupedMessage,
-          msgType === "image" && styles.imageBubble,
-          msgType === "file" && styles.fileBubble,
-        ]}
+        style={bubbleStyles}
       >
         {replyTo && (
           <View style={styles.replyBlock}>

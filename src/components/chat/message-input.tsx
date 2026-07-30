@@ -339,6 +339,15 @@ function MessageInputInner({
           blurOnSubmit={false}
         />
 
+        {hasText && (
+          <Pressable
+            onPress={() => { setText(""); setInputHeight(36); }}
+            style={styles.clearBtn}
+          >
+            <Ionicons name="close-circle" size={16} color="#71717A" />
+          </Pressable>
+        )}
+
         <Pressable onPress={handleEmojiToggle} style={styles.iconBtn}>
           <Ionicons
             name={showEmoji ? "keypad-outline" : "happy-outline"}
@@ -405,6 +414,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#6C47FF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  clearBtn: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: -4,
   },
   stopBtn: {
     width: 36,
