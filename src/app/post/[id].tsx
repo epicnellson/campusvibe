@@ -758,18 +758,7 @@ export default function PostDetailScreen() {
         </Pressable>
       </Modal>
 
-      <Modal visible={showImageViewer} transparent animationType="fade" onRequestClose={() => setShowImageViewer(false)}>
-        <View style={styles.imageViewerOverlay}>
-          <ImageViewer uri={images[0]?.uri ?? ""} />
-          <Pressable
-            onPress={() => setShowImageViewer(false)}
-            style={[styles.imageViewerClose, { top: insets.top + 16 }]}
-            accessibilityLabel="Close image"
-          >
-            <Ionicons name="close" size={24} color={colors.textOnDark} />
-          </Pressable>
-        </View>
-      </Modal>
+      <ImageViewer visible={showImageViewer} imageUrl={images[0]?.uri ?? null} onClose={() => setShowImageViewer(false)} />
 
       <View style={styles.bodyContainer}>
         <ScrollView

@@ -179,6 +179,10 @@ export default function ChatDetailScreen() {
   const [searchResults, setSearchResults] = useState<MessageWithSender[]>([]);
   const [currentResultIndex, setCurrentResultIndex] = useState(0);
 
+  // More options menu
+  const [moreOptionsVisible, setMoreOptionsVisible] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+
   // Call type selector
   const [callTypeModal, setCallTypeModal] = useState(false);
 
@@ -697,44 +701,106 @@ export default function ChatDetailScreen() {
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
           <Pressable
-            onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+            onPress={() => {
+              if (searchVisible) {
+                setSearchVisible(false);
+                setSearchQuery("");
+              } else {
+                router.canGoBack() ? router.back() : router.replace("/");
+              }
+            }}
             style={styles.backBtn}
           >
             <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </Pressable>
 
-          <Pressable
-            onPress={() => {
-              if (channelType === "dm" && otherUserId) router.push(`/user/${otherUserId}`);
-            }}
-            style={styles.headerCenter}
-            disabled={channelType !== "dm"}
-          >
-            <View>
-              <Avatar uri={otherUserAvatar} name={channelName || "Chat"} size={36} />
-              {channelType === "dm" && isOtherOnline && <OnlineDot />}
-            </View>
-            <View style={styles.headerInfo}>
-              <ThemedText style={styles.headerName} numberOfLines={1}>
-                {channelName || "Chat"}
-              </ThemedText>
-              {otherUserTyping ? (
-                <ThemedText style={styles.headerTyping}>typing...</ThemedText>
-              ) : channelType === "dm" ? (
-                <ThemedText style={styles.headerSubtitle}>
-                  {isOtherOnline ? "Online" : ""}
+          {searchVisible ? (
+            <View style={styles.searchHeader}>
+              <TextInput
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search messages..."
+                placeholderTextColor="#71717A"
+                autoFocus
+              />
+              {searchResults.length > 0 && (
+                <ThemedText style={styles.searchCounter}>
+                  {currentResultIndex + 1} of {searchResults.length}
                 </ThemedText>
-              ) : null}
+              )}
+              <View style={styles.searchNav}>
+                <Pressable
+                  onPress={() => navigateSearchResult("prev")}
+                  style={[
+                    styles.searchNavBtn,
+                    searchResults.length === 0 && { opacity: 0.3 },
+                  ]}
+                >
+                  <Ionicons name="chevron-up" size={16} color="#FFFFFF" />
+                </Pressable>
+                <Pressable
+                  onPress={() => navigateSearchResult("next")}
+                  style={[
+                    styles.searchNavBtn,
+                    searchResults.length === 0 && { opacity: 0.3 },
+                  ]}
+                >
+                  <Ionicons name="chevron-down" size={16} color="#FFFFFF" />
+                </Pressable>
+              </View>
+              <Pressable
+                onPress={() => {
+                  setSearchVisible(false);
+                  setSearchQuery("");
+                }}
+                style={styles.searchClear}
+              >
+                <Ionicons name="close" size={16} color="#71717A" />
+              </Pressable>
             </View>
-          </Pressable>
+          ) : (
+            <>
+              <Pressable
+                onPress={() => {
+                  if (channelType === "dm" && otherUserId) router.push(`/user/${otherUserId}`);
+                }}
+                style={styles.headerCenter}
+                disabled={channelType !== "dm"}
+              >
+                <View>
+                  <Avatar uri={otherUserAvatar} name={channelName || "Chat"} size={36} />
+                  {channelType === "dm" && isOtherOnline && <OnlineDot />}
+                </View>
+                <View style={styles.headerInfo}>
+                  <ThemedText style={styles.headerName} numberOfLines={1}>
+                    {channelName || "Chat"}
+                  </ThemedText>
+                  {otherUserTyping ? (
+                    <ThemedText style={styles.headerTyping}>typing...</ThemedText>
+                  ) : channelType === "dm" ? (
+                    <ThemedText style={styles.headerSubtitle}>
+                      {isOtherOnline ? "Online" : ""}
+                    </ThemedText>
+                  ) : null}
+                </View>
+              </Pressable>
 
-          {channelType === "dm" && (
-            <Pressable
-              onPress={() => setCallTypeModal(true)}
-              style={styles.headerAction}
-            >
-              <Ionicons name="call-outline" size={20} color="#FFFFFF" />
-            </Pressable>
+              {channelType === "dm" && (
+                <Pressable
+                  onPress={() => setCallTypeModal(true)}
+                  style={styles.headerAction}
+                >
+                  <Ionicons name="call-outline" size={20} color="#FFFFFF" />
+                </Pressable>
+              )}
+              <Pressable
+                onPress={() => setMoreOptionsVisible(true)}
+                style={styles.headerAction}
+              >
+                <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
+              </Pressable>
+            </>
           )}
         </View>
 
@@ -1004,6 +1070,102 @@ export default function ChatDetailScreen() {
               style={styles.callCancel}
             >
               <ThemedText style={styles.callCancelText}>Cancel</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* More options modal */}
+      <Modal visible={moreOptionsVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.contextBackdrop} onPress={() => setMoreOptionsVisible(false)} />
+          <View style={styles.moreSheet}>
+            <View style={styles.dragHandle} />
+
+            <Pressable
+              style={styles.moreOption}
+              onPress={() => {
+                setMoreOptionsVisible(false);
+                if (otherUserId) router.push(`/user/${otherUserId}`);
+              }}
+            >
+              <Ionicons name="person-outline" size={20} color="#FFFFFF" />
+              <ThemedText style={styles.moreOptionText}>View Profile</ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={styles.moreOption}
+              onPress={() => {
+                setMoreOptionsVisible(false);
+                setSearchVisible(true);
+                setSearchQuery("");
+              }}
+            >
+              <Ionicons name="search-outline" size={20} color="#FFFFFF" />
+              <ThemedText style={styles.moreOptionText}>Search in Chat</ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={styles.moreOption}
+              onPress={() => {
+                setIsMuted((prev) => !prev);
+                setMoreOptionsVisible(false);
+                toast.show(isMuted ? "Notifications unmuted" : "Notifications muted");
+              }}
+            >
+              <Ionicons
+                name={isMuted ? "notifications-off-outline" : "notifications-outline"}
+                size={20}
+                color="#FFFFFF"
+              />
+              <ThemedText style={styles.moreOptionText}>
+                {isMuted ? "Unmute Notifications" : "Mute Notifications"}
+              </ThemedText>
+            </Pressable>
+
+            <View style={styles.moreDivider} />
+
+            <Pressable
+              style={styles.moreOption}
+              onPress={() => {
+                setMoreOptionsVisible(false);
+                handleBlock();
+              }}
+            >
+              <Ionicons name="ban-outline" size={20} color="#FF3B30" />
+              <ThemedText style={[styles.moreOptionText, { color: "#FF3B30" }]}>Block User</ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={styles.moreOption}
+              onPress={() => {
+                setMoreOptionsVisible(false);
+                Alert.alert("Report Conversation", "Why are you reporting this conversation?", [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Spam",
+                    onPress: () => toast.show("Report submitted. Thank you."),
+                  },
+                  {
+                    text: "Inappropriate",
+                    onPress: () => toast.show("Report submitted. Thank you."),
+                  },
+                  {
+                    text: "Harassment",
+                    onPress: () => toast.show("Report submitted. Thank you."),
+                  },
+                ]);
+              }}
+            >
+              <Ionicons name="flag-outline" size={20} color="#FF9500" />
+              <ThemedText style={[styles.moreOptionText, { color: "#FF9500" }]}>Report</ThemedText>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setMoreOptionsVisible(false)}
+              style={styles.modalCancel}
+            >
+              <ThemedText style={styles.modalCancelText}>Cancel</ThemedText>
             </Pressable>
           </View>
         </View>
@@ -1350,4 +1512,41 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+
+  // Search header
+  searchHeader: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1C1C1E",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 36,
+    gap: 6,
+  },
+  searchCounter: {
+    fontSize: 12,
+    color: "#71717A",
+    minWidth: 40,
+    textAlign: "center",
+  },
+
+  // More options modal
+  moreSheet: {
+    backgroundColor: "#1C1C1E",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+    paddingBottom: 36,
+  },
+  moreOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  moreOptionText: { fontSize: 16, color: "#FFFFFF" },
+  moreDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "#2A2A2A", marginVertical: 4 },
 });

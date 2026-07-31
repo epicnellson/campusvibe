@@ -76,6 +76,9 @@ function VoicePlayer({ url, isOwn, duration }: { url: string; isOwn: boolean; du
   const [loading, setLoading] = useState(true);
   const [playbackRate, setPlaybackRate] = useState(1);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const [waveformBars] = useState(() =>
+    Array.from({ length: 28 }, () => Math.random() * 0.7 + 0.3)
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -184,8 +187,24 @@ function VoicePlayer({ url, isOwn, duration }: { url: string; isOwn: boolean; du
           style={[styles.voiceBar, { backgroundColor: isOwn ? "rgba(255,255,255,0.15)" : "#2A2A2A" }]}
           hitSlop={8}
         >
-          <View style={[styles.voiceProgress, { width: `${progressPct}%`, backgroundColor: isOwn ? "#FFFFFF" : "#6C47FF" }]} />
-          <View style={[styles.voiceDot, { left: `${progressPct}%`, backgroundColor: isOwn ? "#FFFFFF" : "#6C47FF" }]} />
+          <View style={{ flexDirection: "row", alignItems: "center", height: 20, gap: 2 }}>
+            {waveformBars.map((height, i) => {
+              const isPlayed = i / waveformBars.length <= progressPct / 100;
+              return (
+                <View
+                  key={i}
+                  style={{
+                    width: 3,
+                    height: height * 20,
+                    borderRadius: 1.5,
+                    backgroundColor: isPlayed
+                      ? (isOwn ? "#FFFFFF" : "#6C47FF")
+                      : (isOwn ? "rgba(255,255,255,0.15)" : "#2A2A2A"),
+                  }}
+                />
+              );
+            })}
+          </View>
         </Pressable>
 
         <View style={styles.voiceMeta}>
@@ -587,7 +606,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   voiceInfo: { flex: 1, gap: 4 },
-  voiceBar: { height: 6, borderRadius: 3, overflow: "visible", position: "relative" },
+  voiceBar: { height: 20, borderRadius: 4, overflow: "visible", position: "relative", justifyContent: "center" },
   voiceProgress: { height: 6, borderRadius: 3, position: "absolute", left: 0, top: 0 },
   voiceDot: {
     width: 10,

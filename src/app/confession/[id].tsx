@@ -464,18 +464,7 @@ export default function ConfessionDetailScreen() {
         </Pressable>
       </Modal>
 
-      <Modal visible={showImageViewer} transparent animationType="fade" onRequestClose={() => setShowImageViewer(false)}>
-        <View style={styles.imageViewerOverlay}>
-          <ImageViewer uri={resolvedImage ?? ""} />
-          <Pressable
-            onPress={() => setShowImageViewer(false)}
-            style={[styles.imageViewerClose, { top: insets.top + 16 }]}
-            accessibilityLabel="Close image"
-          >
-            <Ionicons name="close" size={24} color={colors.textOnDark} />
-          </Pressable>
-        </View>
-      </Modal>
+      <ImageViewer visible={showImageViewer} imageUrl={resolvedImage ?? null} onClose={() => setShowImageViewer(false)} />
 
       <ScrollView
         style={styles.scroll}
