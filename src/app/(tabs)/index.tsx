@@ -19,6 +19,7 @@ import { FeedSkeleton } from "@/components/feed-skeleton";
 import { useSession } from "@/hooks/use-session";
 import { useRefresh } from "@/hooks/use-refresh";
 import { useTheme } from "@/hooks/use-theme";
+import { useToast } from "@/components/ui/Toast";
 import { usePostInteractions } from "@/hooks/use-post-interactions";
 import { fetchPostById } from "@/services/posts";
 import { fetchConfessionById } from "@/services/confessions";
@@ -54,6 +55,20 @@ function toDisplayItem(item: ComposerFeedItem): FeedDisplayItem | null {
     return { type: "event", data: raw as unknown as EventWithRSVPs };
   }
 
+  const media = item.media[0];
+  const mediaVideoId = media?.videoId ?? null;
+  // YouTubeEmbed only supports real YouTube IDs (11-char [A-Za-z0-9_-]).
+  // Providers like Pexels reuse the `videoId` field for their own numeric ID,
+  // which would render a broken YouTube embed — filter those out here.
+  const youTubeId = mediaVideoId && /^[A-Za-z0-9_-]{11}$/.test(mediaVideoId) ? mediaVideoId : null;
+  // For video items prefer the poster-frame thumbnail over the raw MP4 URL so
+  // non-YouTube videos render as a playable-poster image instead of a broken box.
+  const imageUrl = media
+    ? item.type === "video"
+      ? (media.thumbnailUrl ?? media.url)
+      : (media.url ?? media.thumbnailUrl)
+    : undefined;
+
   return {
     type: "external",
     data: {
@@ -62,11 +77,11 @@ function toDisplayItem(item: ComposerFeedItem): FeedDisplayItem | null {
       type: item.type === "text" || item.type === "article" ? "article" : item.type as ExternalFeedItem["type"],
       title: item.content.title ?? "",
       description: item.content.body ?? undefined,
-      image_url: item.media[0]?.url ?? item.media[0]?.thumbnailUrl ?? undefined,
-      thumbnail_url: item.media[0]?.thumbnailUrl ?? undefined,
+      image_url: imageUrl,
+      thumbnail_url: media?.thumbnailUrl ?? undefined,
       link: item.urls.original ?? undefined,
-      video_id: item.media[0]?.videoId ?? undefined,
-      published_at: item.timestamps.publishedAt?.toISOString() ?? undefined,
+      video_id: youTubeId ?? undefined,
+      published_at: item.timestamps.publishedAt?.toISOString() ?? item.timestamps.fetchedAt?.toISOString() ?? undefined,
       source_name: item.author.name ?? item.source,
       author: item.author.name,
     },
@@ -78,6 +93,55 @@ function getItemId(item: FeedDisplayItem): string {
   return item.data.id;
 }
 
+function parseFeedTimestamp(value: unknown): number {
+  if (value == null) return 0;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  if (typeof value === "object" && typeof (value as any).seconds === "number") {
+    return (value as any).seconds * 1000;
+  }
+  if (typeof value === "string") {
+    const t = Date.parse(value);
+    return Number.isNaN(t) ? 0 : t;
+  }
+  return 0;
+}
+
+function getItemTimestamp(item: FeedDisplayItem): number {
+  switch (item.type) {
+    case "post":
+      return parseFeedTimestamp(item.data.created_at);
+    case "confession":
+      return parseFeedTimestamp(item.data.created_at);
+    case "event":
+      return parseFeedTimestamp(item.data.created_at) || parseFeedTimestamp(item.data.date);
+    case "external":
+      return item.data.published_at ? parseFeedTimestamp(item.data.published_at) : 0;
+    default:
+      return 0;
+  }
+}
+
+function sortFeedItems(items: FeedDisplayItem[]): FeedDisplayItem[] {
+  // Strict ID dedup before every setItems call: keep the LAST occurrence of each
+  // unique item key (`type:getItemId`) so duplicated rows can never flood state
+  // or shadow real content — the Map pattern guarantees uniqueness, O(n).
+  const key = (item: FeedDisplayItem) => `${item.type}:${getItemId(item)}`;
+  const deduplicated = Array.from(new Map(items.map((item) => [key(item), item])).values());
+  return deduplicated.sort((a, b) => getItemTimestamp(b) - getItemTimestamp(a));
+}
+
+function mergeFeedItems(
+  prev: FeedDisplayItem[],
+  next: FeedDisplayItem[],
+  mode: "prepend" | "append" = "append"
+): FeedDisplayItem[] {
+  // sortFeedItems() performs strict Map-based ID dedup, so simply concatenating
+  // is safe — duplicates are collapsed and the result is timestamp-sorted.
+  const merged = mode === "prepend" ? [...next, ...prev] : [...prev, ...next];
+  return sortFeedItems(merged);
+}
+
 function getPostId(item: FeedDisplayItem): string | null {
   if (item.type === "post") return item.data.id;
   return null;
@@ -87,6 +151,7 @@ export default function HomeFeedScreen() {
   const colors = useTheme();
   const { session } = useSession();
   const { feedKey } = useRefresh();
+  const { show: showToast } = useToast();
   const currentUserId = session?.user?.id;
   const [items, setItems] = useState<FeedDisplayItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,7 +181,10 @@ export default function HomeFeedScreen() {
   const seenIdsRef = useRef<Set<string>>(new Set());
   const loadGenerationRef = useRef(0);
   const loadingMoreRef = useRef(false);
+  const loadInFlightRef = useRef(false);
   const hasInitiallyLoaded = useRef(false);
+  const itemsLengthRef = useRef(0);
+  const itemsRef = useRef<FeedDisplayItem[]>([]);
   const composerRef = useRef<ReturnType<typeof createFeedComposer> | null>(null);
 
   const getComposer = useCallback(() => {
@@ -156,36 +224,48 @@ export default function HomeFeedScreen() {
   const enrichCampusItems = useCallback(async (displayItems: FeedDisplayItem[]) => {
     if (!currentUserId) return;
 
-    const postIds = displayItems
-      .filter((i) => i.type === "post")
-      .map((i) => i.data.id);
+    try {
+      const postIds = displayItems
+        .filter((i) => i.type === "post")
+        .map((i) => i.data.id);
 
-    if (postIds.length === 0) return;
+      if (postIds.length === 0) return;
 
-    const [reactionsData, userReposted, commentCountsData] = await Promise.all([
-      fetchReactionsForPosts(postIds),
-      getUserRepostedPostIds(currentUserId),
-      fetchCommentCounts(postIds),
-    ]);
+      const [reactionsData, userReposted, commentCountsData] = await Promise.all([
+        fetchReactionsForPosts(postIds),
+        getUserRepostedPostIds(currentUserId),
+        fetchCommentCounts(postIds),
+      ]);
 
-    bulkSetReactions(reactionsData);
-    bulkSetRepostedIds(userReposted);
-    bulkSetCommentCounts(commentCountsData);
+      bulkSetReactions(reactionsData);
+      bulkSetRepostedIds(userReposted);
+      bulkSetCommentCounts(commentCountsData);
 
-    const counts = new Map<string, number>();
-    await Promise.all(
-      postIds.map(async (id) => {
-        const c = await getRepostCount(id);
-        if (c > 0) counts.set(id, c);
-      })
-    );
-    bulkSetRepostCounts(counts);
+      const counts = new Map<string, number>();
+      await Promise.all(
+        postIds.map(async (id) => {
+          const c = await getRepostCount(id);
+          if (c > 0) counts.set(id, c);
+        })
+      );
+      bulkSetRepostCounts(counts);
+    } catch (e) {
+      // Enrichment is best-effort. A Firestore/permission/index error here must
+      // NEVER replace the already-rendered feed with the error screen — the
+      // fetched items stay visible even if counts/reactions can't load.
+      console.warn("[feed] enrichCampusItems failed:", e);
+    }
   }, [currentUserId]);
 
   const load = useCallback(async (isRefresh = false) => {
+    if (loadInFlightRef.current) {
+      setRefreshing(false);
+      return;
+    }
+    loadInFlightRef.current = true;
     const gen = ++loadGenerationRef.current;
     const composer = getComposer();
-    if (!composer) { setLoading(false); setRefreshing(false); return; }
+    if (!composer) { setLoading(false); setRefreshing(false); loadInFlightRef.current = false; return; }
 
     setEmptyLoadCount(0);
     setFeedHasMore(true);
@@ -196,29 +276,43 @@ export default function HomeFeedScreen() {
       const useIncremental = isRefresh && hasInitiallyLoaded.current;
 
       if (useIncremental) {
+        // Mark the currently displayed feed items as seen so refresh()'s
+        // seen-item suppression pulls an entirely fresh batch instead of
+        // re-showing what's already on screen.
+        const displayedIds = itemsRef.current.map((i) => getItemId(i));
+        if (displayedIds.length > 0) composer.touchItems(displayedIds);
+
         const page = await composer.refresh();
         if (gen !== loadGenerationRef.current) return;
 
+        if (page.items.length === 0) {
+          showToast(
+            itemsLengthRef.current > 0
+              ? "Couldn't fetch new posts — showing your saved feed"
+              : "No new posts available right now",
+            "warning"
+          );
+        }
+
         const displayItems: FeedDisplayItem[] = [];
         for (const item of page.items) {
           const display = toDisplayItem(item);
           if (display) displayItems.push(display);
         }
-        setItems((prev) => [...displayItems, ...prev]);
+        // Pull-to-refresh is a clean re-fetch: REPLACE the existing feed state
+        // with the freshly fetched batch (never accumulate via prepend). If the
+        // re-fetch produced nothing, keep the saved feed on screen (toast above).
+        setItems((prev) => {
+          const deduplicated = Array.from(
+            new Map(displayItems.map((item) => [`${item.type}:${getItemId(item)}`, item])).values()
+          );
+          const sorted = sortFeedItems(deduplicated);
+          return sorted.length > 0 ? sorted : prev;
+        });
         setFeedHasMore(page.hasMore);
         await enrichCampusItems(displayItems);
       } else {
-        const page = await composer.loadInitial((progressiveItems, hasMore) => {
-          if (gen !== loadGenerationRef.current) return;
-          const displayItems: FeedDisplayItem[] = [];
-          for (const item of progressiveItems) {
-            const display = toDisplayItem(item);
-            if (display) displayItems.push(display);
-          }
-          setItems(displayItems);
-          setFeedHasMore(hasMore);
-          enrichCampusItems(displayItems);
-        });
+        const page = await composer.loadInitial();
         if (gen !== loadGenerationRef.current) return;
 
         const displayItems: FeedDisplayItem[] = [];
@@ -226,7 +320,7 @@ export default function HomeFeedScreen() {
           const display = toDisplayItem(item);
           if (display) displayItems.push(display);
         }
-        setItems(displayItems);
+        setItems(sortFeedItems(displayItems));
         setFeedHasMore(page.hasMore);
         await enrichCampusItems(displayItems);
       }
@@ -237,10 +331,16 @@ export default function HomeFeedScreen() {
       setLoading(false);
       setRefreshing(false);
       hasInitiallyLoaded.current = true;
+      loadInFlightRef.current = false;
     }
-  }, [getComposer, enrichCampusItems]);
+  }, [getComposer, enrichCampusItems, showToast]);
 
   useEffect(() => { load(); }, [feedKey]);
+
+  useEffect(() => {
+    itemsLengthRef.current = items.length;
+    itemsRef.current = items;
+  }, [items]);
 
   const loadMoreExternal = useCallback(async () => {
     if (loadingMoreRef.current) return;
@@ -260,7 +360,7 @@ export default function HomeFeedScreen() {
           const display = toDisplayItem(item);
           if (display) newDisplayItems.push(display);
         }
-        setItems((prev) => [...prev, ...newDisplayItems]);
+        setItems((prev) => mergeFeedItems(prev, newDisplayItems));
         setEmptyLoadCount(0);
       } else {
         setEmptyLoadCount((prev) => {
@@ -269,6 +369,7 @@ export default function HomeFeedScreen() {
           return next;
         });
       }
+      if (!page.hasMore) setFeedHasMore(false);
     } catch {
       setEmptyLoadCount((prev) => {
         const next = prev + 1;
@@ -283,7 +384,7 @@ export default function HomeFeedScreen() {
   }, [getComposer]);
 
   const onEndReached = useCallback(() => {
-    if (!loading && hasInitiallyLoaded.current && feedHasMore) {
+    if (!loading && !loadInFlightRef.current && hasInitiallyLoaded.current && feedHasMore) {
       loadMoreExternal();
     }
   }, [loading, loadMoreExternal, feedHasMore]);
@@ -303,12 +404,12 @@ export default function HomeFeedScreen() {
               const full = await fetchPostById(newPost.id);
               setItems((prev) => {
                 if (prev.some((i) => i.type === "post" && i.data.id === full.id)) return prev;
-                return [{ type: "post", data: full }, ...prev];
+                return mergeFeedItems(prev, [{ type: "post", data: full }], "prepend");
               });
             } catch {}
           }
         }
-      })
+      }, () => {})
     );
 
     const confessionsQuery = query(collection(db, "confessions"), orderBy("created_at", "desc"), fbLimit(1));
@@ -321,12 +422,12 @@ export default function HomeFeedScreen() {
               const full = await fetchConfessionById(newConfession.id);
               setItems((prev) => {
                 if (prev.some((i) => i.type === "confession" && i.data.id === full.id)) return prev;
-                return [{ type: "confession", data: full }, ...prev];
+                return mergeFeedItems(prev, [{ type: "confession", data: full }], "prepend");
               });
             } catch {}
           }
         }
-      })
+      }, () => {})
     );
 
     const today = new Date().toISOString().split("T")[0];
@@ -350,13 +451,13 @@ export default function HomeFeedScreen() {
                 };
                 setItems((prev) => {
                   if (prev.some((i) => i.type === "event" && i.data.id === eventId)) return prev;
-                  return [{ type: "event", data: eventWithRSVPs as unknown as EventWithRSVPs }, ...prev];
+                  return mergeFeedItems(prev, [{ type: "event", data: eventWithRSVPs as unknown as EventWithRSVPs }], "prepend");
                 });
               }
             } catch {}
           }
         }
-      })
+      }, () => {})
     );
 
     return () => {

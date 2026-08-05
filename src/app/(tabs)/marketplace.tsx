@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 12,
     paddingBottom: 12,
   },
   title: {
@@ -87,58 +87,40 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 16,
-    backgroundColor: "#1C1C1E",
     borderWidth: 1,
-    borderColor: "#2C2C2E",
-  },
-  sortChipActive: {
-    backgroundColor: "#6C47FF",
-    borderColor: "#6C47FF",
   },
   sortChipText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#A1A1AA",
-  },
-  sortChipTextActive: {
-    color: "#ffffff",
   },
   filterScroll: {
-    height: 48,
-    marginBottom: 4,
-    paddingTop: 6,
+    flexGrow: 0,
+    flexShrink: 0,
+    height: 56,
+    marginTop: 12,
+    marginBottom: 12,
   },
   filterContent: {
     paddingHorizontal: 16,
-    paddingVertical: 0,
+    paddingVertical: 8,
     gap: 8,
     alignItems: "center",
   },
   filterChip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: "#1C1C1E",
     borderWidth: 1,
-    borderColor: "#2C2C2E",
-    minHeight: 36,
+    minHeight: 40,
     gap: 6,
     flexShrink: 0,
-  },
-  filterChipActive: {
-    backgroundColor: "#6C47FF",
-    borderColor: "#6C47FF",
   },
   filterChipText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#A1A1AA",
     lineHeight: 18,
-  },
-  filterChipTextActive: {
-    color: "#ffffff",
   },
   filterChipIcon: {
     marginRight: 0,
@@ -312,11 +294,7 @@ export default function MarketplaceScreen() {
   }
 
   if (loading) {
-    return (
-      <ThemedView style={styles.center}>
-        <MarketplaceListSkeleton />
-      </ThemedView>
-    );
+    return <MarketplaceListSkeleton />;
   }
 
   return (
@@ -352,19 +330,21 @@ export default function MarketplaceScreen() {
               onPress={() => setSelectedCategory(cat.label)}
               style={[
                 styles.filterChip,
-                selectedCategory === cat.label && styles.filterChipActive,
+                selectedCategory === cat.label
+                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                  : { backgroundColor: colors.inputBgAlt, borderColor: colors.borderLight },
               ]}
             >
               <Ionicons
                 name={cat.icon}
                 size={16}
-                color={selectedCategory === cat.label ? "#FFFFFF" : "#A1A1AA"}
+                color={selectedCategory === cat.label ? colors.textOnDark : colors.textSecondary}
                 style={styles.filterChipIcon}
               />
               <ThemedText
                 style={[
                   styles.filterChipText,
-                  selectedCategory === cat.label && styles.filterChipTextActive,
+                  { color: selectedCategory === cat.label ? colors.textOnDark : colors.textSecondary },
                 ]}
               >
                 {cat.label}
@@ -380,13 +360,15 @@ export default function MarketplaceScreen() {
               onPress={() => setSortBy(opt)}
               style={[
                 styles.sortChip,
-                sortBy === opt && styles.sortChipActive,
+                sortBy === opt
+                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                  : { backgroundColor: colors.inputBgAlt, borderColor: colors.borderLight },
               ]}
             >
               <ThemedText
                 style={[
                   styles.sortChipText,
-                  sortBy === opt && styles.sortChipTextActive,
+                  { color: sortBy === opt ? colors.textOnDark : colors.textSecondary },
                 ]}
               >
                 {opt}
@@ -428,7 +410,7 @@ export default function MarketplaceScreen() {
 
               return (
                 <Pressable
-                  onPress={() => router.push(`/listing/${item.id}`)}
+                  onPress={() => router.push({ pathname: "/listing/[id]", params: { id: String(item.id) } })}
                   style={({ pressed }) => [
                     styles.card,
                     pressed && styles.pressed,

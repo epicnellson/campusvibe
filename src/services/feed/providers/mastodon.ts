@@ -1,19 +1,19 @@
 import type { IFeedProvider, FetchContext, FetchResult, RateBudget, HealthStatus } from "./types";
 import type { FeedItem } from "../types";
-import { computeDedupKeys, safeDate } from "../normalize";
+import { computeDedupKeys, safeDate, shuffle } from "../normalize";
 import { feedProxy } from "@/services/feed-proxy";
 
 const SEARCH_QUERIES = [
-  "university education campus",
-  "study students college",
-  "coding programming tutorial",
-  "science research academic",
-  "technology artificial intelligence",
-  "scholarship internship career",
-  "graduation commencement",
-  "campus life student activities",
-  "online learning education",
-  "academic paper journal",
+  "funny memes",
+  "jokes",
+  "lol",
+  "funny",
+  "meme",
+  "dad jokes",
+  "comedy",
+  "humor",
+  "hilarious",
+  "funny stories",
 ];
 
 const SUPPORTED_LANGUAGES = new Set(["en"]);
@@ -81,7 +81,8 @@ export class MastodonProvider implements IFeedProvider {
   }
 
   normalize(raw: unknown[], fetchedAt: Date): FeedItem[] {
-    return (raw as any[])
+    return shuffle(
+      (raw as any[])
       .filter((s) => {
         if (!s?.id) return false;
         const text = stripHtml(s.content ?? "");
@@ -146,13 +147,14 @@ export class MastodonProvider implements IFeedProvider {
           },
           scores: { composite: 0, freshness: 0, engagement: 0, quality: 0, diversity: 0, interest: 0, relationship: 0, trending: 0, exploration: 0, campusRelevance: 0, sessionFit: 0 },
           diversitySlot: hasVideo ? "social_video" : imageUrl ? "social_image" : "social_text",
-          contentCategory: "general" as const,
+          contentCategory: "memes" as const,
           dedup: { nativeId: s.id, canonicalUrl: null, imageUrl: null, videoId: null, titleHash: 0, bodyHash: 0 },
           meta: { language: s.language ?? null },
         };
         computeDedupKeys(item);
         return item;
-      });
+      })
+    );
   }
 
   cachePrefix(): string { return "mastodon_v4"; }

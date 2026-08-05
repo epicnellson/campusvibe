@@ -105,12 +105,17 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: fontSize.sm,
+    lineHeight: 20,
     fontWeight: fontWeight.medium,
     marginLeft: spacing.xs,
+    alignSelf: "flex-start",
   },
   container: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
+    paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
     overflow: "hidden",
@@ -119,8 +124,9 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: fontSize.md,
-    paddingVertical: 12,
+    paddingVertical: 0,
     paddingHorizontal: 12,
+    textAlignVertical: "center",
   },
   inputWithLeftIcon: {
     paddingLeft: spacing.xs,
@@ -130,12 +136,15 @@ const styles = StyleSheet.create({
   },
   iconLeft: {
     paddingLeft: spacing.md,
+    justifyContent: "center",
   },
   iconRight: {
     paddingRight: spacing.md,
+    justifyContent: "center",
   },
   errorText: {
     fontSize: fontSize.xs,
+    lineHeight: 16,
     fontWeight: fontWeight.medium,
     marginLeft: spacing.xs,
   },

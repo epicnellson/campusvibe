@@ -1,11 +1,19 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { Animated, PanResponder, Platform, Pressable, StyleSheet, View } from "react-native";
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { Audio } from "expo-av";
 import { ThemedText } from "@/components/themed-text";
+import { VoiceMessagePlayer } from "@/components/chat/voice-message-player";
+import { useTheme } from "@/hooks/use-theme";
 import type { MessageWithSender, MessageType } from "@/services/database.types";
 import { markViewOnce } from "@/services/chats";
+
+function withAlpha(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const a = Math.round(Math.min(1, Math.max(0, alpha)) * 255).toString(16).padStart(2, "0");
+  return `#${full}${a}`;
+}
 
 function formatBubbleTime(dateStr: string | number | any): string {
   try {
@@ -19,7 +27,7 @@ function formatBubbleTime(dateStr: string | number | any): string {
       d = new Date(dateStr);
     }
     if (isNaN(d.getTime())) return "";
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
   } catch {
     return "";
   }
@@ -48,178 +56,17 @@ export type MessageBubbleProps = {
 };
 
 function ReadCheck({ status }: { status: ReadStatus }) {
+  const theme = useTheme();
   if (status === "sending") {
-    return (
-      <View style={[styles.statusDot, { backgroundColor: "#FF3B30" }]} />
-    );
+    return <Ionicons name="time-outline" size={13} color={theme.textTertiary} />;
   }
   if (status === "delivered") {
-    return (
-      <View style={[styles.statusDot, { backgroundColor: "#FFD700" }]} />
-    );
+    return <Ionicons name="checkmark" size={13} color={theme.primaryLight} />;
   }
   if (status === "seen") {
-    return (
-      <Ionicons name="checkmark-done" size={14} color="#34C759" />
-    );
+    return <Ionicons name="checkmark-done" size={14} color={theme.primary} />;
   }
-  return (
-    <Ionicons name="checkmark" size={14} color="rgba(255,255,255,0.5)" />
-  );
-}
-
-function VoicePlayer({ url, isOwn, duration }: { url: string; isOwn: boolean; duration: number }) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [durationMs, setDurationMs] = useState(duration * 1000);
-  const [loading, setLoading] = useState(true);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const [waveformBars] = useState(() =>
-    Array.from({ length: 28 }, () => Math.random() * 0.7 + 0.3)
-  );
-
-  useEffect(() => {
-    let mounted = true;
-    const loadSound = async () => {
-      try {
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri: url },
-          { shouldPlay: false, progressUpdateIntervalMillis: 50 }
-        );
-        if (!mounted) { newSound.unloadAsync(); return; }
-        newSound.setOnPlaybackStatusUpdate((status) => {
-          if (!status.isLoaded) return;
-          if (status.didJustFinish) {
-            setIsPlaying(false);
-            setPosition(0);
-          } else {
-            setPosition(status.positionMillis);
-            setDurationMs(status.durationMillis ?? duration * 1000);
-          }
-        });
-        soundRef.current = newSound;
-        setSound(newSound);
-        setLoading(false);
-      } catch { setLoading(false); }
-    };
-    loadSound();
-    return () => {
-      mounted = false;
-      soundRef.current?.unloadAsync();
-      soundRef.current = null;
-    };
-  }, [url]);
-
-  const togglePlay = useCallback(async () => {
-    const s = soundRef.current;
-    if (!s) return;
-    try {
-      if (isPlaying) {
-        await s.pauseAsync();
-        setIsPlaying(false);
-      } else {
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-        await s.playAsync();
-        setIsPlaying(true);
-      }
-    } catch {}
-  }, [isPlaying]);
-
-  const seekTo = useCallback(async (pct: number) => {
-    const s = soundRef.current;
-    if (!s) return;
-    const seekMs = Math.floor(pct * durationMs);
-    await s.setPositionAsync(seekMs);
-    setPosition(seekMs);
-  }, [durationMs]);
-
-  const cycleSpeed = useCallback(async () => {
-    const s = soundRef.current;
-    if (!s) return;
-    const next = playbackRate >= 2 ? 1 : playbackRate + 0.5;
-    await s.setRateAsync(next, true);
-    setPlaybackRate(next);
-  }, [playbackRate]);
-
-  const totalDur = durationMs || duration * 1000;
-  const progress = totalDur > 0 ? position / totalDur : 0;
-  const progressPct = Math.min(100, Math.max(0, progress * 100));
-  const elapsed = Math.floor(position / 1000);
-  const total = Math.floor(totalDur / 1000);
-  const elapsedLabel = `${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, "0")}`;
-  const totalLabel = `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, "0")}`;
-
-  if (loading) {
-    return (
-      <View style={styles.voiceContainer}>
-        <View style={[styles.playBtn, { backgroundColor: isOwn ? "rgba(255,255,255,0.2)" : "rgba(108,71,255,0.15)" }]}>
-          <Ionicons name="hourglass-outline" size={16} color={isOwn ? "#FFFFFF" : "#6C47FF"} />
-        </View>
-        <View style={styles.voiceInfo}>
-          <View style={[styles.voiceBar, { backgroundColor: isOwn ? "rgba(255,255,255,0.15)" : "#2A2A2A" }]} />
-          <ThemedText style={[styles.voiceTime, { color: isOwn ? "rgba(255,255,255,0.4)" : "#555" }]}>Loading...</ThemedText>
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.voiceContainer}>
-      <Pressable onPress={togglePlay} style={[styles.playBtn, { backgroundColor: isOwn ? "rgba(255,255,255,0.2)" : "rgba(108,71,255,0.15)" }]}>
-        <Ionicons
-          name={isPlaying ? "pause" : "play"}
-          size={18}
-          color={isOwn ? "#FFFFFF" : "#6C47FF"}
-          style={!isPlaying ? { marginLeft: 2 } : undefined}
-        />
-      </Pressable>
-
-      <View style={styles.voiceInfo}>
-        <Pressable
-          onPress={(e) => {
-            const { locationX } = e.nativeEvent;
-            const barWidth = 130;
-            const pct = Math.min(1, Math.max(0, locationX / barWidth));
-            seekTo(pct);
-          }}
-          style={[styles.voiceBar, { backgroundColor: isOwn ? "rgba(255,255,255,0.15)" : "#2A2A2A" }]}
-          hitSlop={8}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", height: 20, gap: 2 }}>
-            {waveformBars.map((height, i) => {
-              const isPlayed = i / waveformBars.length <= progressPct / 100;
-              return (
-                <View
-                  key={i}
-                  style={{
-                    width: 3,
-                    height: height * 20,
-                    borderRadius: 1.5,
-                    backgroundColor: isPlayed
-                      ? (isOwn ? "#FFFFFF" : "#6C47FF")
-                      : (isOwn ? "rgba(255,255,255,0.15)" : "#2A2A2A"),
-                  }}
-                />
-              );
-            })}
-          </View>
-        </Pressable>
-
-        <View style={styles.voiceMeta}>
-          <ThemedText style={[styles.voiceTime, { color: isOwn ? "rgba(255,255,255,0.5)" : "#71717A" }]}>
-            {elapsedLabel} / {totalLabel}
-          </ThemedText>
-          <Pressable onPress={cycleSpeed} hitSlop={4}>
-            <ThemedText style={[styles.speedBadge, { color: isOwn ? "rgba(255,255,255,0.6)" : "#6C47FF", backgroundColor: isOwn ? "rgba(255,255,255,0.1)" : "rgba(108,71,255,0.1)" }]}>
-              {playbackRate}x
-            </ThemedText>
-          </Pressable>
-        </View>
-      </View>
-    </View>
-  );
+  return <Ionicons name="checkmark" size={13} color={theme.textTertiary} />;
 }
 
 function ViewOnceContent({ message, isOwn, onOpen }: {
@@ -227,6 +74,7 @@ function ViewOnceContent({ message, isOwn, onOpen }: {
   isOwn: boolean;
   onOpen?: () => void;
 }) {
+  const theme = useTheme();
   const [viewed, setViewed] = useState(!!(message as any).viewed);
 
   const handleView = useCallback(async () => {
@@ -240,11 +88,14 @@ function ViewOnceContent({ message, isOwn, onOpen }: {
     }
   }, [message.id, viewed, onOpen]);
 
+  const ownMuted = withAlpha("#FFFFFF", 0.55);
+  const otherMuted = theme.textSecondary;
+
   if (viewed) {
     return (
       <View style={styles.viewOnceOpened}>
-        <Ionicons name="eye-off-outline" size={16} color={isOwn ? "rgba(255,255,255,0.5)" : "#71717A"} />
-        <ThemedText style={[styles.viewOnceOpenedText, { color: isOwn ? "rgba(255,255,255,0.5)" : "#71717A" }]}>
+        <Ionicons name="eye-off-outline" size={16} color={isOwn ? ownMuted : otherMuted} />
+        <ThemedText style={[styles.viewOnceOpenedText, { color: isOwn ? ownMuted : otherMuted }]}>
           Opened
         </ThemedText>
       </View>
@@ -254,10 +105,10 @@ function ViewOnceContent({ message, isOwn, onOpen }: {
   return (
     <Pressable
       onPress={handleView}
-      style={[styles.viewOnceBtn, isOwn ? { backgroundColor: "rgba(255,255,255,0.15)" } : { backgroundColor: "#2A2A2A" }]}
+      style={[styles.viewOnceBtn, { backgroundColor: isOwn ? withAlpha("#FFFFFF", 0.15) : theme.backgroundElement }]}
     >
-      <Ionicons name="eye-outline" size={20} color={isOwn ? "#FFFFFF" : "#6C47FF"} />
-      <ThemedText style={[styles.viewOnceBtnText, { color: isOwn ? "#FFFFFF" : "#6C47FF" }]}>
+      <Ionicons name="eye-outline" size={20} color={isOwn ? "#FFFFFF" : theme.primary} />
+      <ThemedText style={[styles.viewOnceBtnText, { color: isOwn ? "#FFFFFF" : theme.primary }]}>
         Tap to view once
       </ThemedText>
     </Pressable>
@@ -276,6 +127,8 @@ function MessageBubbleInner({
   currentUserId,
   onViewImage,
 }: MessageBubbleProps) {
+  const theme = useTheme();
+
   const handleLongPress = useCallback(() => {
     onLongPress?.(message);
   }, [message, onLongPress]);
@@ -314,8 +167,8 @@ function MessageBubbleInner({
 
   const bubbleStyles = [
     styles.bubble,
-    isOwn ? styles.ownBubble : styles.otherBubble,
-    isHighlighted && styles.highlighted,
+    isOwn ? [styles.ownBubble, { backgroundColor: theme.primary }] : [styles.otherBubble, { backgroundColor: theme.inputBg }],
+    isHighlighted && { borderColor: theme.warning },
     isGrouped && styles.groupedMessage,
     msgType === "image" && styles.imageBubble,
     msgType === "file" && styles.fileBubble,
@@ -347,160 +200,130 @@ function MessageBubbleInner({
     }
   }
   const reactionEntries = Object.entries(groupedReactions);
+  const hasReactions = reactionEntries.length > 0;
 
   const replyTo = (message as any).replyToMessage as MessageWithSender | undefined;
   const voiceUrl = (message as any).voice_url as string | undefined;
   const voiceDuration = (message as any).voice_duration as number | undefined;
   const isEdited = (message as any).edited as boolean;
 
+  const ownMuted = withAlpha("#FFFFFF", 0.55);
+  const otherMuted = theme.textSecondary;
+  const ownTextColor = "#FFFFFF";
+  const otherTextColor = theme.text;
+
+  const replyBlock = replyTo ? (
+    <View style={[styles.replyBlock, { backgroundColor: withAlpha(theme.textSecondary, 0.12) }]}>
+      <View style={[styles.replyBar, { backgroundColor: isOwn ? withAlpha("#FFFFFF", 0.5) : theme.primary }]} />
+      <View style={styles.replyContent}>
+        <ThemedText style={[styles.replyName, { color: isOwn ? "#FFFFFF" : theme.primary }]} numberOfLines={1}>
+          {replyTo.sender?.name ?? "Unknown"}
+        </ThemedText>
+        <ThemedText style={[styles.replyText, { color: isOwn ? withAlpha("#FFFFFF", 0.75) : theme.textSecondary }]} numberOfLines={1}>
+          {replyTo.content}
+        </ThemedText>
+      </View>
+    </View>
+  ) : null;
+
+  const senderName = !isOwn && !isGrouped ? (
+    <ThemedText style={[styles.senderName, { color: theme.primary }]}>
+      {message.sender?.name ?? "Unknown"}
+    </ThemedText>
+  ) : null;
+
+  let body: ReactNode;
   if (msgType === "view_once") {
-    return (
-      <View style={[styles.wrapper, isOwn ? styles.ownWrapper : styles.otherWrapper]} {...panResponder.panHandlers}>
+    body = <ViewOnceContent message={message} isOwn={isOwn} />;
+  } else if (msgType === "voice" && voiceUrl) {
+    body = <VoiceMessagePlayer url={voiceUrl} isOwn={isOwn} duration={voiceDuration ?? 0} />;
+  } else if (msgType === "image" && mediaUrl) {
+    body = (
+      <Pressable onPress={() => onViewImage?.(mediaUrl)}>
+        <Image
+          source={{ uri: mediaUrl }}
+          style={styles.chatImage}
+          contentFit="cover"
+          transition={200}
+        />
+        {message.content && message.content !== "📷 Photo" && (
+          <ThemedText style={[styles.content, { color: isOwn ? ownTextColor : otherTextColor }, { paddingHorizontal: 4, paddingTop: 4 }]}>
+            {message.content}
+          </ThemedText>
+        )}
+      </Pressable>
+    );
+  } else if (msgType === "file") {
+    body = (
+      <View style={styles.fileContainer}>
+        <View style={[styles.fileIcon, { backgroundColor: isOwn ? withAlpha("#FFFFFF", 0.15) : theme.backgroundElement }]}>
+          <Ionicons name="document-text-outline" size={24} color={isOwn ? "#FFFFFF" : theme.primary} />
+        </View>
+        <View style={styles.fileInfo}>
+          <ThemedText style={[styles.fileName, { color: isOwn ? "#FFFFFF" : theme.text }]} numberOfLines={1}>
+            {fileName || "File"}
+          </ThemedText>
+          {fileSize && (
+            <ThemedText style={[styles.fileSize, { color: isOwn ? withAlpha("#FFFFFF", 0.6) : theme.textSecondary }]}>
+              {formatFileSize(fileSize)}
+            </ThemedText>
+          )}
+        </View>
+      </View>
+    );
+  } else {
+    body = (
+      <ThemedText style={[styles.content, { color: isOwn ? ownTextColor : otherTextColor }]}>
+        {message.content}
+      </ThemedText>
+    );
+  }
+
+  return (
+    <View style={[styles.wrapper, isOwn ? styles.ownWrapper : styles.otherWrapper]} {...panResponder.panHandlers}>
+      <View style={[styles.bubbleWrap, isOwn ? styles.bubbleWrapOwn : styles.bubbleWrapOther]}>
         <Pressable
           onPress={handleDoubleTap}
           onLongPress={handleLongPress}
           delayLongPress={400}
           style={bubbleStyles}
         >
-          {!isOwn && !isGrouped && (
-            <ThemedText style={styles.senderName}>
-              {message.sender?.name ?? "Unknown"}
-            </ThemedText>
-          )}
-          <ViewOnceContent message={message} isOwn={isOwn} />
-          <View style={styles.metaRow}>
-            <ThemedText style={[styles.time, isOwn ? styles.ownTime : styles.otherTime]}>
-              {formatBubbleTime(message.created_at)}
-            </ThemedText>
-            {isOwn && <ReadCheck status={readStatus} />}
-          </View>
+          {replyBlock}
+          {senderName}
+          {body}
         </Pressable>
+
+        {hasReactions && (
+          <View style={[styles.reactionDock, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+            {reactionEntries.map(([emoji, { count, hasOwn }]) => (
+              <Pressable
+                key={emoji}
+                onPress={() => onReaction?.(message.id, emoji)}
+                style={styles.reactionItem}
+              >
+                <Text style={styles.reactionEmoji}>{emoji}</Text>
+                {count > 1 && (
+                  <ThemedText style={[styles.reactionCount, { color: hasOwn ? theme.primary : theme.textSecondary }]}>
+                    {count}
+                  </ThemedText>
+                )}
+              </Pressable>
+            ))}
+          </View>
+        )}
       </View>
-    );
-  }
 
-  if (msgType === "voice" && voiceUrl) {
-    return (
-      <View style={[styles.wrapper, isOwn ? styles.ownWrapper : styles.otherWrapper]} {...panResponder.panHandlers}>
-        <Pressable
-          onPress={handleDoubleTap}
-          onLongPress={handleLongPress}
-          delayLongPress={400}
-          style={[...bubbleStyles, styles.voiceBubble]}
-        >
-          {!isOwn && !isGrouped && (
-            <ThemedText style={styles.senderName}>
-              {message.sender?.name ?? "Unknown"}
-            </ThemedText>
-          )}
-          <VoicePlayer url={voiceUrl} isOwn={isOwn} duration={voiceDuration ?? 0} />
-          <View style={styles.metaRow}>
-            <ThemedText style={[styles.time, isOwn ? styles.ownTime : styles.otherTime]}>
-              {formatBubbleTime(message.created_at)}
-            </ThemedText>
-            {isEdited && (
-              <ThemedText style={[styles.edited, { color: isOwn ? "rgba(255,255,255,0.4)" : "#71717A" }]}>
-                edited
-              </ThemedText>
-            )}
-            {isOwn && <ReadCheck status={readStatus} />}
-          </View>
-        </Pressable>
+      <View style={[styles.metaRow, isOwn ? styles.metaOwn : styles.metaOther, hasReactions && { marginTop: 14 }]}>
+        <ThemedText style={[styles.time, { color: isOwn ? theme.textTertiary : theme.textSecondary }]}>
+          {formatBubbleTime(message.created_at)}
+        </ThemedText>
+        {isEdited && (
+          <ThemedText style={[styles.edited, { color: isOwn ? theme.textTertiary : theme.textSecondary }]}>
+            edited
+          </ThemedText>
+        )}
+        {isOwn && <ReadCheck status={readStatus} />}
       </View>
-    );
-  }
-
-  return (
-    <View style={[styles.wrapper, isOwn ? styles.ownWrapper : styles.otherWrapper]} {...panResponder.panHandlers}>
-      <Pressable
-        onPress={handleDoubleTap}
-        onLongPress={handleLongPress}
-        delayLongPress={400}
-        style={bubbleStyles}
-      >
-        {replyTo && (
-          <View style={styles.replyBlock}>
-            <View style={[styles.replyBar, { backgroundColor: isOwn ? "rgba(255,255,255,0.4)" : "#6C47FF" }]} />
-            <View style={styles.replyContent}>
-              <ThemedText style={styles.replyName} numberOfLines={1}>
-                {replyTo.sender?.name ?? "Unknown"}
-              </ThemedText>
-              <ThemedText style={[styles.replyText, isOwn && { color: "rgba(255,255,255,0.7)" }]} numberOfLines={1}>
-                {replyTo.content}
-              </ThemedText>
-            </View>
-          </View>
-        )}
-
-        {!isOwn && !isGrouped && (
-          <ThemedText style={styles.senderName}>
-            {message.sender?.name ?? "Unknown"}
-          </ThemedText>
-        )}
-
-        {msgType === "image" && mediaUrl ? (
-          <Pressable onPress={() => onViewImage?.(mediaUrl)}>
-            <Image
-              source={{ uri: mediaUrl }}
-              style={styles.chatImage}
-              contentFit="cover"
-              transition={200}
-            />
-            {message.content && message.content !== "📷 Photo" && (
-              <ThemedText style={[styles.content, isOwn ? styles.ownText : styles.otherText, { paddingHorizontal: 4, paddingTop: 4 }]}>
-                {message.content}
-              </ThemedText>
-            )}
-          </Pressable>
-        ) : msgType === "file" ? (
-          <View style={styles.fileContainer}>
-            <View style={[styles.fileIcon, { backgroundColor: isOwn ? "rgba(255,255,255,0.15)" : "#2A2A2A" }]}>
-              <Ionicons name="document-text-outline" size={24} color={isOwn ? "#FFFFFF" : "#6C47FF"} />
-            </View>
-            <View style={styles.fileInfo}>
-              <ThemedText style={[styles.fileName, { color: isOwn ? "#FFFFFF" : "#E1E1E1" }]} numberOfLines={1}>
-                {fileName || "File"}
-              </ThemedText>
-              {fileSize && (
-                <ThemedText style={[styles.fileSize, { color: isOwn ? "rgba(255,255,255,0.5)" : "#71717A" }]}>
-                  {formatFileSize(fileSize)}
-                </ThemedText>
-              )}
-            </View>
-          </View>
-        ) : (
-          <ThemedText style={[styles.content, isOwn ? styles.ownText : styles.otherText]}>
-            {message.content}
-          </ThemedText>
-        )}
-
-        <View style={styles.metaRow}>
-          <ThemedText style={[styles.time, isOwn ? styles.ownTime : styles.otherTime]}>
-            {formatBubbleTime(message.created_at)}
-          </ThemedText>
-          {isEdited && (
-            <ThemedText style={[styles.edited, { color: isOwn ? "rgba(255,255,255,0.4)" : "#71717A" }]}>
-              edited
-            </ThemedText>
-          )}
-          {isOwn && <ReadCheck status={readStatus} />}
-        </View>
-      </Pressable>
-
-      {reactionEntries.length > 0 && (
-        <View style={[styles.reactionsRow, isOwn ? styles.ownReactionsRow : styles.otherReactionsRow]}>
-          {reactionEntries.map(([emoji, { count, hasOwn }]) => (
-            <Pressable
-              key={emoji}
-              onPress={() => onReaction?.(message.id, emoji)}
-              style={[styles.reactionChip, hasOwn && styles.reactionChipActive]}
-            >
-              <ThemedText style={styles.reactionEmoji}>{emoji}</ThemedText>
-              {count > 1 && <ThemedText style={styles.reactionCount}>{count}</ThemedText>}
-            </Pressable>
-          ))}
-        </View>
-      )}
     </View>
   );
 }
@@ -509,33 +332,36 @@ export const MessageBubble = memo(MessageBubbleInner);
 
 const styles = StyleSheet.create({
   wrapper: { marginVertical: 0, width: "100%", alignSelf: "stretch" },
-  ownWrapper: { alignItems: "flex-end", paddingRight: 12, paddingLeft: 64, marginBottom: 2 },
-  otherWrapper: { alignItems: "flex-start", paddingLeft: 12, paddingRight: 64, marginBottom: 2 },
+  ownWrapper: { alignItems: "flex-end" },
+  otherWrapper: { alignItems: "flex-start" },
+  bubbleWrap: { position: "relative", maxWidth: "80%" },
+  bubbleWrapOwn: { alignSelf: "flex-end" },
+  bubbleWrapOther: { alignSelf: "flex-start" },
   bubble: {
-    maxWidth: "80%",
-    paddingVertical: 7,
-    paddingHorizontal: 12,
+    maxWidth: "100%",
+    paddingVertical: 8,
+    paddingHorizontal: 13,
     borderRadius: 18,
   },
-  ownBubble: { backgroundColor: "#6C47FF", borderBottomRightRadius: 4 },
-  otherBubble: { backgroundColor: "#1C1C1E", borderBottomLeftRadius: 4 },
+  ownBubble: { borderBottomRightRadius: 4 },
+  otherBubble: { borderBottomLeftRadius: 4 },
   groupedMessage: { marginTop: -2 },
   imageBubble: { padding: 4, overflow: "hidden", borderRadius: 16 },
   fileBubble: { padding: 4 },
-  highlighted: { borderWidth: 2, borderColor: "#FFD700" },
-  senderName: { fontSize: 12, fontWeight: "600", color: "#6C47FF", marginBottom: 2, paddingHorizontal: 8 },
+  highlighted: { borderWidth: 2 },
+  senderName: { fontSize: 12, fontWeight: "700", marginBottom: 2, paddingHorizontal: 8 },
   content: { fontSize: 15, lineHeight: 21 },
-  ownText: { color: "#FFFFFF" },
-  otherText: { color: "#E1E1E1" },
   metaRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "flex-end",
-    gap: 3, marginTop: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+    paddingHorizontal: 2,
   },
+  metaOwn: { alignSelf: "flex-end" },
+  metaOther: { alignSelf: "flex-start" },
   time: { fontSize: 10, lineHeight: 14 },
-  ownTime: { color: "rgba(255,255,255,0.5)" },
-  otherTime: { color: "#71717A" },
   readRow: { alignItems: "center", justifyContent: "center" },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
   chatImage: {
     width: 220,
     height: 220,
@@ -579,58 +405,32 @@ const styles = StyleSheet.create({
   viewOnceOpenedText: { fontSize: 13, fontStyle: "italic" },
   replyBlock: {
     flexDirection: "row", marginBottom: 6, gap: 6, padding: 6,
-    backgroundColor: "rgba(0,0,0,0.2)", borderRadius: 8,
+    borderRadius: 8,
   },
   replyBar: { width: 3, borderRadius: 1.5 },
   replyContent: { flex: 1, gap: 1 },
-  replyName: { fontSize: 11, fontWeight: "700", color: "#6C47FF" },
-  replyText: { fontSize: 12, color: "#9E9E9E", lineHeight: 16 },
-  reactionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4 },
-  ownReactionsRow: { paddingRight: 12, justifyContent: "flex-end" },
-  otherReactionsRow: { paddingLeft: 12 },
-  reactionChip: {
-    flexDirection: "row", alignItems: "center", gap: 2,
-    backgroundColor: "#1C1C1E", borderRadius: 12, paddingHorizontal: 7, paddingVertical: 2,
-    borderWidth: 1, borderColor: "transparent",
-  },
-  reactionChipActive: { borderColor: "#6C47FF", backgroundColor: "rgba(108,71,255,0.12)" },
-  reactionEmoji: { fontSize: 14 },
-  reactionCount: { fontSize: 11, color: "#9E9E9E", fontWeight: "600" },
-  voiceBubble: { minWidth: 200, paddingVertical: 10, paddingHorizontal: 12 },
-  voiceContainer: { flexDirection: "row", alignItems: "center", gap: 10 },
-  playBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  voiceInfo: { flex: 1, gap: 4 },
-  voiceBar: { height: 20, borderRadius: 4, overflow: "visible", position: "relative", justifyContent: "center" },
-  voiceProgress: { height: 6, borderRadius: 3, position: "absolute", left: 0, top: 0 },
-  voiceDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  replyName: { fontSize: 11, fontWeight: "700" },
+  replyText: { fontSize: 12, lineHeight: 16 },
+  reactionDock: {
     position: "absolute",
-    top: -3,
-    marginLeft: -5,
-  },
-  voiceTime: { fontSize: 10, letterSpacing: 0.2 },
-  voiceMeta: {
+    bottom: -10,
+    right: 8,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
+    gap: 2,
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  speedBadge: {
-    fontSize: 9,
-    fontWeight: "600",
-    paddingHorizontal: 5,
+  reactionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 2,
     paddingVertical: 1,
-    borderRadius: 4,
-    overflow: "hidden",
-    letterSpacing: 0.3,
   },
-  edited: { fontSize: 10, fontStyle: "italic", marginLeft: 4 },
+  reactionEmoji: { fontSize: 13 },
+  reactionCount: { fontSize: 11, fontWeight: "600" },
+  edited: { fontSize: 10, fontStyle: "italic" },
 });

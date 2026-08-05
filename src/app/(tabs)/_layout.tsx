@@ -70,8 +70,7 @@ export default function TabLayout() {
         <FeedSkeleton />
       </View>
     );
-  }
-  if (!session) return <Redirect href="/" />;
+  }  if (!session) return <Redirect href="/" />;
   if (!profile) return <Redirect href="/onboarding" />;
 
   if (profile.banned) {
@@ -123,8 +122,6 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
     backgroundColor: "#000000",
   },
   root: {

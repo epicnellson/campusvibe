@@ -3,13 +3,22 @@ import { getCurrentUser, db, auth } from "@/services/firebase";
 import { withRetry } from "@/services/retry";
 import { sanitizeText } from "@/services/sanitize";
 import { notifyMessage } from "@/services/notifications";
-import { collection, query, where, onSnapshot, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayUnion } from "firebase/firestore";
+import { collection, query, where, onSnapshot, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayUnion, writeBatch } from "firebase/firestore";
 import { toDate } from "@/utils/date";
 import type {
   Channel,
   Message,
   MessageWithSender,
 } from "@/services/database.types";
+
+const profileCache = new Map<string, { name: string; avatar_url: string | null }>();
+async function getCachedProfile(userId: string): Promise<{ name: string; avatar_url: string | null } | null> {
+  if (profileCache.has(userId)) return profileCache.get(userId) ?? null;
+  const p = await db_ops.get("profiles", userId);
+  const result = p ? { name: p.name, avatar_url: p.avatar_url } : null;
+  if (result) profileCache.set(userId, result);
+  return result;
+}
 
 export async function fetchUserChannels(
   userId: string
@@ -51,30 +60,49 @@ export async function fetchMessages(channelId: string): Promise<MessageWithSende
     });
 
     const senderIds = [...new Set(messages.map((m) => m.user_id).filter(Boolean))];
-    const profiles = await Promise.all(senderIds.map((id) => db_ops.get("profiles", id)));
-    const profileMap = new Map(profiles.filter(Boolean).map((p) => [p!.id, p]));
+    const profileEntries = await Promise.all(
+      senderIds.map(async (id) => [id, await getCachedProfile(id)] as const)
+    );
+    const profileMap = new Map(profileEntries.filter(([, p]) => !!p));
 
-    return messages.map((m) => ({
-      ...m,
-      sender: profileMap.get(m.user_id) ?? null,
-    })) as unknown as MessageWithSender[];
+    return messages.map((m) => {
+      const p = profileMap.get(m.user_id);
+      return {
+        ...m,
+        sender: p ? { name: p.name, avatar_url: p.avatar_url } : null,
+      } as unknown as MessageWithSender;
+    });
   });
+}
+
+export function generateMessageId(): string {
+  return doc(collection(db, "messages")).id;
 }
 
 export async function sendMessage(
   channelId: string,
-  content: string
+  content: string,
+  messageId?: string
 ): Promise<void> {
   const user = getCurrentUser();
 
-  await db_ops.add("messages", {
+  const payload = {
     channel_id: channelId,
     user_id: user.uid,
     content: sanitizeText(content),
     status: "sent",
     seen_by: [],
     created_at: new Date().toISOString(),
-  });
+  };
+
+  if (messageId) {
+    await db_ops.set("messages", messageId, {
+      ...payload,
+      client_id: messageId,
+    });
+  } else {
+    await db_ops.add("messages", payload);
+  }
 
   db_ops.query("channel_members", {
     conditions: [{ field: "channel_id", op: "==", value: channelId }],
@@ -94,7 +122,8 @@ export async function sendMessage(
 
 export function subscribeToMessages(
   channelId: string,
-  onMessage: (msg: MessageWithSender) => void
+  onMessage: (msg: MessageWithSender) => void,
+  onUpdate?: (msg: MessageWithSender) => void
 ) {
   const q = query(
     collection(db, "messages"),
@@ -103,17 +132,23 @@ export function subscribeToMessages(
 
   const unsubscribe = onSnapshot(q, async (snapshot) => {
     for (const change of snapshot.docChanges()) {
+      const msg = { id: change.doc.id, ...change.doc.data() } as Message;
       if (change.type === "added") {
-        const msg = { id: change.doc.id, ...change.doc.data() } as Message;
-        const profile = await db_ops.get("profiles", msg.user_id);
+        const profile = await getCachedProfile(msg.user_id);
         const msgWithSender: MessageWithSender = {
           ...msg,
-          sender: profile as any ?? null,
+          sender: profile ?? null,
         };
         onMessage(msgWithSender);
+      } else if (change.type === "modified" && onUpdate) {
+        const msgWithSender: MessageWithSender = {
+          ...msg,
+          sender: null,
+        };
+        onUpdate(msgWithSender);
       }
     }
-  });
+  }, () => {});
 
   return unsubscribe;
 }
@@ -211,7 +246,7 @@ export async function fetchAllUsers(
 
 export async function fetchChannelLastMessage(
   channelId: string
-): Promise<{ content: string; created_at: string; senderName: string; type?: string } | null> {
+): Promise<{ content: string; created_at: string; senderName: string; type?: string; senderId: string } | null> {
   return withRetry(async () => {
     const messages = await db_ops.query("messages", {
       conditions: [{ field: "channel_id", op: "==", value: channelId }],
@@ -239,6 +274,7 @@ export async function fetchChannelLastMessage(
       created_at: createdAt,
       senderName: sender?.name ?? "",
       type: msg.type ?? "text",
+      senderId: msg.user_id ?? "",
     };
   });
 }
@@ -296,10 +332,12 @@ export async function toggleReaction(
 export async function sendReply(
   channelId: string,
   content: string,
-  replyToId: string
+  replyToId: string,
+  messageId?: string
 ): Promise<void> {
   const user = getCurrentUser();
-  await db_ops.add("messages", {
+
+  const payload = {
     channel_id: channelId,
     user_id: user.uid,
     content: sanitizeText(content),
@@ -307,7 +345,16 @@ export async function sendReply(
     status: "sent",
     seen_by: [],
     created_at: new Date().toISOString(),
-  });
+  };
+
+  if (messageId) {
+    await db_ops.set("messages", messageId, {
+      ...payload,
+      client_id: messageId,
+    });
+  } else {
+    await db_ops.add("messages", payload);
+  }
 
   db_ops.query("channel_members", {
     conditions: [{ field: "channel_id", op: "==", value: channelId }],
@@ -387,7 +434,7 @@ export function subscribeToChannelUpdates(
           userId: latest.user_id ?? "",
         });
       }
-    });
+    }, () => {});
 
     unsubscribes.push(unsubscribe);
   }
@@ -602,6 +649,16 @@ export async function markSeen(messageId: string): Promise<void> {
   });
 }
 
+export async function markAllSeen(messageIds: string[]): Promise<void> {
+  const user = getCurrentUser();
+  if (!user || messageIds.length === 0) return;
+  const batch = writeBatch(db);
+  for (const msgId of messageIds) {
+    batch.update(doc(db, "messages", msgId), { seen_by: arrayUnion(user.uid) });
+  }
+  await batch.commit();
+}
+
 export async function updateOnlineStatus(): Promise<void> {
   const user = getCurrentUser();
   if (!user) return;
@@ -614,6 +671,41 @@ export async function updateOnlineStatus(): Promise<void> {
 export async function getOnlineStatus(userId: string): Promise<{ last_seen: string } | null> {
   const status = await db_ops.get("online_status", userId);
   return status as any;
+}
+
+export async function setTypingStatus(channelId: string, isTyping: boolean): Promise<void> {
+  const user = getCurrentUser();
+  if (!user) return;
+  const typingId = `typing_${channelId}_${user.uid}`;
+  if (isTyping) {
+    await db_ops.set("typing_status", typingId, {
+      channel_id: channelId,
+      user_id: user.uid,
+      started_at: new Date().toISOString(),
+    });
+  } else {
+    await db_ops.delete("typing_status", typingId).catch(() => {});
+  }
+}
+
+export function subscribeToTypingStatus(
+  channelId: string,
+  excludeUserId: string,
+  callback: (isTyping: boolean) => void
+): () => void {
+  const q = query(
+    collection(db, "typing_status"),
+    where("channel_id", "==", channelId)
+  );
+  return onSnapshot(q, (snap) => {
+    const otherTyping = snap.docs.some((d) => {
+      const data = d.data();
+      if (data.user_id === excludeUserId) return false;
+      const started = new Date(data.started_at ?? 0).getTime();
+      return Date.now() - started < 3000;
+    });
+    callback(otherTyping);
+  }, () => {});
 }
 
 export function subscribeToOnlineStatus(
@@ -630,7 +722,7 @@ export function subscribeToOnlineStatus(
     const lastSeen = new Date(data.last_seen).getTime();
     const now = Date.now();
     callback(now - lastSeen < 2 * 60 * 1000);
-  });
+  }, () => {});
 }
 
 export async function reportUser(targetUserId: string, reason: string): Promise<void> {
@@ -658,10 +750,11 @@ export async function reportMessage(messageId: string, reason: string, channelOw
 export async function sendVoiceMessage(
   channelId: string,
   voiceUrl: string,
-  duration: number
+  duration: number,
+  messageId?: string
 ): Promise<void> {
   const user = getCurrentUser();
-  await db_ops.add("messages", {
+  const payload = {
     channel_id: channelId,
     user_id: user.uid,
     content: "🎙️ Voice message",
@@ -671,7 +764,15 @@ export async function sendVoiceMessage(
     status: "sent",
     seen_by: [],
     created_at: new Date().toISOString(),
-  });
+  };
+  if (messageId) {
+    await db_ops.set("messages", messageId, {
+      ...payload,
+      client_id: messageId,
+    });
+  } else {
+    await db_ops.add("messages", payload);
+  }
 
   db_ops.query("channel_members", {
     conditions: [{ field: "channel_id", op: "==", value: channelId }],

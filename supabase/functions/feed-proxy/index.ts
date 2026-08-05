@@ -52,8 +52,12 @@ async function proxyYouTube(params: URLSearchParams): Promise<Response> {
     const q = params.get("q") ?? ""
     const pageToken = params.get("pageToken") ?? ""
     const pageParam = pageToken ? `&pageToken=${pageToken}` : ""
+    // Localize results to English content: relevanceLanguage + regionCode make
+    // searches return English-language videos even for non-English IPs.
+    const languageParam = params.get("relevanceLanguage") ?? "en"
+    const regionParam = params.get("regionCode") ?? "US"
     const res = await fetchWithTimeout(
-      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=${encodeURIComponent(q)}&maxResults=${Math.min(parseInt(pageSize), 10)}&key=${key}${pageParam}`
+      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=${encodeURIComponent(q)}&maxResults=${Math.min(parseInt(pageSize), 10)}&key=${key}&relevanceLanguage=${languageParam}&regionCode=${regionParam}${pageParam}`
     )
     if (!res.ok) return Response.json({ error: `YouTube search ${res.status}` }, { status: res.status, headers: CORS_HEADERS })
     return Response.json(await res.json(), { headers: CORS_HEADERS })
@@ -174,6 +178,27 @@ async function proxyBluesky(params: URLSearchParams): Promise<Response> {
   return Response.json(await res.json(), { headers: CORS_HEADERS })
 }
 
+const REDDIT_USER_AGENT = "web:campusvibe:v1.0.0 (by /u/campusvibe)"
+
+async function proxyReddit(params: URLSearchParams): Promise<Response> {
+  const subreddit = params.get("subreddit") ?? "funny"
+  const limit = Math.min(parseInt(params.get("limit") ?? "20") || 20, 25)
+  const after = params.get("after") ?? ""
+  const afterParam = after ? `&after=${after}` : ""
+
+  const res = await fetchWithTimeout(
+    `https://www.reddit.com/r/${encodeURIComponent(subreddit)}/hot.json?limit=${limit}${afterParam}`,
+    { headers: { "User-Agent": REDDIT_USER_AGENT } }
+  )
+  // Reddit rate-limits/blocks cloud IPs. Treat 403/429 as an empty listing so
+  // the client's multi-provider fallback (Pexels/GIPHY/campus) continues smoothly.
+  if (res.status === 403 || res.status === 429) {
+    return Response.json({ data: { children: [], after: null } }, { headers: CORS_HEADERS })
+  }
+  if (!res.ok) return Response.json({ error: `Reddit ${res.status}` }, { status: res.status, headers: CORS_HEADERS })
+  return Response.json(await res.json(), { headers: CORS_HEADERS })
+}
+
 const ROUTERS: Record<string, (params: URLSearchParams) => Promise<Response>> = {
   youtube: proxyYouTube,
   news: proxyNews,
@@ -182,6 +207,7 @@ const ROUTERS: Record<string, (params: URLSearchParams) => Promise<Response>> = 
   giphy: proxyGiphy,
   pexels: proxyPexels,
   bluesky: proxyBluesky,
+  reddit: proxyReddit,
 }
 
 Deno.serve(async (req: Request) => {

@@ -39,10 +39,17 @@ function formatPrice(price: string): string {
 
 export default function ListingDetailScreen() {
   const colors = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id?: string | string[] }>();
   const { session } = useSession();
   const toast = useToast();
-  const listingId = id!;
+  // Normalize the route param to a single string. useLocalSearchParams may
+  // return `string | string[]`, and a missing id must not crash the lookup.
+  const listingId =
+    typeof params.id === "string"
+      ? params.id
+      : Array.isArray(params.id) && params.id.length > 0
+        ? params.id[0]
+        : "";
   const currentUserId = session?.user?.id;
 
   const [listing, setListing] = useState<ListingWithSeller | null>(null);
@@ -56,44 +63,71 @@ export default function ListingDetailScreen() {
   useEffect(() => {
     const load = async () => {
       try {
-        const listingData = await db_ops.get("listings", listingId);
-        if (listingData) {
-          const [sellerProfile, savedCheck] = await Promise.all([
-            db_ops.get("profiles", listingData.user_id),
-            currentUserId
-              ? db_ops.query("saved_listings", {
-                  conditions: [
-                    { field: "user_id", op: "==", value: currentUserId },
-                    { field: "listing_id", op: "==", value: listingId },
-                  ],
-                })
-              : Promise.resolve([]),
-          ]);
+        if (!listingId) return;
+        let listingData = await db_ops.get("listings", listingId);
+        if (!listingData) {
+          // Fallback fetch: listings are returned as `{ id: docId, ...data }`,
+          // so a stored `id` field can shadow the Firestore document id. Match
+          // with String() coercion against the route id to find the doc either way.
+          const candidates = await db_ops.query("listings", { limitCount: 200 });
+          listingData = candidates.find((c: any) => String(c.id) === String(listingId)) ?? null;
+        }
+        if (!listingData) return;
 
-          setListing({
-            ...listingData,
-            seller: sellerProfile ? { name: sellerProfile.name, id: sellerProfile.id } : null,
-          } as unknown as ListingWithSeller);
-          setSellerAvatar(sellerProfile?.avatar_url ?? null);
-          setSaved(savedCheck.length > 0);
+        setListing({
+          ...listingData,
+          seller: null,
+        } as unknown as ListingWithSeller);
 
-          if (sellerProfile) {
-            const sellerListings = await db_ops.query("listings", {
-              conditions: [{ field: "user_id", op: "==", value: listingData.user_id }],
-              orderBy: [{ field: "created_at", direction: "desc" }],
-              limitCount: 5,
-            });
+        // Secondary lookups run independently and must never block the listing
+        // from rendering: a permission/index error on one (e.g. saved_listings)
+        // previously failed the whole load and surfaced as "Listing not found".
+        const loadSeller = async () => {
+          try {
+            const sellerProfile = await db_ops.get("profiles", listingData.user_id);
+            if (!sellerProfile) return;
+            setSellerAvatar(sellerProfile.avatar_url ?? null);
+            setListing((prev) =>
+              prev ? { ...prev, seller: { name: sellerProfile.name, id: sellerProfile.id } } : prev
+            );
+            const sellerListings = (await db_ops
+              .query("listings", {
+                conditions: [{ field: "user_id", op: "==", value: listingData.user_id }],
+                orderBy: [{ field: "created_at", direction: "desc" }],
+                limitCount: 5,
+              })
+              .catch(() => [])) as any[];
             setOtherListings(
               sellerListings
-                .filter((l: any) => l.id !== listingId)
+                .filter((l: any) => String(l.id) !== String(listingId))
                 .slice(0, 4)
                 .map((l: any) => ({
                   ...l,
                   seller: { name: sellerProfile.name },
                 })) as unknown as ListingWithSeller[]
             );
+          } catch {
+            // seller info is best-effort; the listing still renders
           }
-        }
+        };
+
+        const loadSaved = async () => {
+          try {
+            if (!currentUserId) return;
+            const savedCheck = await db_ops.query("saved_listings", {
+              conditions: [
+                { field: "user_id", op: "==", value: currentUserId },
+                { field: "listing_id", op: "==", value: listingId },
+              ],
+            });
+            setSaved(savedCheck.length > 0);
+          } catch {
+            // saved status is best-effort; the listing still renders
+          }
+        };
+
+        loadSeller();
+        loadSaved();
       } catch (e) {
         console.warn("Failed to load listing:", e);
       } finally {
@@ -172,7 +206,7 @@ export default function ListingDetailScreen() {
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ThemedView style={styles.header}>
           <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </Pressable>
           <ThemedText type="smallBold" style={styles.headerTitle} numberOfLines={1}>
             {listing.title}
@@ -305,7 +339,7 @@ export default function ListingDetailScreen() {
                   return (
                     <Pressable
                       key={item.id}
-                      onPress={() => router.push(`/listing/${item.id}`)}
+                      onPress={() => router.push({ pathname: "/listing/[id]", params: { id: String(item.id) } })}
                       style={({ pressed }) => [styles.relatedCard, pressed && { opacity: 0.7 }]}
                     >
                       {photo ? (

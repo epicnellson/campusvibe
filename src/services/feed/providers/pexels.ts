@@ -1,6 +1,6 @@
 import type { IFeedProvider, FetchContext, FetchResult, RateBudget, HealthStatus } from "./types";
 import type { FeedItem } from "../types";
-import { computeDedupKeys } from "../normalize";
+import { computeDedupKeys, shuffle } from "../normalize";
 import { feedProxy } from "@/services/feed-proxy";
 
 const PHOTO_QUERIES = [
@@ -27,26 +27,30 @@ const PHOTO_QUERIES = [
 ];
 
 const VIDEO_QUERIES = [
-  "students university campus fun",
-  "college classroom experiment",
-  "student dancing campus",
-  "university sports highlight",
-  "campus life walking tour",
-  "graduation celebration confetti",
-  "college talent show",
-  "student hackathon coding",
-  "university lab experiment",
-  "campus drone aerial view",
-  "college music performance",
-  "student yoga fitness",
-  "university debate speech",
-  "campus sunset timelapse",
-  "college fashion runway",
-  "student art installation",
-  "university theater play",
-  "campus sports match",
-  "college food challenge",
-  "student volunteer work",
+  // Campus & College Life
+  "college campus life",
+  "university student comedy",
+  "dorm room",
+  "college sports highlights",
+  "campus party celebration",
+  "student dorm hacks",
+  "university events",
+  // Funny & Memes
+  "funny bloopers",
+  "funny pets",
+  "funny fail",
+  "funny animals",
+  "funny moments",
+  "relatable comedy",
+  "humor",
+  "laughing people",
+  // Trending & Music
+  "dance trend",
+  "trending music",
+  "dance party",
+  "viral dance",
+  "music festival",
+  "concert crowd",
 ];
 
 type PexelsState = {
@@ -68,6 +72,11 @@ export class PexelsProvider implements IFeedProvider {
   async fetch(ctx: FetchContext): Promise<FetchResult> {
     try {
       const queries = this.state.mode === "photo" ? PHOTO_QUERIES : VIDEO_QUERIES;
+      // Randomize on the first page of a new query so every cold load / refresh
+      // starts from a random seed; subsequent pages stay on the same query.
+      if (this.state.page === 1 && this.state.pagesForMode === 0) {
+        this.state = { ...this.state, queryIndex: Math.floor(Math.random() * queries.length) };
+      }
       const query = queries[this.state.queryIndex % queries.length];
 
       const data = await feedProxy("pexels", {
@@ -85,7 +94,7 @@ export class PexelsProvider implements IFeedProvider {
 
       let nextState: PexelsState;
       if (rawItems.length === 0 || pagesForMode >= maxPagesPerMode || this.state.page * 10 >= total) {
-        const nextQueryIdx = (this.state.queryIndex + 1) % queries.length;
+        const nextQueryIdx = Math.floor(Math.random() * queries.length);
         if (this.state.queryIndex + 1 >= queries.length) {
           if (this.state.mode === "photo") {
             nextState = { mode: "video", queryIndex: 0, page: 1, pagesForMode: 0, done: false };
@@ -118,10 +127,11 @@ export class PexelsProvider implements IFeedProvider {
 
   normalize(raw: unknown[], fetchedAt: Date): FeedItem[] {
     const sample = raw[0] as any;
-    if (sample?.video_files?.length > 0) {
-      return this.normalizeVideos(raw, fetchedAt);
-    }
-    return this.normalizePhotos(raw, fetchedAt);
+    const items =
+      sample?.video_files?.length > 0
+        ? this.normalizeVideos(raw, fetchedAt)
+        : this.normalizePhotos(raw, fetchedAt);
+    return shuffle(items);
   }
 
   private normalizePhotos(raw: unknown[], fetchedAt: Date): FeedItem[] {

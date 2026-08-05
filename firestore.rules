@@ -74,6 +74,14 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.user_id) || isAdmin();
     }
 
+    // ── saved_listings ────────────────────────────────
+    match /saved_listings/{savedId} {
+      allow read: if isOwner(resource.data.user_id);
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isOwner(resource.data.user_id);
+      allow delete: if isOwner(resource.data.user_id);
+    }
+
     // ── channels ──────────────────────────────────────
     match /channels/{channelId} {
       allow read: if isAuthenticated();
@@ -185,10 +193,18 @@ service cloud.firestore {
       allow write: if isOwner(userId);
     }
 
-    // ── typing ─────────────────────────────────────────
-    match /typing/{channelId} {
+    // ── typing_status ──────────────────────────────────
+    match /typing_status/{channelId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated();
+    }
+
+    // ── calls ─────────────────────────────────────────
+    match /calls/{callId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
   }
 }

@@ -11,6 +11,9 @@ const ICE_SERVERS = [
   { urls: "turn:openrelay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
 ];
 
+// Ringing call is auto-declared "missed" after this long if nobody answers.
+const RINGING_TIMEOUT_MS = 30_000;
+
 export type CallType = "audio" | "video";
 export type CallStatus = "ringing" | "connecting" | "connected" | "ended" | "missed";
 export type CallDirection = "outgoing" | "incoming";
@@ -30,6 +33,8 @@ type CallEventHandlers = {
   onStatusChange: (status: CallStatus) => void;
   onError: (error: string) => void;
 };
+
+export type { CallEventHandlers };
 
 function loadWebrtc(): any {
   if (Platform.OS === "web") {
@@ -60,7 +65,9 @@ class WebRTCService {
   private remoteDescriptionSet = false;
   private processedIceCandidates = new Set<string>();
   private amCaller = false;
+  private speakerEnabled = true;
   private webrtc: any = null;
+  private ringingTimeout: ReturnType<typeof setTimeout> | null = null;
 
   private getWebrtc() {
     if (!this.webrtc) this.webrtc = loadWebrtc();
@@ -80,6 +87,74 @@ class WebRTCService {
     }
   }
 
+  private describeMediaError(err: any): string {
+    const msg = err?.message ?? "";
+    if (msg.includes("NotAllowed") || msg.includes("permission") || msg.includes("Permission")) {
+      return "Camera/microphone permission denied. Allow access in your browser or device settings.";
+    }
+    if (msg.includes("NotFound")) return "No camera or microphone found on this device.";
+    if (msg.includes("NotReadable")) return "Camera or microphone is busy. Close other apps using them.";
+    if (msg.includes("Overconstrained")) return "No device matches the requested camera settings.";
+    return "Could not access camera/microphone.";
+  }
+
+  async requestMediaPermissions(callType: CallType): Promise<{ granted: boolean; reason?: string }> {
+    const w = this.getWebrtc();
+    if (!w) {
+      return {
+        granted: false,
+        reason: Platform.OS === "web"
+          ? "Your browser does not support WebRTC. Try Chrome, Firefox, or Safari."
+          : "WebRTC not available on this platform",
+      };
+    }
+    if (Platform.OS === "web") {
+      try {
+        const md = w.mediaDevices ?? w;
+        const stream = await md.getUserMedia({
+          audio: true,
+          video: callType === "video" ? true : false,
+        });
+        stream.getTracks().forEach((t: any) => t.stop());
+        return { granted: true };
+      } catch (err: any) {
+        return { granted: false, reason: this.describeMediaError(err) };
+      }
+    }
+    try {
+      if (callType === "video") {
+        const { requestCameraPermissionsAsync } = await import("expo-image-picker");
+        const cam = await requestCameraPermissionsAsync();
+        if (!cam.granted) {
+          return { granted: false, reason: "Camera permission denied. Allow camera access to start a video call." };
+        }
+      }
+      const { requestRecordingPermissionsAsync } = await import("expo-audio");
+      const mic = await requestRecordingPermissionsAsync();
+      if (!mic.granted) {
+        return { granted: false, reason: "Microphone permission denied. Allow microphone access to start a call." };
+      }
+      return { granted: true };
+    } catch {
+      return { granted: false, reason: "Could not request media permissions." };
+    }
+  }
+
+  async toggleSpeaker(): Promise<boolean> {
+    if (Platform.OS === "android") {
+      try {
+        const { setAudioModeAsync } = await import("expo-audio");
+        this.speakerEnabled = !this.speakerEnabled;
+        await setAudioModeAsync({ shouldRouteThroughEarpiece: !this.speakerEnabled });
+        return this.speakerEnabled;
+      } catch {
+        return this.speakerEnabled;
+      }
+    }
+    this.speakerEnabled = !this.speakerEnabled;
+    return this.speakerEnabled;
+  }
+
   async startLocalStream(callType: CallType): Promise<any> {
     const w = this.getWebrtc();
     if (!w) return null;
@@ -91,15 +166,7 @@ class WebRTCService {
       });
       return this.localStream;
     } catch (err: any) {
-      const msg = err?.message ?? "";
-      if (msg.includes("NotAllowed") || msg.includes("permission"))
-        this.handlers?.onError("Camera/microphone permission denied. Allow access in browser settings.");
-      else if (msg.includes("NotFound"))
-        this.handlers?.onError("No camera or microphone found on this device.");
-      else if (msg.includes("NotReadable"))
-        this.handlers?.onError("Camera or microphone is busy. Close other apps using them.");
-      else
-        this.handlers?.onError("Could not access camera/microphone.");
+      this.handlers?.onError(this.describeMediaError(err));
       return null;
     }
   }
@@ -166,17 +233,31 @@ class WebRTCService {
     const stream = await this.startLocalStream(callType);
     if (!stream) return null;
 
+    // Fetch the caller's display name/avatar so the callee's incoming-call UI
+    // can show who is calling without an extra lookup.
+    let callerName = "";
+    let callerAvatar: string | null = null;
+    try {
+      const profile = await db_ops.get("profiles", user.uid);
+      callerName = profile?.name ?? "";
+      callerAvatar = profile?.avatar_url ?? null;
+    } catch {
+    }
+
     const callData = {
       caller_id: user.uid,
       callee_id: calleeId,
       call_type: callType,
       status: "ringing",
+      caller_name: callerName,
+      caller_avatar_url: callerAvatar,
       offer: null,
       answer: null,
       caller_ice: [],
       callee_ice: [],
       answered_at: null,
       ended_at: null,
+      created_at: db_ops.serverTimestamp(),
     };
 
     const w = this.getWebrtc();
@@ -193,6 +274,22 @@ class WebRTCService {
     this.amCaller = true;
     this.createPeerConnection();
     this.addLocalTracksToPeer();
+
+    // If nobody answers within 30s, the call is auto-declared "missed" so both
+    // sides (caller modal + callee global banner) resolve to a terminal state.
+    if (this.ringingTimeout) clearTimeout(this.ringingTimeout);
+    this.ringingTimeout = setTimeout(async () => {
+      try {
+        const doc = await db_ops.get("calls", callId);
+        if (doc && doc.status === "ringing") {
+          await db_ops.update("calls", callId, {
+            status: "missed",
+            ended_at: db_ops.serverTimestamp(),
+          });
+        }
+      } catch {
+      }
+    }, RINGING_TIMEOUT_MS);
 
     const offer = await this.pc!.createOffer();
     await this.pc!.setLocalDescription(offer);
@@ -251,8 +348,8 @@ class WebRTCService {
 
       const w = this.getWebrtc();
       const status = doc.status as string;
-      if (status === "ended" || status === "missed") {
-        this.handlers?.onStatusChange(status as CallStatus);
+      if (status === "ended" || status === "missed" || status === "rejected") {
+        this.handlers?.onStatusChange(status === "rejected" ? "missed" : (status as CallStatus));
         this.close();
         return;
       }
@@ -349,7 +446,7 @@ class WebRTCService {
   async declineCall(callId: string): Promise<void> {
     try {
       await db_ops.update("calls", callId, {
-        status: "missed",
+        status: "rejected",
         ended_at: db_ops.serverTimestamp(),
       });
     } catch {
@@ -358,6 +455,10 @@ class WebRTCService {
   }
 
   close() {
+    if (this.ringingTimeout) {
+      clearTimeout(this.ringingTimeout);
+      this.ringingTimeout = null;
+    }
     if (this.unsubscribeCallDoc) {
       this.unsubscribeCallDoc();
       this.unsubscribeCallDoc = null;

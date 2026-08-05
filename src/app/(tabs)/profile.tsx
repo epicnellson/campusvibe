@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/themed-text";
 import { Avatar } from "@/components/ui/Avatar";
+import { ProfileSkeleton } from "@/components/feed-skeleton";
 import { spacing } from "@/theme";
 import { useProfile } from "@/hooks/use-profile";
 import { useSession } from "@/hooks/use-session";
@@ -446,11 +447,13 @@ export default function ProfileScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <View style={styles.skeletonAvatar} />
-        <View style={[styles.skeletonBlock, { width: 120, height: 16, marginTop: 16 }]} />
-        <View style={[styles.skeletonBlock, { width: 80, height: 12, marginTop: 8 }]} />
-        <View style={[styles.skeletonBlock, { width: 200, height: 12, marginTop: 8 }]} />
+      <View style={styles.container}>
+        <View style={styles.inner}>
+          <View style={styles.topBar}>
+            <View style={styles.topBarBtn} />
+          </View>
+          <ProfileSkeleton withHeader={false} />
+        </View>
       </View>
     );
   }
@@ -540,7 +543,7 @@ export default function ProfileScreen() {
             {row.map((item) => (
               <Pressable
                 key={item.id}
-                onPress={() => router.push(`/listing/${item.id}`)}
+                onPress={() => router.push({ pathname: "/listing/[id]", params: { id: String(item.id) } })}
                 style={({ pressed }) => [styles.gridCard, pressed && styles.pressed]}
               >
                 <View style={styles.gridImageBg}>

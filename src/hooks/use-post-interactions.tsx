@@ -16,6 +16,8 @@ type PostInteractionsCtx = PostInteractionsState & {
   incrementCommentCount: (postId: string) => void;
   decrementCommentCount: (postId: string) => void;
   setReactionsForPost: (postId: string, reactions: Reaction[]) => void;
+  setRepostedForPost: (postId: string, reposted: boolean) => void;
+  setRepostCountForPost: (postId: string, count: number) => void;
   bulkSetReactions: (map: Map<string, Reaction[]>) => void;
   bulkSetRepostedIds: (ids: Set<string>) => void;
   bulkSetRepostCounts: (counts: Map<string, number>) => void;
@@ -106,6 +108,55 @@ export function PostInteractionsProvider({ children }: { children: React.ReactNo
     });
   }, []);
 
+  const setRepostedForPost = useCallback((postId: string, reposted: boolean) => {
+    setRepostedIds((prev) => {
+      const next = new Set(prev);
+      if (reposted) next.add(postId);
+      else next.delete(postId);
+      return next;
+    });
+  }, []);
+
+  const setRepostCountForPost = useCallback((postId: string, count: number) => {
+    setRepostCounts((prev) => {
+      const next = new Map(prev);
+      next.set(postId, count);
+      return next;
+    });
+  }, []);
+
+  const bulkSetReactions = useCallback((incoming: Map<string, Reaction[]>) => {
+    setReactionsMap((prev) => {
+      const next = new Map(prev);
+      for (const [postId, reactions] of incoming) next.set(postId, reactions);
+      return next;
+    });
+  }, []);
+
+  const bulkSetRepostedIds = useCallback((incoming: Set<string>) => {
+    setRepostedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of incoming) next.add(id);
+      return next;
+    });
+  }, []);
+
+  const bulkSetRepostCounts = useCallback((incoming: Map<string, number>) => {
+    setRepostCounts((prev) => {
+      const next = new Map(prev);
+      for (const [postId, count] of incoming) next.set(postId, count);
+      return next;
+    });
+  }, []);
+
+  const bulkSetCommentCounts = useCallback((incoming: Map<string, number>) => {
+    setCommentCounts((prev) => {
+      const next = new Map(prev);
+      for (const [postId, count] of incoming) next.set(postId, count);
+      return next;
+    });
+  }, []);
+
   const value = useMemo<PostInteractionsCtx>(() => ({
     reactionsMap,
     repostedIds,
@@ -118,11 +169,13 @@ export function PostInteractionsProvider({ children }: { children: React.ReactNo
     incrementCommentCount,
     decrementCommentCount,
     setReactionsForPost,
-    bulkSetReactions: setReactionsMap,
-    bulkSetRepostedIds: setRepostedIds,
-    bulkSetRepostCounts: setRepostCounts,
-    bulkSetCommentCounts: setCommentCounts,
-  }), [reactionsMap, repostedIds, repostCounts, commentCounts, toggleLike, toggleReaction, toggleRepost, setCommentCountFn, incrementCommentCount, decrementCommentCount, setReactionsForPost]);
+    setRepostedForPost,
+    setRepostCountForPost,
+    bulkSetReactions,
+    bulkSetRepostedIds,
+    bulkSetRepostCounts,
+    bulkSetCommentCounts,
+  }), [reactionsMap, repostedIds, repostCounts, commentCounts, toggleLike, toggleReaction, toggleRepost, setCommentCountFn, incrementCommentCount, decrementCommentCount, setReactionsForPost, setRepostedForPost, setRepostCountForPost, bulkSetReactions, bulkSetRepostedIds, bulkSetRepostCounts, bulkSetCommentCounts]);
 
   return (
     <PostInteractionsContext.Provider value={value}>

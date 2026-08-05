@@ -1,49 +1,51 @@
 import type { IFeedProvider, FetchContext, FetchResult, RateBudget, HealthStatus } from "./types";
 import type { FeedItem } from "../types";
-import { computeDedupKeys, safeDate } from "../normalize";
+import { computeDedupKeys, safeDate, shuffle } from "../normalize";
 import { feedProxy } from "@/services/feed-proxy";
 
 const SEARCH_QUERIES = [
-  "funny college moments",
-  "funny shorts",
-  "funny study memes",
-  "college comedy skit",
-  "unexpected university moments",
-  "relatable student problems",
-  "funny student life vlog",
-  "funny graduation fail",
-  "college prank",
-  "funny classroom moment",
-  "university challenge funny",
-  "student dorm life funny",
-  "funny professor moment",
-  "college exam struggle",
-  "funny campus adventure",
-  "viral college video",
-  "funny group project",
-  "student multitasking funny",
-  "college motivation funny",
-  "study with me ASMR",
-  "satisfying study notes",
-  "productive morning routine",
-  "campus aesthetic vlog",
-  "college day in my life",
-  "university room tour",
-  "student budget meals",
-  "coding tutorial beginner",
-  "productivity tips students",
-  "campus tour university",
-  "scholarship advice tips",
-  "internship interview tips",
-  "study abroad experience",
-  "college roommate stories",
-  "late night study session",
-  "exam results reaction",
-  "graduation ceremony emotional",
-  "campus sunset beautiful",
-  "university lab experiment",
-  "student art project",
-  "college dance performance",
+  // Campus & College Life
+  "college campus life",
+  "university student comedy",
+  "dorm room hacks",
+  "college sports highlights",
+  "college life vlog",
+  "day in the life university",
+  "college dorm tour",
+  "university freshmen experience",
+  "student club activities",
+  "campus events",
+  // Funny & Memes
+  "funny short clips",
+  "relatable comedy shorts",
+  "viral meme video",
+  "try not to laugh",
+  "funny fails compilation",
+  "funny animals",
+  "comedy skit",
+  "funny prank",
+  "dank memes",
+  "funny moments",
+  "viral funny videos",
+  "unexpected funny",
+  "funny vines",
+  "hilarious reactions",
+  "funny memes compilation",
+  "funny pets",
+  "practical jokes",
+  "best funny moments",
+  "funny bloopers",
+  "roast battle",
+  "standup comedy clip",
+  "funny challenge",
+  // Trending & Music
+  "trending music shorts",
+  "viral dance trend",
+  "top trending reels",
+  "trending dance challenge",
+  "popular music video short",
+  "viral challenge",
+  "trending prank video",
 ];
 
 type YouTubeState = {
@@ -56,9 +58,9 @@ type YouTubeState = {
 };
 
 const INITIAL_STATE: YouTubeState = {
-  mode: "popular",
+  mode: "search",
   popularPageToken: "",
-  popularDone: false,
+  popularDone: true,
   searchIndex: 0,
   searchPageToken: "",
   searchDone: false,
@@ -93,10 +95,17 @@ export class YouTubeProvider implements IFeedProvider {
       }
 
       if (this.state.mode === "search" || this.state.popularDone) {
+        // Randomize the query whenever we're starting a fresh search (no page
+        // token in flight); paginating within a query keeps the same index so
+        // nextPageToken chains stay valid.
+        if (!this.state.searchPageToken) {
+          this.state = { ...this.state, searchIndex: Math.floor(Math.random() * SEARCH_QUERIES.length) };
+        }
         const query = SEARCH_QUERIES[this.state.searchIndex % SEARCH_QUERIES.length];
         const data = await feedProxy("youtube", {
           type: "search",
           q: query,
+          relevanceLanguage: "en",
           pageSize: String(Math.min(ctx.pageSize, 10)),
           pageToken: this.state.searchPageToken,
         }, ctx.signal);
@@ -140,7 +149,8 @@ export class YouTubeProvider implements IFeedProvider {
   }
 
   normalize(raw: unknown[], fetchedAt: Date): FeedItem[] {
-    return (raw as any[])
+    return shuffle(
+      (raw as any[])
       .filter((v) => v?.id && v?.snippet?.title)
       .map((v) => {
         const id = typeof v.id === "string" ? v.id : v.id?.videoId ?? "";
@@ -194,14 +204,15 @@ export class YouTubeProvider implements IFeedProvider {
           },
           scores: { composite: 0, freshness: 0, engagement: 0, quality: 0, diversity: 0, interest: 0, relationship: 0, trending: 0, exploration: 0, campusRelevance: 0, sessionFit: 0 },
           diversitySlot: "video",
-          contentCategory: "general" as const,
+          contentCategory: "memes" as const,
           dedup: { nativeId: id, canonicalUrl: null, imageUrl: null, videoId: id, titleHash: 0, bodyHash: 0 },
           meta: { mode: this.state.mode },
         };
         computeDedupKeys(item);
         return item;
       })
-      .filter(Boolean) as FeedItem[];
+      .filter(Boolean) as FeedItem[]
+    );
   }
 
   cachePrefix(): string { return "yt_v5"; }

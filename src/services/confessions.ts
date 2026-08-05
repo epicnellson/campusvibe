@@ -35,6 +35,10 @@ export async function createConfession(content: string, imageUrl?: string): Prom
   return withRetry(async () => {
     const user = getCurrentUser();
 
+    if (!content || !content.trim()) {
+      throw new Error("Please write something before posting.");
+    }
+
     const { flagged, categories } = await checkModeration(content);
     if (flagged) {
       const reason = categories.join(", ");

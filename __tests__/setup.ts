@@ -27,6 +27,36 @@ jest.mock("firebase/auth", () => ({
   }),
   GoogleAuthProvider: jest.fn(),
   signOut: jest.fn().mockResolvedValue(undefined),
+  createUserWithEmailAndPassword: jest.fn().mockResolvedValue({
+    user: { uid: "user-1", email: "test@university.edu" },
+  }),
+  signInWithEmailAndPassword: jest.fn().mockResolvedValue({
+    user: { uid: "user-1", email: "test@university.edu" },
+  }),
+  sendEmailVerification: jest.fn().mockResolvedValue(undefined),
+  signInWithCredential: jest.fn().mockResolvedValue({
+    user: { uid: "user-1", email: "test@university.edu" },
+  }),
+  signInWithRedirect: jest.fn().mockResolvedValue(undefined),
+  getRedirectResult: jest.fn().mockResolvedValue(null),
+  browserPopupRedirectResolver: {},
+}));
+
+// Bypass retry delays in unit tests — resolve on the first attempt
+jest.mock("@/services/retry", () => ({
+  withRetry: (fn: () => Promise<unknown>) => fn(),
+  isNetworkError: jest.fn(() => false),
+  isSupabaseError: jest.fn(() => false),
+  getSupabaseErrorMessage: jest.fn(() => null),
+  getAuthErrorMessage: jest.fn(() => "An unexpected error occurred"),
+  getErrorMessage: jest.fn(() => "Something went wrong. Please try again."),
+  isRetryableError: jest.fn(() => false),
+}));
+
+// Mock expo-web-browser (used by @/services/auth at module scope)
+jest.mock("expo-web-browser", () => ({
+  maybeCompleteAuthSession: jest.fn(),
+  openAuthSessionAsync: jest.fn().mockResolvedValue({ type: "cancel" }),
 }));
 
 // Mock Firestore

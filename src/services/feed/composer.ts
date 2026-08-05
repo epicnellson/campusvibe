@@ -10,11 +10,13 @@ import { clearTransientState } from "./budget";
 import { getUserProfile, type CachedUserProfile } from "./user-profile";
 import { getUserInterests, type UserInterests } from "./interests";
 import { updateTrendingCache } from "./trending";
+import { shuffle } from "./normalize";
 
 const DEFAULT_PAGE_SIZE = 20;
 const PROVIDER_TIMEOUT_MS = 12000;
 const MAX_BUFFER = 500;
 const TRIM_TO = 400;
+const MIN_UNSEEN = 5;
 
 type FeedComposerOptions = {
   userId: string;
@@ -41,6 +43,7 @@ export class FeedComposer {
   private userProfile: CachedUserProfile | null = null;
   private userInterests: UserInterests | null = null;
   private config: ComposerConfig;
+  private readonly MIN_UNSEEN = MIN_UNSEEN;
 
   constructor(opts: FeedComposerOptions) {
     this.userId = opts.userId;
@@ -71,14 +74,15 @@ export class FeedComposer {
           bluesky: 0.5,
           news: 0.4,
           mastodon: 0.4,
+          reddit: 0.35,
           youtube: 0.3,
           unsplash: 0.2,
           pexels: 0.2,
           giphy: 0.1,
         },
-        explorationRatio: 0.18,
-        campusRatioMin: 0.70,
-        campusRatioMax: 0.85,
+        explorationRatio: 0.25,
+        campusRatioMin: 0.45,
+        campusRatioMax: 0.55,
         maxSameAuthor: 2,
         maxConsecutiveType: 3,
         candidatePoolSize: 300,
@@ -126,7 +130,7 @@ export class FeedComposer {
     } catch {}
   }
 
-  async loadInitial(onProgressiveUpdate?: (items: FeedItem[], hasMore: boolean) => void): Promise<FeedPage> {
+  async loadInitial(): Promise<FeedPage> {
     if (this.loadingLock) return { items: [], hasMore: false, isStale: false };
     this.loadingLock = true;
 
@@ -165,6 +169,11 @@ export class FeedComposer {
         this.providerDone.set("campus", !campusResult.hasMore);
         if (campusResult.rawItems.length > 0) {
           campusItems = campusProvider!.normalize(campusResult.rawItems, new Date());
+          // Fisher-Yates shuffle of the campus pool so posts (Omar, Adebayo,
+          // Carlos, etc.) land in varied positions on every cold load instead of
+          // the static DB/strategy order the provider returns them in.
+          campusItems = shuffle(campusItems);
+          campusItems = this.dedupeById(campusItems);
           this.registry.updateHealth("campus", true);
         }
       } catch {
@@ -172,22 +181,20 @@ export class FeedComposer {
         this.providerDone.set("campus", true);
       }
 
-      // Progressive update with campus items only
-      const campusForProgressive = diversify([...campusItems], {
-        pageSize: this.pageSize,
-        campusRatioMin: this.config.campusRatioMin,
-        campusRatioMax: this.config.campusRatioMax,
-        maxSameAuthor: this.config.maxSameAuthor,
-        maxConsecutiveType: this.config.maxConsecutiveType,
-        explorationSlots: Math.floor(this.pageSize * this.config.explorationRatio),
-      });
-
-      if (campusForProgressive.length > 0 && onProgressiveUpdate) {
-        onProgressiveUpdate(campusForProgressive, true);
-      }
+      // NOTE: No progressive campus-only update. The first render waits for the
+      // full mixed batch (campus + external) so the feed never flashes a
+      // campus-only/seed-only screen while external providers are still loading.
 
       // STAGE 1b: Fetch external providers concurrently
       if (externalProviders.length === 0) {
+        const campusForProgressive = diversify([...campusItems], {
+          pageSize: this.pageSize,
+          campusRatioMin: this.config.campusRatioMin,
+          campusRatioMax: this.config.campusRatioMax,
+          maxSameAuthor: this.config.maxSameAuthor,
+          maxConsecutiveType: this.config.maxConsecutiveType,
+          explorationSlots: Math.floor(this.pageSize * this.config.explorationRatio),
+        });
         for (const item of campusForProgressive) {
           this.memoryBuffer.push(item);
         }
@@ -219,8 +226,12 @@ export class FeedComposer {
         }
       }
 
-      // STAGE 2: Dedup across all sources
-      const campusDeduped = this.dedup.filterNew(campusItems);
+      // STAGE 2: Dedup across all sources.
+      // Campus content is the app's own live social feed — it is never deduped
+      // against the persistent store (only intra-batch duplicates are removed),
+      // otherwise previously-shown posts would vanish on the next app load.
+      // External providers are deduped so the same article/video doesn't reappear.
+      const campusDeduped = this.dedupeById(campusItems);
       const extDeduped = this.dedup.filterNew(allExternalNormalized);
       for (const item of [...campusDeduped, ...extDeduped]) {
         this.dedup.register(item);
@@ -242,8 +253,18 @@ export class FeedComposer {
         explorationSlots: Math.floor(this.pageSize * this.config.explorationRatio),
       });
 
-      // STAGE 6: Filter seen items
-      allCandidates = this.seen.filterNew(allCandidates);
+      // STAGE 6: Seen-item suppression — both campus and external items the user
+      // has already viewed are filtered out (freshness-first). If the unseen pool
+      // runs low (< MIN_UNSEEN), older seen items are re-appended at the very
+      // end of the list, never interleaved into the fresh section.
+      allCandidates = this.suppressSeenWithFallback(allCandidates, this.pageSize);
+
+      // FALLBACK: if every source came back empty (fresh account, all providers
+      // down/offline), seed the feed with sample content so the screen is never
+      // blank on first render. Real posts replace it as soon as data arrives.
+      if (allCandidates.length === 0) {
+        allCandidates = this.buildFallbackItems();
+      }
 
       this.memoryBuffer = [...allCandidates];
       if (this.memoryBuffer.length > MAX_BUFFER) {
@@ -276,18 +297,36 @@ export class FeedComposer {
     await this.loadPersonalization();
 
     // Do NOT clear seen — rolling history is preserved across refreshes
-    // Reset campus provider to fetch latest
-    const campus = this.registry.getById("campus");
-    if (campus) campus.resetState();
+    // Reset ALL provider state + pagination so pull-to-refresh is a clean,
+    // randomized re-fetch from scratch (query indices/offsets are re-randomized
+    // inside each provider, so a refresh yields varied content, not a resume
+    // of the last loadMore's saved page cursors).
+    this.providerPages.clear();
+    this.providerDone.clear();
+    this.providerSkipped.clear();
+    this.registry.resetAll();
+    this.registry.resetBudgets();
+    for (const p of this.registry.getAll()) p.resetState();
+
+    // Force a fresh re-fetch: drop the proxy response cache, per-request dedup,
+    // rate/backoff state so pull-to-refresh actually hits the providers again
+    // instead of replaying cached top-content.
+    await clearTransientState();
 
     try {
       // Fetch all active providers fresh
       const campusResult = await this.fetchCampusFresh(signal);
       const extResult = await this.fetchExternalFresh(signal);
 
-      // STAGE 2: Dedup
-      const allRaw = [...campusResult, ...extResult];
-      const deduped = this.dedup.filterNew(allRaw);
+      // STAGE 2: Dedup. Campus items dedupe only within the batch. A manual
+      // refresh is an explicit "show me the current feed" action, so external
+      // items are deduped against the in-memory buffer (handled in STAGE 6) rather
+      // than the persistent store — previously-shown articles/videos can resurface
+      // on refresh; they're still registered below to suppress cold-load repeats.
+      const campusFresh = this.dedupeById(shuffle(campusResult));
+      const extFresh = this.dedupeById(extResult);
+      const allRaw = [...campusFresh, ...extFresh];
+      const deduped = allRaw;
       for (const item of deduped) {
         this.dedup.register(item);
       }
@@ -305,8 +344,18 @@ export class FeedComposer {
         explorationSlots: Math.floor(this.pageSize * this.config.explorationRatio),
       });
 
-      // STAGE 6: Filter seen (but allow resurfacing after 24h)
-      const newItems = this.seen.filterNew(scored);
+      // STAGE 6: Seen-item suppression. The UI marks the currently-displayed
+      // items as seen before calling refresh(), so a refresh is a clean slate —
+      // it filters out everything already on screen AND everything viewed in the
+      // past, pulling an entirely fresh, unseen batch. Older items only return
+      // (at the end of the list) when the unseen pool runs low.
+      let newItems = this.suppressSeenWithFallback(scored, this.pageSize);
+
+      // NOTE: No fallback seeding here. A manual refresh is an explicit
+      // "show me the current feed" action — if the API fetch finishes and
+      // produces nothing, the existing buffered items stay on screen. Only a
+      // cold initial load (see loadInitial) may seed sample content so a fresh
+      // account is never blank.
 
       // Merge: new items on top, then existing buffer (minus items already in newItems)
       const newItemIds = new Set(newItems.map((i) => i.id));
@@ -367,8 +416,11 @@ export class FeedComposer {
         }
       }
 
-      // STAGE 2: Dedup
-      const deduped = this.dedup.filterNew(allNormalized);
+      // STAGE 2: Dedup. Campus items dedupe only within the batch (never against
+      // the persistent store); external items dedupe across all history.
+      const campusNext = this.dedupeById(shuffle(allNormalized.filter((i) => i.source === "campus")));
+      const extNext = this.dedup.filterNew(allNormalized.filter((i) => i.source !== "campus"));
+      const deduped = [...campusNext, ...extNext];
       for (const item of deduped) {
         this.dedup.register(item);
       }
@@ -386,8 +438,11 @@ export class FeedComposer {
         explorationSlots: Math.floor(this.pageSize * this.config.explorationRatio),
       });
 
-      // STAGE 6: Filter seen
-      const newItems = scored.filter((item) => !this.seen.has(item.id));
+      // STAGE 6: Seen-item suppression for pagination too — campus and external
+      // items already viewed are filtered out so pagination surfaces fresh
+      // content; older seen items fall back to the end of the page only when the
+      // unseen pool runs low.
+      let newItems = this.suppressSeenWithFallback(scored, this.pageSize);
 
       // Fallback: if all filtered, try items not in memory buffer
       if (newItems.length === 0 && allNormalized.length > 0) {
@@ -407,7 +462,7 @@ export class FeedComposer {
           if (this.memoryBuffer.length > MAX_BUFFER) this.memoryBuffer = this.memoryBuffer.slice(-TRIM_TO);
           await this.seen.markSeen(final.map((i) => i.id));
           await this.dedup.persist();
-          return { items: final, hasMore: true, isStale: false };
+          return { items: this.interleaveCampusAndExternal(final), hasMore: true, isStale: false };
         }
       }
 
@@ -421,7 +476,13 @@ export class FeedComposer {
       await this.seen.markSeen(newItems.map((i) => i.id));
       await this.dedup.persist();
 
-      return { items: newItems, hasMore: true, isStale: false };
+      // A page that produced nothing, or produced ONLY already-seen fallback
+      // items, means there's no fresh unseen content left — signal the UI to
+      // stop paging (otherwise pagination would replay the same fallback page
+      // forever).
+      const hasUnseen = scored.some((item) => !this.seen.has(item.id));
+      const hasMore = hasUnseen && newItems.length > 0;
+      return { items: newItems, hasMore, isStale: false };
     } finally {
       this.loadingLock = false;
     }
@@ -446,6 +507,117 @@ export class FeedComposer {
   }
 
   // Private helpers
+
+  /**
+   * Sample campus posts used only when the feed would otherwise be blank
+   * (fresh account, empty database, or all providers failed/offline). Rendered
+   * through the normal campus normalize → PostCard path. Ids are prefixed with
+   * "fallback-" so they can never collide with real docs or dedup state.
+   */
+  private buildFallbackItems(): FeedItem[] {
+    const campus = this.registry.getById("campus");
+    if (!campus) return [];
+
+    const now = new Date();
+    const rows: any[] = [
+      {
+        id: "fallback-welcome-1",
+        __collection: "posts",
+        content:
+          "Welcome to CampusVibe! This is your campus feed — connect with students, share posts, and discover what's happening around campus.",
+        likes: [],
+        image_url: null,
+        created_at: now.toISOString(),
+        user_id: "campusvibe",
+        profiles: { id: "campusvibe", name: "CampusVibe", department: "Community", avatar_url: null },
+      },
+      {
+        id: "fallback-welcome-2",
+        __collection: "posts",
+        content:
+          "Your feed will light up with posts from classmates, confessions, and events as they're shared. Pull down to refresh anytime.",
+        likes: [],
+        image_url: null,
+        created_at: new Date(now.getTime() - 60_000).toISOString(),
+        user_id: "campusvibe",
+        profiles: { id: "campusvibe", name: "CampusVibe", department: "Community", avatar_url: null },
+      },
+      {
+        id: "fallback-welcome-3",
+        __collection: "posts",
+        content:
+          "Tip: Tap the + button to create a post, an anonymous confession, or a campus event. Everyone at your university can see what you share.",
+        likes: [],
+        image_url: null,
+        created_at: new Date(now.getTime() - 120_000).toISOString(),
+        user_id: "campusvibe",
+        profiles: { id: "campusvibe", name: "CampusVibe", department: "Community", avatar_url: null },
+      },
+    ];
+
+    return campus.normalize(rows, now);
+  }
+
+  private dedupeById(items: FeedItem[]): FeedItem[] {
+    const seen = new Set<string>();
+    const out: FeedItem[] = [];
+    for (const item of items) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      out.push(item);
+    }
+    return out;
+  }
+
+  /**
+   * Seen-item suppression (both campus and external items). Strictly removes
+   * any item already seen by the user so the feed always surfaces fresh content
+   * first. If the unseen pool runs low (< MIN_UNSEEN), gracefully re-appends
+   * older seen items to fill the page — but ONLY at the very end of the list,
+   * never interleaved into the fresh section.
+   */
+  private suppressSeenWithFallback(candidates: FeedItem[], pageSize: number): FeedItem[] {
+    const { unseen, seen } = this.seen.partition(candidates);
+    if (unseen.length >= this.MIN_UNSEEN) {
+      return this.interleaveCampusAndExternal(unseen);
+    }
+    const need = Math.max(0, pageSize - unseen.length);
+    const woven = this.interleaveCampusAndExternal(unseen);
+    return [...woven, ...seen.slice(0, need)];
+  }
+
+  /**
+   * Evenly weave campus and external items across the whole page instead of
+   * stacking campus posts in one block (e.g. all at the top after the first
+   * API item). The minority group is placed at evenly-spaced positions using
+   * the largest-remainder method, so with a 20-item payload you get a stable
+   * "1 campus every few API items" cadence, never a campus run followed by an
+   * external run.
+   */
+  private interleaveCampusAndExternal(items: FeedItem[]): FeedItem[] {
+    const campus = items.filter((i) => i.source === "campus");
+    const external = items.filter((i) => i.source !== "campus");
+    if (campus.length === 0 || external.length === 0) return items;
+
+    const [minority, majority] = campus.length <= external.length ? [campus, external] : [external, campus];
+    const k = minority.length;
+    const total = campus.length + external.length;
+
+    const slots: (FeedItem | null)[] = new Array(total).fill(null);
+    for (let i = 0; i < k; i++) {
+      const idx = Math.min(Math.floor(((i + 0.5) * total) / k), total - 1);
+      slots[idx] = minority[i];
+    }
+
+    let mi = 0;
+    let mj = 0;
+    const out: FeedItem[] = [];
+    for (let i = 0; i < total; i++) {
+      if (slots[i]) out.push(minority[mi++]);
+      else out.push(majority[mj++]);
+    }
+    return out;
+  }
 
   private getActiveProviders(): IFeedProvider[] {
     return this.registry.getWithinBudget().filter((p) => {

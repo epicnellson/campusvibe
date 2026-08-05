@@ -3,7 +3,6 @@ import { Stack } from "expo-router";
 import { LogBox, Platform } from "react-native";
 import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Pressable } from "react-native";
 import { router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
@@ -15,6 +14,32 @@ LogBox.ignoreAllLogs(true);
 if (typeof window !== "undefined" && typeof window.addEventListener !== "function") {
   window.addEventListener = () => {};
   window.removeEventListener = () => {};
+}
+
+if (Platform.OS === "web" && typeof console !== "undefined") {
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    const msg = args.map(String).join(" ");
+    if (msg.includes("pointerEvents is deprecated")) return;
+    // Firestore logs every interrupted Listen transport (QUIC drop, tab
+    // throttle, network blip) as a console.warn. The SDK auto-reconnects, so
+    // this is noise — suppress it and let the network banner handle UX.
+    if (msg.includes("WebChannelConnection") && msg.includes("transport")) return;
+    originalWarn(...args);
+  };
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    const msg = args.map(String).join(" ");
+    // react-dom (dev) warns when an aria-hidden ancestor wraps a focused
+    // element while react-navigation hides inactive screens on web. It's a
+    // focus-management artifact of navigation, not an app error.
+    if (msg.includes("Blocked aria-hidden on an element because its descendant retained focus")) return;
+    // Firestore reports every interrupted Listen transport (QUIC drop, tab
+    // throttle, network blip) as a console.error. The SDK auto-reconnects, so
+    // this is noise — suppress it and let the network banner handle UX.
+    if (msg.includes("WebChannelConnection") && msg.includes("transport")) return;
+    originalError(...args);
+  };
 }
 
 if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -34,7 +59,9 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
   });
   window.addEventListener("unhandledrejection", (e: PromiseRejectionEvent) => {
     const reason = e.reason;
-    const msg = reason?.message || String(reason) || "";
+    const msg = (reason?.message ?? "") as string;
+    const name = (reason?.name ?? "") as string;
+    const isAudioPlayAbort = name === "AbortError" && /play\(\)|interrupted by a call to pause/i.test(msg);
     if (
       msg.includes("Failed to fetch") ||
       msg.includes("NetworkError") ||
@@ -42,12 +69,25 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
       msg.includes("CORS") ||
       msg.includes("ERR_BLOCKED_BY_CLIENT") ||
       msg.includes("ERR_FAILED") ||
-      msg.includes("AbortError")
+      msg.includes("AbortError") ||
+      isAudioPlayAbort
     ) {
       e.preventDefault();
       return true;
     }
   });
+}
+
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.setAttribute("data-cv", "rnw-focus-reset");
+  style.textContent = `
+    input:focus, textarea:focus, [contenteditable="true"]:focus {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -62,6 +102,7 @@ import { MuteProvider } from "@/hooks/use-mute";
 import { PostInteractionsProvider } from "@/hooks/use-post-interactions";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { NetworkBanner } from "@/components/network-banner";
+import { IncomingCallOverlay } from "@/components/calls/incoming-call-overlay";
 import { ToastProvider } from "@/components/ui/Toast";
 import { getThemeColors, fontSize, fontWeight } from "@/theme";
 
@@ -122,6 +163,7 @@ function ThemeAwareLayout() {
                   <PostInteractionsProvider>
                   <AnimatedSplashOverlay />
                   <NetworkBanner />
+                  <IncomingCallOverlay />
                   <Stack screenOptions={defaultHeader}>
                   <Stack.Screen name="index" options={{ headerShown: false }} />
                   <Stack.Screen name="signup" options={{ headerShown: false }} />
@@ -137,25 +179,11 @@ function ThemeAwareLayout() {
                   <Stack.Screen name="verify-student-id" options={modalOptions} />
                   <Stack.Screen
                     name="edit-profile"
-                    options={{
-                      title: "Edit Profile",
-                      headerLeft: () => (
-                        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
-                          <Ionicons name="chevron-back" size={24} color={colors.primary} />
-                        </Pressable>
-                      ),
-                    }}
+                    options={{ headerShown: false }}
                   />
                   <Stack.Screen
                     name="notification-settings"
-                    options={{
-                      title: "Notification Settings",
-                      headerLeft: () => (
-                        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
-                          <Ionicons name="chevron-back" size={24} color={colors.primary} />
-                        </Pressable>
-                      ),
-                    }}
+                    options={{ headerShown: false }}
                   />
                   <Stack.Screen
                     name="notifications"
@@ -163,14 +191,7 @@ function ThemeAwareLayout() {
                   />
                   <Stack.Screen
                     name="privacy"
-                    options={{
-                      title: "Privacy Policy",
-                      headerLeft: () => (
-                        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
-                          <Ionicons name="chevron-back" size={24} color={colors.primary} />
-                        </Pressable>
-                      ),
-                    }}
+                    options={{ headerShown: false }}
                   />
                   <Stack.Screen
                     name="new-dm"
@@ -186,14 +207,7 @@ function ThemeAwareLayout() {
                   />
                   <Stack.Screen
                     name="listing/[id]"
-                    options={{
-                      title: "Listing",
-                      headerLeft: () => (
-                        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={{ paddingLeft: Platform.OS === "ios" ? 0 : 8 }}>
-                          <Ionicons name="chevron-back" size={24} color={colors.primary} />
-                        </Pressable>
-                      ),
-                    }}
+                    options={{ headerShown: false }}
                   />
                   <Stack.Screen
                     name="post/[id]"

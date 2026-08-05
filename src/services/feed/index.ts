@@ -7,6 +7,7 @@ import { BlueskyProvider } from "./providers/bluesky";
 import { UnsplashProvider } from "./providers/unsplash";
 import { PexelsProvider } from "./providers/pexels";
 import { GiphyProvider } from "./providers/giphy";
+import { RedditProvider } from "./providers/reddit";
 import { FeedComposer } from "./composer";
 
 export type { FeedItem, FeedPage, ContentType, DiversitySlot, ContentCategory, MediaItem, ScoringWeights, ComposerConfig, DEFAULT_CONFIG } from "./types";
@@ -34,6 +35,7 @@ export {
   UnsplashProvider,
   PexelsProvider,
   GiphyProvider,
+  RedditProvider,
 };
 
 export function createFeedComposer(userId: string, extraProviders: IFeedProvider[] = []): FeedComposer {
@@ -49,6 +51,7 @@ export function createFeedComposer(userId: string, extraProviders: IFeedProvider
       new UnsplashProvider(),
       new PexelsProvider(),
       new GiphyProvider(),
+      new RedditProvider(),
       ...extraProviders,
     ],
   });

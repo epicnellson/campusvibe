@@ -189,7 +189,7 @@ export default function SettingsScreen() {
               style={styles.backBtn}
               accessibilityLabel="Go back"
             >
-              <Ionicons name="chevron-back" size={24} color={colors.textOnDark} />
+              <Ionicons name="arrow-back" size={22} color={colors.textOnDark} />
             </Pressable>
             <ThemedText style={styles.headerTitle}>Settings</ThemedText>
             <View style={{ width: 40 }} />

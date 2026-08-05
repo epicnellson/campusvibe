@@ -158,11 +158,7 @@ export default function ConfessionsScreen() {
   }, [currentUserId]);
 
   if (loading) {
-    return (
-      <ThemedView style={styles.center}>
-        <FeedSkeleton />
-      </ThemedView>
-    );
+    return <FeedSkeleton />;
   }
 
   return (

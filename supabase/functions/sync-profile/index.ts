@@ -38,7 +38,6 @@ export const fetch = async (req: Request) => {
       name: body.name ?? null,
       department: body.department ?? null,
       year: body.year ?? null,
-      verification_status: "approved",
       updated_at: new Date().toISOString(),
     },
     { onConflict: "id", ignoreDuplicates: false }

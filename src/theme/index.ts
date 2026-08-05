@@ -1,3 +1,5 @@
+import { Platform, type ViewStyle } from "react-native";
+
 export const colors = {
   primary: "#6C47FF",
   primaryLight: "#8B6EFF",
@@ -152,6 +154,36 @@ export const shadows = {
 
 export type Colors = typeof colors;
 export type ThemeColorScheme = "light" | "dark";
+
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const num = parseInt(full, 16);
+  if (Number.isNaN(num)) return `rgba(0, 0, 0, ${alpha})`;
+  return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
+}
+
+/**
+ * Cross-platform shadow helper.
+ * - Web: modern `boxShadow` string — the legacy `shadow*` style props are
+ *   deprecated on react-native-web and print warnings.
+ * - Native: classic `elevation` + `shadow*` props (elevation drives Android
+ *   shading; shadow* drives iOS).
+ */
+export function createShadow(elevation: number, color = "#000000", opacity = 0.25): ViewStyle {
+  if (Platform.OS === "web") {
+    return {
+      boxShadow: `0px ${Math.round(elevation / 2)}px ${elevation}px ${hexToRgba(color, opacity)}`,
+    };
+  }
+  return {
+    elevation,
+    shadowColor: color,
+    shadowOpacity: opacity,
+    shadowRadius: elevation,
+    shadowOffset: { width: 0, height: Math.round(elevation / 2) },
+  };
+}
 
 export function getThemeColors(scheme: ThemeColorScheme) {
   return scheme === "dark" ? colors : lightColors;

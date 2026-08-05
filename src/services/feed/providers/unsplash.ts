@@ -1,39 +1,14 @@
 import type { IFeedProvider, FetchContext, FetchResult, RateBudget, HealthStatus } from "./types";
 import type { FeedItem } from "../types";
-import { computeDedupKeys, safeDate } from "../normalize";
+import { computeDedupKeys, safeDate, shuffle } from "../normalize";
 import { feedProxy } from "@/services/feed-proxy";
 
 const QUERIES = [
-  "funny moments students",
-  "campus aesthetic beautiful",
-  "college friends group",
-  "study aesthetic cozy",
-  "university campus sunset",
-  "student creative art",
-  "college party vibes",
-  "graduation celebration joy",
-  "student lifestyle candid",
-  "campus architecture modern",
-  "university library study",
-  "student coffee morning",
-  "college sports action",
-  "campus nature spring",
-  "student workspace minimal",
-  "university lecture hall",
-  "college friendship candid",
-  "student fashion street",
-  "campus night lights",
-  "university garden green",
-  "student dance performance",
-  "college rooftop view",
-  "student painting studio",
-  "campus autumn leaves",
-  "university fountain",
-  "student yoga morning",
-  "college skateboarding",
-  "student photography",
-  "campus rain mood",
-  "university concert stage",
+  "funny animals",
+  "humor",
+  "funny face",
+  "comedy",
+  "funny expressions",
 ];
 
 const ORIENTATIONS = ["landscape", "portrait", "squarish"] as const;
@@ -98,7 +73,8 @@ export class UnsplashProvider implements IFeedProvider {
   }
 
   normalize(raw: unknown[], fetchedAt: Date): FeedItem[] {
-    return (raw as any[])
+    return shuffle(
+      (raw as any[])
       .filter((p) => p?.id && p?.urls?.regular)
       .map((p) => {
         const item: FeedItem = {
@@ -113,7 +89,7 @@ export class UnsplashProvider implements IFeedProvider {
             verified: false,
           },
           content: {
-            title: p.alt_description ?? "Campus photo",
+            title: p.alt_description ?? "Humor photo",
             body: p.description ?? p.alt_description ?? null,
             bodyHtml: null,
             language: null,
@@ -140,13 +116,14 @@ export class UnsplashProvider implements IFeedProvider {
           engagement: { likeCount: null, commentCount: null, shareCount: null, viewCount: null, userLiked: null },
           scores: { composite: 0, freshness: 0, engagement: 0, quality: 0, diversity: 0, interest: 0, relationship: 0, trending: 0, exploration: 0, campusRelevance: 0, sessionFit: 0 },
           diversitySlot: "photo",
-          contentCategory: "general" as const,
+          contentCategory: "memes" as const,
           dedup: { nativeId: p.id, canonicalUrl: null, imageUrl: null, videoId: null, titleHash: 0, bodyHash: 0 },
           meta: { orientation: p.orientation ?? null, likes: p.likes ?? null },
         };
         computeDedupKeys(item);
         return item;
-      });
+      })
+    );
   }
 
   cachePrefix(): string { return "unsplash_v5"; }

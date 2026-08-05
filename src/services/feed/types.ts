@@ -179,14 +179,15 @@ export const DEFAULT_CONFIG: ComposerConfig = {
     bluesky: 0.5,
     news: 0.4,
     mastodon: 0.4,
+    reddit: 0.35,
     youtube: 0.3,
     unsplash: 0.2,
     pexels: 0.2,
     giphy: 0.1,
   },
-  explorationRatio: 0.18,
-  campusRatioMin: 0.70,
-  campusRatioMax: 0.85,
+  explorationRatio: 0.25,
+  campusRatioMin: 0.45,
+  campusRatioMax: 0.55,
   maxSameAuthor: 2,
   maxConsecutiveType: 3,
   candidatePoolSize: 300,
@@ -194,7 +195,7 @@ export const DEFAULT_CONFIG: ComposerConfig = {
 
 export type ExternalFeedItem = {
   id: string;
-  source: "unsplash" | "youtube" | "news" | "mastodon" | "bluesky" | "giphy" | "pexels";
+  source: "unsplash" | "youtube" | "news" | "mastodon" | "bluesky" | "giphy" | "pexels" | "reddit";
   type: "image" | "video" | "article" | "gif" | "text";
   title: string;
   description?: string;

@@ -1,10 +1,10 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { ScrollView, StyleSheet } from "react-native";
+import { Pressable, ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Button } from "@/components/ui/button";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -18,6 +18,26 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     maxWidth: MaxContentWidth,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#1E1E1E",
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: "600",
   },
   scrollContent: {
     padding: Spacing.four,
@@ -38,11 +58,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
-  footer: {
-    padding: Spacing.four,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#1E1E1E",
-  },
 });
 
 export default function PrivacyScreen() {
@@ -51,8 +66,18 @@ export default function PrivacyScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
+        <ThemedView style={styles.header}>
+          <Pressable
+            onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
+            style={styles.backButton}
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.textOnDark} />
+          </Pressable>
+          <ThemedText style={styles.headerTitle}>Privacy Policy</ThemedText>
+        </ThemedView>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <ThemedText type="title">Privacy Policy</ThemedText>
           <ThemedText style={styles.effective}>Last updated: June 2026</ThemedText>
 
           <ThemedView style={styles.section}>
@@ -129,10 +154,6 @@ export default function PrivacyScreen() {
             </ThemedText>
           </ThemedView>
         </ScrollView>
-
-        <ThemedView style={styles.footer}>
-          <Button title="Back" variant="secondary" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />
-        </ThemedView>
       </SafeAreaView>
     </ThemedView>
   );

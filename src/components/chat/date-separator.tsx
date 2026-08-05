@@ -17,6 +17,7 @@ export function DateSeparator({ label }: DateSeparatorProps) {
 
 const styles = StyleSheet.create({
   container: {
+    alignSelf: "stretch",
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,

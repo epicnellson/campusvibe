@@ -346,11 +346,7 @@ export default function EventDetailScreen() {
   };
 
   if (loading) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <EventDetailSkeleton />
-      </View>
-    );
+    return <EventDetailSkeleton />;
   }
 
   if (error || !event) {
@@ -383,7 +379,7 @@ export default function EventDetailScreen() {
                 accessibilityLabel="Go back"
                 accessibilityRole="button"
               >
-                <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+                <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
               </Pressable>
               <Pressable
                 onPress={() => setShowMenu(true)}
@@ -403,7 +399,7 @@ export default function EventDetailScreen() {
                 accessibilityLabel="Go back"
                 accessibilityRole="button"
               >
-                <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+                <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
               </Pressable>
               <Pressable
                 onPress={() => setShowMenu(true)}

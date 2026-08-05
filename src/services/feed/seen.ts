@@ -75,6 +75,22 @@ export class SeenStore {
     return items.filter((item) => !this.seen.has(item.id));
   }
 
+  /**
+   * Partition items into strictly-unseen and previously-seen buckets (order
+   * preserved). Used by the composer for seen-item suppression with graceful
+   * fallback: unseen items make the page; seen items only reappear at the end
+   * when the unseen pool runs low.
+   */
+  partition(items: FeedItem[]): { unseen: FeedItem[]; seen: FeedItem[] } {
+    const unseen: FeedItem[] = [];
+    const seen: FeedItem[] = [];
+    for (const item of items) {
+      if (this.seen.has(item.id)) seen.push(item);
+      else unseen.push(item);
+    }
+    return { unseen, seen };
+  }
+
   async persist(): Promise<void> {
     if (!this.dirty) return;
     try {

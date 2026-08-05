@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
@@ -13,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/themed-text";
 import { Avatar } from "@/components/ui/Avatar";
+import { SearchResultsSkeleton } from "@/components/feed-skeleton";
 import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { resolveImageUrl } from "@/services/storage";
@@ -163,12 +163,7 @@ export default function SearchTabScreen() {
           </View>
         </View>
 
-        {loading && (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator size="small" color={colors.primary} />
-            <ThemedText style={styles.loadingText}>Searching...</ThemedText>
-          </View>
-        )}
+        {loading ? <SearchResultsSkeleton /> : null}
 
         {!loading && results && history.length > 0 && (
           <Pressable onPress={handleClearHistory} style={styles.clearHistoryBtn}>
@@ -176,6 +171,7 @@ export default function SearchTabScreen() {
           </Pressable>
         )}
 
+        {!loading && (
         <FlatList
           data={sections}
           keyExtractor={(item, idx) => {
@@ -291,7 +287,7 @@ export default function SearchTabScreen() {
               const photo = l.photos?.length > 0 ? l.photos[0] : null;
               return (
                 <Pressable
-                  onPress={() => router.push(`/listing/${l.id}`)}
+                  onPress={() => router.push({ pathname: "/listing/[id]", params: { id: String(l.id) } })}
                   style={styles.resultRow}
                 >
                   {photo ? (
@@ -341,6 +337,7 @@ export default function SearchTabScreen() {
             ) : null
           }
         />
+        )}
       </View>
     </View>
   );

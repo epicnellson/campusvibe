@@ -22,7 +22,7 @@ async function fetchUnsplash(): Promise<ExternalItem[]> {
   if (!key) return []
   try {
     const res = await fetch(
-      `https://api.unsplash.com/photos/random?query=campus+students+study+lifestyle&count=10&orientation=landscape`,
+      `https://api.unsplash.com/photos/random?query=funny+animals+humor+comedy&count=10&orientation=landscape`,
       { headers: { Authorization: `Client-ID ${key}` } }
     )
     if (!res.ok) return []
@@ -31,7 +31,7 @@ async function fetchUnsplash(): Promise<ExternalItem[]> {
       id: `unsplash-${p.id}`,
       source: "unsplash" as const,
       type: "image" as const,
-      title: p.alt_description || "Campus life",
+      title: p.alt_description || "Humor photo",
       description: p.user?.name ? `Photo by ${p.user.name}` : undefined,
       image_url: p.urls?.regular,
       thumbnail_url: p.urls?.thumb,
@@ -50,7 +50,7 @@ async function fetchYouTube(): Promise<ExternalItem[]> {
   if (!key) return []
   try {
     const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=SL&maxResults=10&key=${key}`
+      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=funny%20shorts&maxResults=10&key=${key}`
     )
     if (!res.ok) return []
     const data = await res.json()

@@ -132,6 +132,8 @@ export type Message = {
   channel_id: string;
   user_id: string;
   content: string;
+  client_id?: string;
+  pending?: boolean;
   type?: MessageType;
   media_url?: string;
   file_name?: string;

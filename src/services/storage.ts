@@ -39,11 +39,16 @@ async function compressImage(uri: string): Promise<string> {
 async function uploadToSupabase(
   bucket: string,
   path: string,
-  uri: string,
+  uriOrBlob: string | Blob,
   contentType: string = "image/jpeg"
 ): Promise<string> {
-  const response = await fetch(uri);
-  const blob = await response.blob();
+  let blob: Blob;
+  if (typeof uriOrBlob === "string") {
+    const response = await fetch(uriOrBlob);
+    blob = await response.blob();
+  } else {
+    blob = uriOrBlob;
+  }
 
   const { error: uploadError } = await supabase.storage
     .from(bucket)
@@ -168,23 +173,26 @@ export async function uploadListingPhoto(
 export async function uploadChatImage(
   channelId: string,
   fileName: string,
-  uri: string
+  uriOrBlob: string | Blob
 ): Promise<string> {
   return withRetry(async () => {
-    const compressed = await compressImage(uri);
-    return await uploadToSupabase("post-images", `chat/${channelId}/${fileName}`, compressed);
+    if (typeof uriOrBlob === "string") {
+      const compressed = await compressImage(uriOrBlob);
+      return await uploadToSupabase("post-images", `chat/${channelId}/${fileName}`, compressed);
+    }
+    return await uploadToSupabase("post-images", `chat/${channelId}/${fileName}`, uriOrBlob);
   });
 }
 
 export async function uploadChatFile(
   channelId: string,
   fileName: string,
-  uri: string,
+  uriOrBlob: string | Blob,
   contentType: string = "application/octet-stream"
 ): Promise<string> {
   return withRetry(async () => {
     try {
-      return await uploadToSupabase("post-images", `chat/${channelId}/${fileName}`, uri, contentType);
+      return await uploadToSupabase("post-images", `chat/${channelId}/${fileName}`, uriOrBlob, contentType);
     } catch (err) {
       const msg = err instanceof Error ? err.message.toLowerCase() : String(err);
       if (msg.includes("bucket") || msg.includes("not found")) return "";
@@ -211,11 +219,11 @@ export function resolveImageUrl(
 export async function uploadChatVoice(
   channelId: string,
   fileName: string,
-  uri: string
+  uriOrBlob: string | Blob
 ): Promise<string> {
   return withRetry(async () => {
     try {
-      return await uploadToSupabase("post-images", `chat/${channelId}/voice/${fileName}`, uri, "audio/m4a");
+      return await uploadToSupabase("post-images", `chat/${channelId}/voice/${fileName}`, uriOrBlob, "audio/m4a");
     } catch (err) {
       const msg = err instanceof Error ? err.message.toLowerCase() : String(err);
       if (msg.includes("bucket") || msg.includes("not found")) return "";

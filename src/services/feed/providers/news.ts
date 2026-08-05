@@ -1,6 +1,6 @@
 import type { IFeedProvider, FetchContext, FetchResult, RateBudget, HealthStatus } from "./types";
 import type { FeedItem } from "../types";
-import { computeDedupKeys, safeDate } from "../normalize";
+import { computeDedupKeys, safeDate, shuffle } from "../normalize";
 import { feedProxy } from "@/services/feed-proxy";
 
 const SEARCH_QUERIES = [
@@ -94,7 +94,8 @@ export class NewsProvider implements IFeedProvider {
   }
 
   normalize(raw: unknown[], fetchedAt: Date): FeedItem[] {
-    return (raw as any[])
+    return shuffle(
+      (raw as any[])
       .filter((a) => {
         if (!a?.url || !a?.title) return false;
         if (a.title === "[Removed]") return false;
@@ -149,7 +150,8 @@ export class NewsProvider implements IFeedProvider {
         };
         computeDedupKeys(item);
         return item;
-      });
+      })
+    );
   }
 
   cachePrefix(): string { return "news_v5"; }

@@ -242,7 +242,7 @@ export default function NotificationsScreen() {
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
           style={styles.backBtn}
         >
-          <Ionicons name="chevron-back" size={22} color={colors.textOnDark} />
+          <Ionicons name="arrow-back" size={22} color={colors.textOnDark} />
         </Pressable>
         <Text style={styles.headerTitle}>Notifications</Text>
         <View style={{ width: 36 }} />

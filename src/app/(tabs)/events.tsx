@@ -214,11 +214,7 @@ export default function EventsScreen() {
   };
 
   if (loading) {
-    return (
-      <ThemedView style={styles.center}>
-        <EventsListSkeleton />
-      </ThemedView>
-    );
+    return <EventsListSkeleton />;
   }
 
   const featured = events.slice(0, 5);

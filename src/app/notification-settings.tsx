@@ -11,6 +11,7 @@ import {
   updateNotificationPreferences,
 } from "@/services/notifications";
 import type { NotificationPreferences } from "@/services/database.types";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -83,10 +84,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  backText: {
-    fontSize: 20,
-    fontWeight: "600",
-  },
   headerTitle: {
     fontSize: 17,
   },
@@ -137,19 +134,15 @@ export default function NotificationSettingsScreen() {
   };
 
   if (loading) {
-    return (
-      <ThemedView style={styles.center}>
-        <SettingsSkeleton />
-      </ThemedView>
-    );
+    return <SettingsSkeleton />;
   }
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <ThemedView style={styles.header}>
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={styles.backButton}>
-            <ThemedText style={styles.backText}>{"<"}</ThemedText>
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={styles.backButton} accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </Pressable>
           <ThemedText type="smallBold" style={styles.headerTitle}>
             Notification Settings

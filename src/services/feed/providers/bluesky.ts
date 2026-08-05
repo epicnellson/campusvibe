@@ -1,15 +1,13 @@
 import { Platform } from "react-native";
 import type { IFeedProvider, FetchContext, FetchResult, RateBudget, HealthStatus } from "./types";
 import type { FeedItem } from "../types";
-import { computeDedupKeys, stripHtml, safeDate } from "../normalize";
+import { computeDedupKeys, stripHtml, safeDate, shuffle } from "../normalize";
 import { feedProxy } from "../../feed-proxy";
 
 const SEARCH_QUERIES = [
-  "education", "university", "campus life", "study tips",
-  "college students", "academic research", "graduation",
-  "scholarship", "online learning", "classroom",
-  "teaching", "STEM education", "student mental health",
-  "higher education", "study abroad",
+  "funny", "jokes", "memes", "lol",
+  "comedy", "humor", "hilarious", "funny memes",
+  "dad jokes", "meme", "funny stories", "rofl",
 ];
 
 const SUPPORTED_LANGUAGES = new Set(["en", "und"]);
@@ -96,7 +94,8 @@ export class BlueskyProvider implements IFeedProvider {
   }
 
   normalize(raw: unknown[], fetchedAt: Date): FeedItem[] {
-    return (raw as any[])
+    return shuffle(
+      (raw as any[])
       .filter((p) => {
         const text = p?.record?.text;
         if (!text || typeof text !== "string" || text.trim().length === 0) return false;
@@ -158,13 +157,14 @@ export class BlueskyProvider implements IFeedProvider {
           },
           scores: { composite: 0, freshness: 0, engagement: 0, quality: 0, diversity: 0, interest: 0, relationship: 0, trending: 0, exploration: 0, campusRelevance: 0, sessionFit: 0 },
           diversitySlot: hasVideo ? "social_video" : imageUrl ? "social_image" : "social_text",
-          contentCategory: "general" as const,
+          contentCategory: "memes" as const,
           dedup: { nativeId: p.uri, canonicalUrl: null, imageUrl: null, videoId: null, titleHash: 0, bodyHash: 0 },
           meta: { language: langs[0] ?? null },
         };
         computeDedupKeys(item);
         return item;
-      });
+      })
+    );
   }
 
   cachePrefix(): string { return "bsky_v3"; }

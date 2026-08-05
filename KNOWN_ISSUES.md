@@ -67,5 +67,5 @@
 | 31 | `src/constants/theme.ts` is a duplicate of `src/theme/index.ts`. Many files import from both. | Consolidate into a single theme source of truth. |
 | 32 | `Spacing` constants defined differently in `constants/theme.ts` (half/one/two/three/four/five/six) vs `theme/index.ts` (xs/sm/md/lg/xl). Both are used across files. | Standardize on one naming convention. |
 | 33 | `PostCard` uses both `useTheme()` and `colors` directly — inconsistent styling approach. | Audit all components and use only one pattern. |
-| 34 | Test coverage is minimal (jest config + auth + posts tests only). | Add tests for events, marketplace, chats, confessions, and RLS policies. |
+| 34 | Test coverage is limited to service-layer unit tests (auth, posts, confessions — 18 passing via `npm test`). No component or integration tests. | Add tests for events, marketplace, chats, and RLS policies. |
 | 35 | Migration 00018 adds FK constraints from content tables to `profiles` for PostgREST join support. Run on Supabase before deploying code changes. | Required for `profiles(name)` and `creator:profiles(name)` query syntax to work. |

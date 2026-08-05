@@ -86,7 +86,7 @@
       [
         "expo-notifications",
         {
-    "icon": "./assets/images/logo.png",
+          "icon": "./assets/images/logo.png",
           "color": "#208AEF"
         }
       ],
@@ -95,6 +95,12 @@
         {
           "cameraPermission": "CampusVibe needs camera access for video calls.",
           "microphonePermission": "CampusVibe needs microphone access for voice calls."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "CampusVibe uses the microphone for voice calls and audio messages."
         }
       ]
     ],

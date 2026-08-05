@@ -86,10 +86,11 @@ async function addDocToCollection(
   collectionName: string,
   data: DocumentData
 ): Promise<string> {
-  const ref = await addDoc(collection(db, collectionName), {
-    ...data,
-    created_at: serverTimestamp(),
-  });
+  const payload = { ...data };
+  if (!payload.created_at) {
+    payload.created_at = serverTimestamp();
+  }
+  const ref = await addDoc(collection(db, collectionName), payload);
   return ref.id;
 }
 
@@ -133,7 +134,7 @@ function subscribeToDoc(
 ): Unsubscribe {
   return onSnapshot(doc(db, collectionName, id), (snap) => {
     callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-  });
+  }, () => {});
 }
 
 function subscribeToCollection(
@@ -163,7 +164,7 @@ function subscribeToCollection(
 
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-  });
+  }, () => {});
 }
 
 function runBatch(operations: Array<{ type: "set" | "update" | "delete"; collection: string; id: string; data?: DocumentData }>): Promise<void> {

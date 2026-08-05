@@ -34,9 +34,11 @@ import { fetchComments, createComment } from "@/services/comments";
 import { followUser, unfollowUser } from "@/services/follows";
 import { submitReport } from "@/services/reports";
 import { resolveImageUrl } from "@/services/storage";
-import { repostPost, unrepostPost } from "@/services/reposts";
-import { setReaction, removeReaction, REACTION_EMOJIS, type ReactionEmoji } from "@/services/reactions";
+import { repostPost, unrepostPost, getRepostCount, getUserRepostedPostIds } from "@/services/reposts";
+import { setReaction, removeReaction, fetchReactions, REACTION_EMOJIS, type Reaction, type ReactionEmoji } from "@/services/reactions";
 import { db_ops } from "@/services/db";
+import { db } from "@/services/firebase";
+import { doc, query, where, collection, onSnapshot } from "firebase/firestore";
 import type { PostWithProfile, CommentWithProfile } from "@/services/database.types";
 import { relativeTime, fullTimestamp } from "@/utils/date";
 
@@ -72,8 +74,15 @@ export default function PostDetailScreen() {
     reactionsMap,
     repostedIds,
     repostCounts,
+    commentCounts,
     toggleReaction: ctxToggleReaction,
     toggleRepost: ctxToggleRepost,
+    setCommentCount,
+    incrementCommentCount,
+    decrementCommentCount,
+    setReactionsForPost,
+    setRepostedForPost,
+    setRepostCountForPost,
   } = usePostInteractions();
 
   const likeScale = useRef(new Animated.Value(1)).current;
@@ -89,15 +98,29 @@ export default function PostDetailScreen() {
     try {
       setLoading(true);
       setError(null);
-      const [postData, commentResult] = await Promise.allSettled([
+      const [postData, commentResult, reactionsResult] = await Promise.allSettled([
         fetchPostById(id),
         fetchComments(id),
+        fetchReactions(id),
       ]);
       if (postData.status === "fulfilled") setPost(postData.value);
       else throw postData.reason;
-      setComments(commentResult.status === "fulfilled" ? commentResult.value : []);
+      const fetchedComments = commentResult.status === "fulfilled" ? commentResult.value : [];
+      setComments(fetchedComments);
+      const fetchedReactions = reactionsResult.status === "fulfilled" ? reactionsResult.value : [];
+      setReactionsForPost(id, fetchedReactions);
+      setCommentCount(id, fetchedComments.length);
 
-      if (currentUserId && postData.status === "fulfilled" && postData.value?.user_id && postData.value.user_id !== currentUserId) {
+      if (currentUserId) {
+        const [repostedSet, repostCount] = await Promise.all([
+          getUserRepostedPostIds(currentUserId),
+          getRepostCount(id),
+        ]);
+        setRepostedForPost(id, repostedSet.has(id));
+        setRepostCountForPost(id, repostCount);
+      }
+
+      if (postData.status === "fulfilled" && postData.value?.user_id && postData.value.user_id !== currentUserId) {
         const followId = `${currentUserId}_${postData.value.user_id}`;
         const existing = await db_ops.get("follows", followId);
         setIsFollowing(!!existing);
@@ -111,11 +134,38 @@ export default function PostDetailScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (!id) return;
+    const unsubscribes: (() => void)[] = [];
+
+    const postRef = doc(db, "posts", id);
+    unsubscribes.push(
+      onSnapshot(postRef, (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data() as Record<string, any>;
+        const updatedLikes = (data.likes ?? []).map((uid: string) => ({ user_id: uid }));
+        setPost((prev) => (prev ? { ...prev, likes: updatedLikes } : prev));
+      }, () => {})
+    );
+
+    const reactionsQuery = query(collection(db, "reactions"), where("post_id", "==", id));
+    unsubscribes.push(
+      onSnapshot(reactionsQuery, (snapshot) => {
+        const postReactions = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, any>) })) as Reaction[];
+        setReactionsForPost(id, postReactions);
+      }, () => {})
+    );
+
+    return () => {
+      for (const unsub of unsubscribes) unsub();
+    };
+  }, [id, setReactionsForPost]);
+
   const userLiked = post?.likes?.some((l) => l.user_id === currentUserId) ?? false;
   const likeCount = post?.likes?.length ?? 0;
   const reactions = (id ? reactionsMap.get(id as string) : undefined) ?? [];
   const userReaction = reactions.find((r) => r.user_id === currentUserId)?.emoji ?? null;
-  const commentCount = comments.length;
+  const commentCount = (id ? commentCounts.get(id as string) : undefined) ?? comments.length;
   const isReposted = (id ? repostedIds.has(id as string) : false);
   const repostCount = (id ? repostCounts.get(id as string) : undefined) ?? 0;
   const authorName = post?.profiles?.name ?? "Unknown";
@@ -270,6 +320,7 @@ export default function PostDetailScreen() {
     setReplyError(null);
     setReplyText("");
     setComments((prev) => [...prev, optimistic]);
+    incrementCommentCount(id);
     setSendingReply(true);
     try {
       const created = await createComment(id, text);
@@ -279,9 +330,11 @@ export default function PostDetailScreen() {
         );
         const updated = await fetchComments(id);
         setComments(updated);
+        setCommentCount(id, updated.length);
       }
     } catch (e) {
       setComments((prev) => prev.filter((c) => c.id !== optimistic.id));
+      decrementCommentCount(id);
       const err = e as Error & { code?: string };
       const msg = err?.message ?? "Failed to send reply";
       const code = err?.code ?? "";
@@ -293,7 +346,7 @@ export default function PostDetailScreen() {
     } finally {
       setSendingReply(false);
     }
-  }, [id, replyText, sendingReply, currentUserId]);
+  }, [id, replyText, sendingReply, currentUserId, incrementCommentCount, decrementCommentCount, setCommentCount]);
 
   const menuItems: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void; color?: string }[] = [
     { label: "Report post", icon: "flag-outline", onPress: handleReport },
@@ -667,11 +720,7 @@ export default function PostDetailScreen() {
   });
 
   if (loading) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <DetailSkeleton />
-      </View>
-    );
+    return <DetailSkeleton />;
   }
 
   if (error || !post) {

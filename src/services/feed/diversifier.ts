@@ -38,8 +38,8 @@ type DiversifyOptions = {
 export function diversify(items: FeedItem[], opts: DiversifyOptions): FeedItem[] {
   const {
     pageSize,
-    campusRatioMin = 0.70,
-    campusRatioMax = 0.85,
+    campusRatioMin = 0.45,
+    campusRatioMax = 0.55,
     maxSameAuthor = 2,
     maxConsecutiveType = 3,
     explorationSlots = 0,

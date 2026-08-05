@@ -1,80 +1,92 @@
 /**
- * Auth flow tests — Firebase Email Link
+ * Auth flow tests — Firebase Email/Password + Google
  */
 
-import { validateEmailDomain, sendMagicLink, completeEmailLinkSignIn } from "@/services/auth";
+import { signUp, signIn, resendVerification, signOut } from "@/services/auth";
 import { auth } from "@/services/firebase";
-import { sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  signOut as fbSignOut,
+} from "firebase/auth";
 
-jest.mock("firebase/auth");
+const mockFirebaseUser = { uid: "user-1", email: "test@university.edu" };
 
 beforeEach(() => {
   jest.clearAllMocks();
 });
 
-describe("validateEmailDomain", () => {
-  it("returns null for allowed .edu domain", () => {
-    expect(validateEmailDomain("test@harvard.edu")).toBeNull();
-  });
-
-  it("returns null for configured custom domain", () => {
-    expect(validateEmailDomain("test@myuniversity.edu")).toBeNull();
-  });
-
-  it("returns error for non-university domain", () => {
-    const result = validateEmailDomain("test@gmail.com");
-    expect(result).toContain("Only university email addresses are allowed");
-  });
-
-  it("returns error for invalid email without domain", () => {
-    expect(validateEmailDomain("invalid")).toBe("Invalid email address");
-  });
-
-  it("handles empty email", () => {
-    expect(validateEmailDomain("")).toBe("Invalid email address");
-  });
-});
-
-describe("sendMagicLink", () => {
-  it("calls Firebase sendSignInLinkToEmail with email and actionCodeSettings", async () => {
-    (sendSignInLinkToEmail as jest.Mock).mockResolvedValueOnce(undefined);
-
-    await sendMagicLink("test@university.edu");
-
-    expect(sendSignInLinkToEmail).toHaveBeenCalledWith(auth, "test@university.edu", {
-      url: expect.stringContaining("auth/callback"),
-      handleCodeInApp: true,
+describe("signUp", () => {
+  it("creates the user and sends an email verification", async () => {
+    (createUserWithEmailAndPassword as jest.Mock).mockResolvedValueOnce({
+      user: mockFirebaseUser,
     });
+
+    const user = await signUp("test@university.edu", "secret123");
+
+    expect(createUserWithEmailAndPassword).toHaveBeenCalledWith(
+      auth,
+      "test@university.edu",
+      "secret123"
+    );
+    expect(sendEmailVerification).toHaveBeenCalledWith(mockFirebaseUser);
+    expect(user).toBe(mockFirebaseUser);
   });
 
-  it("throws if Firebase returns error", async () => {
-    (sendSignInLinkToEmail as jest.Mock).mockRejectedValueOnce(
-      new Error("Rate limit exceeded")
+  it("throws when Firebase rejects", async () => {
+    (createUserWithEmailAndPassword as jest.Mock).mockRejectedValueOnce(
+      new Error("email-already-in-use")
     );
 
-    await expect(sendMagicLink("test@university.edu")).rejects.toThrow(
-      "Rate limit exceeded"
+    await expect(signUp("test@university.edu", "secret123")).rejects.toThrow(
+      "email-already-in-use"
     );
   });
 });
 
-describe("completeEmailLinkSignIn", () => {
-  it("calls Firebase signInWithEmailLink with email and link", async () => {
-    (isSignInWithEmailLink as jest.Mock).mockReturnValueOnce(true);
-    (signInWithEmailLink as jest.Mock).mockResolvedValueOnce({
-      user: { uid: "user-1", email: "test@university.edu" },
+describe("signIn", () => {
+  it("signs in via Firebase email + password", async () => {
+    (signInWithEmailAndPassword as jest.Mock).mockResolvedValueOnce({
+      user: mockFirebaseUser,
     });
 
-    await completeEmailLinkSignIn("test@university.edu", "https://example.com/...");
+    const user = await signIn("test@university.edu", "secret123");
 
-    expect(signInWithEmailLink).toHaveBeenCalledWith(auth, "test@university.edu", "https://example.com/...");
+    expect(signInWithEmailAndPassword).toHaveBeenCalledWith(
+      auth,
+      "test@university.edu",
+      "secret123"
+    );
+    expect(user).toBe(mockFirebaseUser);
+  });
+});
+
+describe("resendVerification", () => {
+  it("sends a verification email to the current user", async () => {
+    await resendVerification();
+
+    expect(sendEmailVerification).toHaveBeenCalledWith(
+      expect.objectContaining({ uid: "user-1" })
+    );
   });
 
-  it("throws if link is invalid", async () => {
-    (isSignInWithEmailLink as jest.Mock).mockReturnValueOnce(false);
+  it("throws when there is no signed-in user", async () => {
+    const original = auth.currentUser;
+    (auth as any).currentUser = null;
 
-    await expect(
-      completeEmailLinkSignIn("test@university.edu", "https://invalid-link.com")
-    ).rejects.toThrow("Invalid sign-in link");
+    await expect(resendVerification()).rejects.toThrow("No authenticated user");
+
+    (auth as any).currentUser = original;
+  });
+});
+
+describe("signOut", () => {
+  it("calls Firebase signOut", async () => {
+    (fbSignOut as jest.Mock).mockResolvedValueOnce(undefined);
+
+    await signOut();
+
+    expect(fbSignOut).toHaveBeenCalledWith(auth);
   });
 });
